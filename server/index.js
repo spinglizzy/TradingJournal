@@ -1,0 +1,37 @@
+import express from 'express'
+import cors from 'cors'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+import tradesRouter     from './routes/trades.js'
+import statsRouter      from './routes/stats.js'
+import analyticsRouter  from './routes/analytics.js'
+import journalRouter    from './routes/journal.js'
+import strategiesRouter from './routes/strategies.js'
+import tagsRouter       from './routes/tags.js'
+import uploadRouter     from './routes/upload.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const app = express()
+const PORT = 3001
+
+app.use(cors())
+app.use(express.json())
+app.use('/uploads', express.static(join(__dirname, '..', 'public', 'uploads')))
+
+app.use('/api/trades',      tradesRouter)
+app.use('/api/stats',       statsRouter)
+app.use('/api/analytics',   analyticsRouter)
+app.use('/api/journal',     journalRouter)
+app.use('/api/strategies',  strategiesRouter)
+app.use('/api/tags',        tagsRouter)
+app.use('/api/upload',      uploadRouter)
+
+app.use((err, _req, res, _next) => {
+  console.error(err)
+  res.status(500).json({ error: err.message || 'Internal server error' })
+})
+
+app.listen(PORT, () => {
+  console.log(`Trading Journal API running on http://localhost:${PORT}`)
+})
