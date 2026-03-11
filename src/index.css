@@ -1,10 +1,32 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    color-scheme: dark;
-  }
+/* ── Default CSS variable values (Classic Dark) ─────────────────────────────── */
+:root {
+  --color-accent:         #6366f1;
+  --color-accent-hover:   #4f46e5;
+  --color-accent-light:   #818cf8;
+  --color-profit:         #10b981;
+  --color-loss:           #ef4444;
+  --color-sidebar:        #111827;
+  --color-base:           #030712;
+  --color-card:           #111827;
+  --color-card-2:         #1f2937;
+  --color-border:         #1f2937;
+  --color-text-primary:   #ffffff;
+  --color-text-secondary: #9ca3af;
+  --color-text-muted:     #6b7280;
+  --chart-1: #6366f1;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ec4899;
+  --chart-5: #06b6d4;
+  --chart-6: #8b5cf6;
+  --chart-7: #f97316;
+  --chart-8: #14b8a6;
+  color-scheme: dark;
+}
 
+@layer base {
   body {
     @apply bg-gray-950 text-gray-100 antialiased;
     margin: 0;
@@ -16,20 +38,99 @@
     @apply border-gray-800;
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-gray-900;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-gray-700 rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-600;
-  }
+  ::-webkit-scrollbar        { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track  { @apply bg-gray-900; }
+  ::-webkit-scrollbar-thumb  { @apply bg-gray-700 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gray-600; }
 }
+
+/* ── Profit / Loss colour overrides (all themes) ────────────────────────────── */
+/* These classes map to our semantic profit/loss CSS variables.
+   Tailwind specificity = (0,0,1,0). We match it so !important is not needed
+   unless another rule is more specific. Using the same specificity means the
+   last rule wins — ours come after Tailwind in the cascade. */
+.text-emerald-400 { color: var(--color-profit) !important; }
+.text-red-400     { color: var(--color-loss)   !important; }
+
+/* Bg tints used for P&L icons (emerald-500/10, red-500/10) */
+.bg-emerald-500\/10 { background-color: color-mix(in srgb, var(--color-profit) 10%, transparent) !important; }
+.bg-red-500\/10     { background-color: color-mix(in srgb, var(--color-loss)   10%, transparent) !important; }
+.bg-emerald-500\/15 { background-color: color-mix(in srgb, var(--color-profit) 15%, transparent) !important; }
+.bg-red-500\/15     { background-color: color-mix(in srgb, var(--color-loss)   15%, transparent) !important; }
+.bg-emerald-500\/20 { background-color: color-mix(in srgb, var(--color-profit) 20%, transparent) !important; }
+.text-emerald-300   { color: color-mix(in srgb, var(--color-profit) 70%, #fff) !important; }
+
+/* ── Accent colour overrides (all themes) ───────────────────────────────────── */
+.bg-indigo-600                  { background-color: var(--color-accent) !important; }
+.hover\:bg-indigo-700:hover     { background-color: var(--color-accent-hover) !important; }
+.hover\:bg-indigo-500:hover     { background-color: color-mix(in srgb, var(--color-accent) 85%, #fff) !important; }
+.focus\:bg-indigo-700:focus     { background-color: var(--color-accent-hover) !important; }
+.bg-indigo-500                  { background-color: var(--color-accent) !important; }
+.bg-indigo-600\/15              { background-color: color-mix(in srgb, var(--color-accent) 15%, transparent) !important; }
+.bg-indigo-600\/20              { background-color: color-mix(in srgb, var(--color-accent) 20%, transparent) !important; }
+.bg-indigo-500\/10              { background-color: color-mix(in srgb, var(--color-accent) 10%, transparent) !important; }
+.bg-indigo-500\/15              { background-color: color-mix(in srgb, var(--color-accent) 15%, transparent) !important; }
+.bg-indigo-500\/20              { background-color: color-mix(in srgb, var(--color-accent) 20%, transparent) !important; }
+.text-indigo-400                { color: var(--color-accent-light) !important; }
+.text-indigo-300                { color: color-mix(in srgb, var(--color-accent-light) 85%, #fff) !important; }
+.border-indigo-500              { border-color: var(--color-accent) !important; }
+.border-indigo-500\/40          { border-color: color-mix(in srgb, var(--color-accent) 40%, transparent) !important; }
+.border-indigo-500\/50          { border-color: color-mix(in srgb, var(--color-accent) 50%, transparent) !important; }
+.focus\:border-indigo-500:focus { border-color: var(--color-accent) !important; }
+.ring-indigo-400                { --tw-ring-color: var(--color-accent) !important; }
+.ring-2.ring-indigo-400         { box-shadow: 0 0 0 2px var(--color-accent) !important; }
+.text-indigo-500                { color: var(--color-accent) !important; }
+.shadow-indigo-500\/20          { --tw-shadow-color: color-mix(in srgb, var(--color-accent) 20%, transparent) !important; }
+
+/* active nav */
+.bg-indigo-600.text-white { background-color: var(--color-accent) !important; }
+
+/* ── Light mode overrides ────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Backgrounds */
+[data-theme="light"] .bg-gray-950 { background-color: var(--color-base) !important; }
+[data-theme="light"] .bg-gray-900 { background-color: var(--color-card) !important; }
+[data-theme="light"] .bg-gray-800 { background-color: var(--color-card-2) !important; }
+[data-theme="light"] .bg-gray-800\/30,
+[data-theme="light"] .bg-gray-800\/60 { background-color: color-mix(in srgb, var(--color-card-2) 60%, transparent) !important; }
+[data-theme="light"] .hover\:bg-gray-800:hover { background-color: var(--color-card-2) !important; }
+[data-theme="light"] .hover\:bg-gray-700:hover { background-color: color-mix(in srgb, var(--color-card-2) 80%, transparent) !important; }
+[data-theme="light"] .hover\:bg-gray-800\/60:hover { background-color: color-mix(in srgb, var(--color-card-2) 60%, transparent) !important; }
+[data-theme="light"] .bg-gray-750 { background-color: var(--color-card-2) !important; }
+
+/* Borders */
+[data-theme="light"] .border-gray-800 { border-color: var(--color-border) !important; }
+[data-theme="light"] .border-gray-700 { border-color: var(--color-border) !important; }
+[data-theme="light"] .border-gray-600 { border-color: color-mix(in srgb, var(--color-border) 70%, #000) !important; }
+[data-theme="light"] * { border-color: var(--color-border); }
+
+/* Text */
+[data-theme="light"] .text-white     { color: var(--color-text-primary)   !important; }
+[data-theme="light"] .text-gray-100  { color: var(--color-text-primary)   !important; }
+[data-theme="light"] .text-gray-200  { color: var(--color-text-primary)   !important; }
+[data-theme="light"] .text-gray-300  { color: var(--color-text-secondary) !important; }
+[data-theme="light"] .text-gray-400  { color: var(--color-text-secondary) !important; }
+[data-theme="light"] .text-gray-500  { color: var(--color-text-muted)     !important; }
+[data-theme="light"] .text-gray-600  { color: var(--color-text-muted)     !important; }
+[data-theme="light"] .text-gray-700  { color: var(--color-text-muted)     !important; }
+[data-theme="light"] .hover\:text-white:hover   { color: var(--color-text-primary) !important; }
+[data-theme="light"] .hover\:text-gray-300:hover { color: var(--color-text-secondary) !important; }
+[data-theme="light"] .placeholder-gray-600::placeholder { color: var(--color-text-muted) !important; }
+[data-theme="light"] .placeholder-gray-500::placeholder { color: var(--color-text-muted) !important; }
+
+/* Inputs in light mode */
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  color-scheme: light;
+}
+
+/* Scrollbar in light mode */
+[data-theme="light"] ::-webkit-scrollbar-track { background: var(--color-card-2); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: var(--color-border); }
+
+/* Body background */
+[data-theme="light"] body { background-color: var(--color-base); color: var(--color-text-primary); }

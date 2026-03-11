@@ -7,7 +7,7 @@ const router = Router()
 router.get('/', (req, res) => {
   const {
     start_date, end_date, ticker, direction, strategy_id,
-    status, tag, search,
+    status, tag, search, account_id,
     sort_by = 'date', sort_dir = 'desc',
     page = 1, limit = 50,
   } = req.query
@@ -15,6 +15,7 @@ router.get('/', (req, res) => {
   let where = ['1=1']
   const params = []
 
+  if (account_id)   { where.push('t.account_id = ?'); params.push(account_id) }
   if (start_date)   { where.push('t.date >= ?'); params.push(start_date) }
   if (end_date)     { where.push('t.date <= ?'); params.push(end_date) }
   if (ticker)       { where.push('t.ticker LIKE ?'); params.push(`%${ticker}%`) }
@@ -89,11 +90,13 @@ router.post('/', (req, res) => {
 
   const result = db.prepare(`
     INSERT INTO trades (date, ticker, direction, entry_price, exit_price, stop_loss,
-      position_size, fees, strategy_id, timeframe, notes, screenshot_path,
-      status, pnl, pnl_percent, r_multiple)
+      position_size, fees, strategy_id, timeframe, notes, screenshot_path, account_id,
+      status, pnl, pnl_percent, r_multiple,
+      confidence, emotions, mistakes, setup, emotion_intensity, rules_followed, rules_broken)
     VALUES (@date, @ticker, @direction, @entry_price, @exit_price, @stop_loss,
-      @position_size, @fees, @strategy_id, @timeframe, @notes, @screenshot_path,
-      @status, @pnl, @pnl_percent, @r_multiple)
+      @position_size, @fees, @strategy_id, @timeframe, @notes, @screenshot_path, @account_id,
+      @status, @pnl, @pnl_percent, @r_multiple,
+      @confidence, @emotions, @mistakes, @setup, @emotion_intensity, @rules_followed, @rules_broken)
   `).run({ ...fields, status, pnl, pnl_percent, r_multiple })
 
   const tradeId = result.lastInsertRowid
@@ -121,14 +124,66 @@ router.put('/:id', (req, res) => {
       date = @date, ticker = @ticker, direction = @direction,
       entry_price = @entry_price, exit_price = @exit_price, stop_loss = @stop_loss,
       position_size = @position_size, fees = @fees, strategy_id = @strategy_id,
-      timeframe = @timeframe, notes = @notes, screenshot_path = @screenshot_path,
+      timeframe = @timeframe, notes = @notes, screenshot_path = @screenshot_path, account_id = @account_id,
       status = @status, pnl = @pnl, pnl_percent = @pnl_percent, r_multiple = @r_multiple,
+      confidence = @confidence, emotions = @emotions, mistakes = @mistakes, setup = @setup,
+      emotion_intensity = @emotion_intensity, rules_followed = @rules_followed, rules_broken = @rules_broken,
       updated_at = datetime('now')
     WHERE id = @id
   `).run({ ...merged, status, pnl, pnl_percent, r_multiple, id: req.params.id })
 
   syncTags(req.params.id, tags)
   res.json(getTradeById(req.params.id))
+})
+
+// ── Get journal entries linked to a trade ────────────────────────────────────
+router.get('/:id/journal', (req, res) => {
+  const entries = db.prepare(`
+    SELECT je.id, je.date, je.title, je.mood
+    FROM journal_trade_links jtl
+    JOIN journal_entries je ON jtl.journal_id = je.id
+    WHERE jtl.trade_id = ?
+    ORDER BY je.date DESC
+  `).all(req.params.id)
+  res.json(entries)
+})
+
+// ── Get prev/next trade IDs ───────────────────────────────────────────────────
+router.get('/:id/neighbors', (req, res) => {
+  const trade = db.prepare('SELECT date, id FROM trades WHERE id = ?').get(req.params.id)
+  if (!trade) return res.status(404).json({ error: 'Trade not found' })
+
+  const prev = db.prepare(`
+    SELECT id FROM trades WHERE date < ? OR (date = ? AND id < ?)
+    ORDER BY date DESC, id DESC LIMIT 1
+  `).get(trade.date, trade.date, trade.id)
+
+  const next = db.prepare(`
+    SELECT id FROM trades WHERE date > ? OR (date = ? AND id > ?)
+    ORDER BY date ASC, id ASC LIMIT 1
+  `).get(trade.date, trade.date, trade.id)
+
+  res.json({ prev: prev?.id ?? null, next: next?.id ?? null })
+})
+
+// ── Executions CRUD ───────────────────────────────────────────────────────────
+router.get('/:id/executions', (req, res) => {
+  const rows = db.prepare('SELECT * FROM executions WHERE trade_id = ? ORDER BY executed_at ASC, id ASC').all(req.params.id)
+  res.json(rows)
+})
+
+router.post('/:id/executions', (req, res) => {
+  const { type, price, quantity, fees = 0, executed_at, notes } = req.body
+  const result = db.prepare(`
+    INSERT INTO executions (trade_id, type, price, quantity, fees, executed_at, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(req.params.id, type, price, quantity, fees, executed_at, notes)
+  res.status(201).json(db.prepare('SELECT * FROM executions WHERE id = ?').get(result.lastInsertRowid))
+})
+
+router.delete('/:id/executions/:execId', (req, res) => {
+  db.prepare('DELETE FROM executions WHERE id = ? AND trade_id = ?').run(req.params.execId, req.params.id)
+  res.json({ success: true })
 })
 
 // ── Delete trade ─────────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ function SortIcon({ active, dir }) {
   )
 }
 
-export default function TradeTable({ trades, sort, onSort, onEdit, onDelete }) {
+export default function TradeTable({ trades, sort, onSort, onEdit, onDelete, onView }) {
   if (!trades.length) return (
     <div className="text-center py-16 text-gray-600 border border-gray-800 rounded-xl">
       No trades found
@@ -59,7 +59,10 @@ export default function TradeTable({ trades, sort, onSort, onEdit, onDelete }) {
           </thead>
           <tbody className="divide-y divide-gray-800/60">
             {trades.map(trade => (
-              <tr key={trade.id} className="hover:bg-gray-800/30 transition-colors group">
+              <tr key={trade.id}
+                className="hover:bg-gray-800/40 transition-colors group cursor-pointer"
+                onClick={() => onView?.(trade.id)}
+              >
                 <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">
                   {format(parseISO(trade.date), 'MMM d, yyyy')}
                 </td>
@@ -96,13 +99,13 @@ export default function TradeTable({ trades, sort, onSort, onEdit, onDelete }) {
                 <td className="px-4 py-3"><StatusBadge status={trade.status} /></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => onEdit(trade.id)}
+                    <button onClick={(e) => { e.stopPropagation(); onEdit(trade.id) }}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
-                    <button onClick={() => onDelete(trade.id)}
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(trade.id) }}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

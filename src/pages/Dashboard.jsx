@@ -1,139 +1,129 @@
-import { useEffect, useState } from 'react'
-import { statsApi } from '../api/stats.js'
-import StatCard from '../components/ui/StatCard.jsx'
-import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
-import EquityCurve from '../components/charts/EquityCurve.jsx'
-import MonthlyPnL from '../components/charts/MonthlyPnL.jsx'
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, LayoutDashboard } from 'lucide-react'
+import { DashboardProvider } from '../contexts/DashboardContext.jsx'
+import WidgetGrid      from '../components/dashboard/WidgetGrid.jsx'
+import WidgetPicker    from '../components/dashboard/WidgetPicker.jsx'
+import PresetManager   from '../components/dashboard/PresetManager.jsx'
+import DateRangeFilter from '../components/dashboard/DateRangeFilter.jsx'
+import { WIDGET_REGISTRY, DEFAULT_LAYOUT } from '../components/dashboard/widgetRegistry.js'
 
-function fmt(n, decimals = 2) {
-  if (n == null) return '—'
-  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+const LAYOUT_KEY = 'dashboard_layout'
+
+function loadLayout() {
+  try {
+    const saved = localStorage.getItem(LAYOUT_KEY)
+    if (saved) return JSON.parse(saved)
+  } catch {}
+  return DEFAULT_LAYOUT
 }
 
-export default function Dashboard() {
-  const [summary, setSummary]   = useState(null)
-  const [equity, setEquity]     = useState([])
-  const [monthly, setMonthly]   = useState([])
-  const [streaks, setStreaks]    = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
+function saveLayout(layout) {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout))
+}
 
-  useEffect(() => {
-    Promise.all([
-      statsApi.summary(),
-      statsApi.equityCurve(),
-      statsApi.monthly(),
-      statsApi.streaks(),
-    ])
-      .then(([s, e, m, st]) => {
-        setSummary(s)
-        setEquity(e)
-        setMonthly(m)
-        setStreaks(st)
-      })
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false))
+// Unique ID generator
+let _uid = Date.now()
+function uid() { return `w-${++_uid}` }
+
+export default function Dashboard() {
+  return (
+    <DashboardProvider>
+      <DashboardInner />
+    </DashboardProvider>
+  )
+}
+
+function DashboardInner() {
+  const [layout, setLayoutRaw]  = useState(loadLayout)
+  const [showPicker, setPicker] = useState(false)
+
+  // Persist layout on every change
+  const setLayout = useCallback((updater) => {
+    setLayoutRaw(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      saveLayout(next)
+      return next
+    })
   }, [])
 
-  if (error) return (
-    <div className="flex items-center justify-center h-64 text-red-400 text-sm">{error}</div>
-  )
+  function addWidget(type) {
+    const meta = WIDGET_REGISTRY[type]
+    setLayout(prev => [
+      ...prev,
+      {
+        id:       uid(),
+        type,
+        size:     meta?.defaultSize ?? 'medium',
+        settings: {},
+      },
+    ])
+  }
 
-  const pnlPositive = summary?.total_pnl >= 0
+  const existingTypes = layout.map(w => w.type)
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Your trading performance at a glance</p>
+    <div className="space-y-5">
+      {/* Page header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-indigo-400" />
+            <h1 className="text-xl font-bold text-white">Dashboard</h1>
+          </div>
+          <p className="text-sm text-gray-500 mt-1">
+            Drag widgets to reorder · click ⚙ to configure · click size icon to resize
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Date range filter */}
+          <DateRangeFilter />
+
+          {/* Preset manager */}
+          <PresetManager layout={layout} setLayout={setLayout} />
+
+          {/* Add widget */}
+          <button
+            onClick={() => setPicker(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+          >
+            <Plus className="w-4 h-4" />
+            Add Widget
+          </button>
+        </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <StatCard
-          title="Total P&L"
-          value={summary ? `${pnlPositive ? '+' : ''}$${fmt(summary.total_pnl)}` : null}
-          sub={`${summary?.closed_trades ?? 0} closed trades`}
-          positive={pnlPositive}
-          negative={!pnlPositive}
-          loading={loading}
-        />
-        <StatCard
-          title="Win Rate"
-          value={summary ? `${fmt(summary.win_rate, 1)}%` : null}
-          sub={`${summary?.wins ?? 0}W / ${summary?.losses ?? 0}L`}
-          loading={loading}
-        />
-        <StatCard
-          title="Avg Win"
-          value={summary ? `$${fmt(summary.avg_win)}` : null}
-          sub="per winning trade"
-          positive={true}
-          loading={loading}
-        />
-        <StatCard
-          title="Avg Loss"
-          value={summary ? `$${fmt(Math.abs(summary.avg_loss))}` : null}
-          sub="per losing trade"
-          negative={true}
-          loading={loading}
-        />
-        <StatCard
-          title="Profit Factor"
-          value={summary?.profit_factor ? fmt(summary.profit_factor) : null}
-          sub={summary?.open_trades ? `${summary.open_trades} open` : 'gross profit / gross loss'}
-          positive={summary?.profit_factor >= 1}
-          loading={loading}
-        />
-      </div>
-
-      {/* Streak banner */}
-      {streaks && (
-        <div className="flex gap-4">
-          <div className={`flex-1 rounded-xl border px-5 py-4 flex items-center gap-3
-            ${streaks.current > 0
-              ? 'border-emerald-500/30 bg-emerald-500/5'
-              : streaks.current < 0
-                ? 'border-red-500/30 bg-red-500/5'
-                : 'border-gray-800 bg-gray-900'}`}>
-            <div className="text-3xl font-bold font-mono text-white">
-              {streaks.current > 0 ? `+${streaks.current}` : streaks.current}
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-300">Current Streak</div>
-              <div className="text-xs text-gray-500">
-                {streaks.current > 0 ? 'Winning' : streaks.current < 0 ? 'Losing' : 'Flat'}
-              </div>
-            </div>
+      {/* Empty state */}
+      {layout.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 border-2 border-dashed border-gray-800 rounded-2xl">
+          <div className="text-5xl">📊</div>
+          <div className="text-center">
+            <p className="text-gray-300 font-semibold">Your dashboard is empty</p>
+            <p className="text-gray-500 text-sm mt-1">Add widgets to start tracking your performance</p>
           </div>
-          <div className="flex-1 rounded-xl border border-gray-800 bg-gray-900 px-5 py-4 flex items-center gap-3">
-            <div className="text-3xl font-bold font-mono text-emerald-400">{streaks.longest_win}</div>
-            <div>
-              <div className="text-sm font-medium text-gray-300">Best Win Streak</div>
-              <div className="text-xs text-gray-500">consecutive wins</div>
-            </div>
-          </div>
-          <div className="flex-1 rounded-xl border border-gray-800 bg-gray-900 px-5 py-4 flex items-center gap-3">
-            <div className="text-3xl font-bold font-mono text-red-400">{streaks.longest_loss}</div>
-            <div>
-              <div className="text-sm font-medium text-gray-300">Worst Loss Streak</div>
-              <div className="text-xs text-gray-500">consecutive losses</div>
-            </div>
-          </div>
+          <button
+            onClick={() => setPicker(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors mt-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add your first widget
+          </button>
         </div>
       )}
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-gray-300 mb-4">Equity Curve</h2>
-          {loading ? <LoadingSpinner className="h-48" /> : <EquityCurve data={equity} />}
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-gray-300 mb-4">Monthly P&L</h2>
-          {loading ? <LoadingSpinner className="h-48" /> : <MonthlyPnL data={monthly} />}
-        </div>
-      </div>
+      {/* Widget grid */}
+      {layout.length > 0 && (
+        <WidgetGrid layout={layout} setLayout={setLayout} />
+      )}
+
+      {/* Widget picker modal */}
+      {showPicker && (
+        <WidgetPicker
+          onAdd={addWidget}
+          onClose={() => setPicker(false)}
+          existingTypes={existingTypes}
+        />
+      )}
     </div>
   )
 }
