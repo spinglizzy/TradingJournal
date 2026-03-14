@@ -40,7 +40,7 @@ function Logo() {
     <div className="flex items-center gap-2">
       <div
         className="w-7 h-7 rounded-lg flex items-center justify-center shadow-lg"
-        style={{ backgroundColor: 'var(--color-accent)', boxShadow: '0 4px 12px color-mix(in srgb, var(--color-accent) 30%, transparent)' }}
+        style={{ backgroundColor: '#9aea62', boxShadow: '0 4px 12px color-mix(in srgb, #9aea62 30%, transparent)' }}
       >
         <TrendingUp className="w-4 h-4" style={{ color: '#0a1a0a' }} />
       </div>
@@ -68,7 +68,7 @@ function Header() {
             ? 'bg-gray-950/80 backdrop-blur-xl max-w-4xl rounded-2xl lg:px-5'
             : 'bg-transparent'
         )}
-        style={scrolled ? { border: '1px solid color-mix(in srgb, var(--color-accent) 15%, transparent)' } : {}}
+        style={scrolled ? { border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' } : {}}
       >
         <div className="flex items-center justify-between gap-6 py-3.5 lg:py-4">
           <Link to="/" className="flex-shrink-0">
@@ -81,7 +81,7 @@ function Header() {
                 <a
                   href={item.href}
                   className="text-gray-400 transition-colors duration-150 hover:text-white"
-                  onMouseEnter={e => e.target.style.color = 'var(--color-accent-light)'}
+                  onMouseEnter={e => e.target.style.color = '#b5f08a'}
                   onMouseLeave={e => e.target.style.color = ''}
                 >
                   {item.label}
@@ -103,9 +103,9 @@ function Header() {
             <Link
               to="/dashboard"
               className="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150"
-              style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+              style={{ backgroundColor: '#9aea62', color: '#0a1a0a' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
             >
               {scrolled ? 'Get Started' : 'Sign Up'}
             </Link>
@@ -144,7 +144,7 @@ function Header() {
               <Link
                 to="/dashboard"
                 className="px-4 py-2.5 text-sm font-semibold text-center rounded-lg transition-all"
-                style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
+                style={{ backgroundColor: '#9aea62', color: '#0a1a0a' }}
               >
                 Sign Up Free
               </Link>
@@ -158,32 +158,32 @@ function Header() {
 
 const FEATURES = [
   {
-    icon: <FileText className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />,
+    icon: <FileText className="w-5 h-5" style={{ color: '#9aea62' }} />,
     title: 'Trade Log',
     description: 'Log every trade with full detail — entry, exit, size, R-multiple, screenshots, and notes. Never lose track of a trade again.',
   },
   {
-    icon: <BarChart2 className="w-5 h-5" style={{ color: 'var(--color-accent-light)' }} />,
+    icon: <BarChart2 className="w-5 h-5" style={{ color: '#b5f08a' }} />,
     title: 'Deep Analytics',
     description: 'Slice your performance by ticker, strategy, session, day of week, and more. Find exactly where your edge lives.',
   },
   {
-    icon: <Brain className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />,
+    icon: <Brain className="w-5 h-5" style={{ color: '#9aea62' }} />,
     title: 'Psychology Tracker',
     description: 'Track emotions, tilt score, rule violations, and mental state across sessions. Understand how psychology affects your P&L.',
   },
   {
-    icon: <BookOpen className="w-5 h-5" style={{ color: 'var(--color-accent-light)' }} />,
+    icon: <BookOpen className="w-5 h-5" style={{ color: '#b5f08a' }} />,
     title: 'Trading Playbook',
     description: 'Document your setups, entry rules, and risk management. Keep your strategy sharp and consistent.',
   },
   {
-    icon: <LineChart className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />,
+    icon: <LineChart className="w-5 h-5" style={{ color: '#9aea62' }} />,
     title: 'Performance Journal',
     description: 'Write daily notes, review your sessions, and track growth over time. Build the habit of self-review.',
   },
   {
-    icon: <Target className="w-5 h-5" style={{ color: 'var(--color-accent-light)' }} />,
+    icon: <Target className="w-5 h-5" style={{ color: '#b5f08a' }} />,
     title: 'Goals & Targets',
     description: 'Set monthly profit targets, win rate goals, and discipline metrics. Track progress and stay accountable.',
   },
@@ -225,9 +225,9 @@ function AppPreview() {
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-800">
         <div
           className="w-5 h-5 rounded flex items-center justify-center"
-          style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 20%, transparent)', border: '1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)' }}
+          style={{ backgroundColor: 'color-mix(in srgb, #9aea62 20%, transparent)', border: '1px solid color-mix(in srgb, #9aea62 30%, transparent)' }}
         >
-          <TrendingUp className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
+          <TrendingUp className="w-3 h-3" style={{ color: '#9aea62' }} />
         </div>
         <span className="text-xs font-semibold text-gray-300">TradeJournal</span>
         <div className="ml-auto flex gap-2">
@@ -248,7 +248,7 @@ function AppPreview() {
             <div className="text-xs text-gray-500 mb-1">{card.label}</div>
             <div
               className="text-sm font-bold font-mono"
-              style={{ color: card.accent ? 'var(--color-accent)' : '#d1d5db' }}
+              style={{ color: card.accent ? '#9aea62' : '#d1d5db' }}
             >
               {card.value}
             </div>
@@ -265,7 +265,7 @@ function AppPreview() {
               className="flex-1 rounded-sm"
               style={{
                 height: `${h}%`,
-                background: 'linear-gradient(to top, color-mix(in srgb, var(--color-accent) 60%, transparent), color-mix(in srgb, var(--color-accent) 15%, transparent))'
+                background: 'linear-gradient(to top, color-mix(in srgb, #9aea62 60%, transparent), color-mix(in srgb, #9aea62 15%, transparent))'
               }}
             />
           ))}
@@ -285,7 +285,7 @@ function AppPreview() {
             </div>
             <span
               className="text-xs font-mono font-semibold"
-              style={{ color: row.pos ? 'var(--color-accent)' : '#f87171' }}
+              style={{ color: row.pos ? '#9aea62' : '#f87171' }}
             >
               {row.pnl}
             </span>
@@ -298,7 +298,7 @@ function AppPreview() {
 
 export default function Landing() {
   return (
-    <div className="min-h-screen text-white overflow-x-hidden" style={{ backgroundColor: 'var(--color-base, #030712)' }}>
+    <div className="min-h-screen text-white overflow-x-hidden" style={{ backgroundColor: '#030712' }}>
       {/* Stars */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }} aria-hidden="true">
         <StarsBackground starDensity={0.00015} minTwinkleSpeed={0.6} maxTwinkleSpeed={1.2} />
@@ -307,7 +307,7 @@ export default function Landing() {
       {/* Subtle atmospheric glow */}
       <div
         className="fixed top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full blur-3xl pointer-events-none"
-        style={{ zIndex: 0, background: 'radial-gradient(ellipse, color-mix(in srgb, var(--color-accent) 4%, transparent), transparent 70%)' }}
+        style={{ zIndex: 0, background: 'radial-gradient(ellipse, color-mix(in srgb, #9aea62 4%, transparent), transparent 70%)' }}
       />
 
       <div className="relative" style={{ zIndex: 1 }}>
@@ -321,20 +321,20 @@ export default function Landing() {
                 {/* Badge */}
                 <div
                   className="inline-flex items-center gap-3 bg-gray-900/80 rounded-full px-4 py-1.5 text-sm mb-8 shadow-sm"
-                  style={{ border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)' }}
+                  style={{ border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)' }}
                 >
                   <span
                     className="w-1.5 h-1.5 rounded-full animate-pulse"
-                    style={{ backgroundColor: 'var(--color-accent)' }}
+                    style={{ backgroundColor: '#9aea62' }}
                   />
                   <span className="text-gray-300">Built for serious traders</span>
                   <span className="text-gray-700">|</span>
                   <a
                     href="#features"
                     className="flex items-center gap-1 transition-colors"
-                    style={{ color: 'var(--color-accent)' }}
-                    onMouseEnter={e => e.currentTarget.style.color = 'var(--color-accent-light)'}
-                    onMouseLeave={e => e.currentTarget.style.color = 'var(--color-accent)'}
+                    style={{ color: '#9aea62' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#b5f08a'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#9aea62'}
                   >
                     See features <ArrowRight className="w-3 h-3" />
                   </a>
@@ -345,7 +345,7 @@ export default function Landing() {
                   Track Every Trade.{' '}
                   <span
                     className="bg-clip-text text-transparent"
-                    style={{ backgroundImage: 'linear-gradient(to right, var(--color-accent), var(--color-accent-light), var(--color-accent))' }}
+                    style={{ backgroundImage: 'linear-gradient(to right, #9aea62, #b5f08a, #9aea62)' }}
                   >
                     Master Your Edge.
                   </span>
@@ -361,9 +361,9 @@ export default function Landing() {
                   <Link
                     to="/dashboard"
                     className="group flex items-center gap-2 px-6 py-3 font-semibold rounded-xl transition-all duration-200"
-                    style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a', boxShadow: '0 4px 20px color-mix(in srgb, var(--color-accent) 30%, transparent)' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                    style={{ backgroundColor: '#9aea62', color: '#0a1a0a', boxShadow: '0 4px 20px color-mix(in srgb, #9aea62 30%, transparent)' }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
                   >
                     Start for Free
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -394,11 +394,11 @@ export default function Landing() {
                 <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
                 <div
                   className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-2/3 h-8 rounded-full blur-2xl"
-                  style={{ background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }}
+                  style={{ background: 'color-mix(in srgb, #9aea62 12%, transparent)' }}
                 />
                 <div
                   className="rounded-2xl shadow-2xl shadow-black/50 overflow-hidden"
-                  style={{ border: '1px solid color-mix(in srgb, var(--color-accent) 15%, transparent)' }}
+                  style={{ border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' }}
                 >
                   <AppPreview />
                 </div>
@@ -410,13 +410,13 @@ export default function Landing() {
         {/* Stats bar */}
         <section
           className="py-8"
-          style={{ borderTop: '1px solid color-mix(in srgb, var(--color-accent) 10%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--color-accent) 10%, transparent)', backgroundColor: 'color-mix(in srgb, var(--color-accent) 3%, transparent)' }}
+          style={{ borderTop: '1px solid color-mix(in srgb, #9aea62 10%, transparent)', borderBottom: '1px solid color-mix(in srgb, #9aea62 10%, transparent)', backgroundColor: 'color-mix(in srgb, #9aea62 3%, transparent)' }}
         >
           <div className="mx-auto max-w-4xl px-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
               {STATS.map(s => (
                 <div key={s.label}>
-                  <div className="text-3xl font-bold mb-1" style={{ color: 'var(--color-accent)' }}>{s.value}</div>
+                  <div className="text-3xl font-bold mb-1" style={{ color: '#9aea62' }}>{s.value}</div>
                   <div className="text-sm text-gray-500">{s.label}</div>
                 </div>
               ))}
@@ -428,7 +428,7 @@ export default function Landing() {
         <section id="features" className="py-24 md:py-32">
           <div className="mx-auto max-w-7xl px-6">
             <div className="text-center max-w-2xl mx-auto mb-16">
-              <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent)' }}>Everything you need</div>
+              <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#9aea62' }}>Everything you need</div>
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">Your complete trading toolkit</h2>
               <p className="text-gray-400 text-lg">
                 Every feature built around one goal: turning your trading data into actionable insights.
@@ -444,11 +444,11 @@ export default function Landing() {
                   viewport={{ once: true, margin: '-60px' }}
                   transition={{ delay: i * 0.07, duration: 0.5 }}
                   className="rounded-2xl p-6 hover:scale-[1.02] transition-transform duration-200 bg-gray-900"
-                  style={{ border: '1px solid color-mix(in srgb, var(--color-accent) 15%, transparent)' }}
+                  style={{ border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' }}
                 >
                   <div
                     className="w-10 h-10 rounded-xl border border-gray-800 flex items-center justify-center mb-4"
-                    style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 8%, #111827)' }}
+                    style={{ backgroundColor: 'color-mix(in srgb, #9aea62 8%, #111827)' }}
                   >
                     {f.icon}
                   </div>
@@ -464,12 +464,12 @@ export default function Landing() {
         <section
           id="analytics"
           className="py-24"
-          style={{ borderTop: '1px solid color-mix(in srgb, var(--color-accent) 8%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--color-accent) 8%, transparent)', backgroundColor: 'color-mix(in srgb, var(--color-accent) 2%, #030712)' }}
+          style={{ borderTop: '1px solid color-mix(in srgb, #9aea62 8%, transparent)', borderBottom: '1px solid color-mix(in srgb, #9aea62 8%, transparent)', backgroundColor: 'color-mix(in srgb, #9aea62 2%, #030712)' }}
         >
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent-light)' }}>Deep Analytics</div>
+                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#b5f08a' }}>Deep Analytics</div>
                 <h2 className="text-4xl font-bold text-white mb-5 leading-tight">
                   Stop guessing.<br />
                   <span className="text-gray-400">Start knowing.</span>
@@ -489,9 +489,9 @@ export default function Landing() {
                     <li key={item} className="flex items-center gap-3 text-sm text-gray-300">
                       <div
                         className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', border: '1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)' }}
+                        style={{ backgroundColor: 'color-mix(in srgb, #9aea62 15%, transparent)', border: '1px solid color-mix(in srgb, #9aea62 30%, transparent)' }}
                       >
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }} />
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#9aea62' }} />
                       </div>
                       {item}
                     </li>
@@ -499,7 +499,7 @@ export default function Landing() {
                 </ul>
               </div>
 
-              <div className="bg-gray-900 rounded-2xl p-5 shadow-xl" style={{ border: '1px solid color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
+              <div className="bg-gray-900 rounded-2xl p-5 shadow-xl" style={{ border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' }}>
                 <div className="text-xs text-gray-500 mb-3 font-medium">Win Rate by Day of Week</div>
                 <div className="space-y-2">
                   {[
@@ -516,14 +516,14 @@ export default function Landing() {
                           className="h-full rounded-full"
                           style={{
                             width: `${row.wr}%`,
-                            backgroundColor: row.wr >= 50 ? 'var(--color-accent)' : '#f87171'
+                            backgroundColor: row.wr >= 50 ? '#9aea62' : '#f87171'
                           }}
                         />
                       </div>
                       <span className="text-xs text-gray-400 w-10 text-right font-mono">{row.wr}%</span>
                       <span
                         className="text-xs font-mono font-semibold w-16 text-right"
-                        style={{ color: row.pnl.startsWith('+') ? 'var(--color-accent)' : '#f87171' }}
+                        style={{ color: row.pnl.startsWith('+') ? '#9aea62' : '#f87171' }}
                       >
                         {row.pnl}
                       </span>
@@ -532,7 +532,7 @@ export default function Landing() {
                 </div>
                 <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between">
                   <span className="text-xs text-gray-500">Best day: Tuesday</span>
-                  <span className="text-xs font-medium" style={{ color: 'var(--color-accent)' }}>71% win rate</span>
+                  <span className="text-xs font-medium" style={{ color: '#9aea62' }}>71% win rate</span>
                 </div>
               </div>
             </div>
@@ -543,22 +543,22 @@ export default function Landing() {
         <section id="psychology" className="py-24">
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              <div className="bg-gray-900 rounded-2xl p-5 shadow-xl order-2 lg:order-1" style={{ border: '1px solid color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
+              <div className="bg-gray-900 rounded-2xl p-5 shadow-xl order-2 lg:order-1" style={{ border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' }}>
                 <div className="text-xs text-gray-500 mb-4 font-medium">Session Psychology Review</div>
                 <div className="space-y-4">
                   <div className="bg-gray-950 rounded-xl p-4 border border-gray-800">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-gray-500">Tilt Score</span>
-                      <span className="text-xs font-bold" style={{ color: 'var(--color-accent)' }}>28 — Calm</span>
+                      <span className="text-xs font-bold" style={{ color: '#9aea62' }}>28 — Calm</span>
                     </div>
                     <div className="w-full bg-gray-800 rounded-full h-2">
                       <div
                         className="h-full w-1/4 rounded-full"
-                        style={{ background: 'linear-gradient(to right, var(--color-accent), var(--color-accent-light))' }}
+                        style={{ background: 'linear-gradient(to right, #9aea62, #b5f08a)' }}
                       />
                     </div>
                     <div className="flex justify-between mt-1">
-                      <span className="text-xs" style={{ color: 'var(--color-accent)' }}>Calm</span>
+                      <span className="text-xs" style={{ color: '#9aea62' }}>Calm</span>
                       <span className="text-xs text-amber-500">Caution</span>
                       <span className="text-xs text-red-400">Tilt</span>
                     </div>
@@ -568,10 +568,10 @@ export default function Landing() {
                     <div className="text-xs text-gray-500 mb-2">Emotions logged this week</div>
                     <div className="flex flex-wrap gap-1.5">
                       {[
-                        { label: 'Focused', style: { backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)', color: 'var(--color-accent-light)', border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)' } },
-                        { label: 'Confident', style: { backgroundColor: 'color-mix(in srgb, var(--color-accent) 8%, transparent)', color: 'var(--color-accent)', border: '1px solid color-mix(in srgb, var(--color-accent) 15%, transparent)' } },
+                        { label: 'Focused', style: { backgroundColor: 'color-mix(in srgb, #9aea62 12%, transparent)', color: '#b5f08a', border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)' } },
+                        { label: 'Confident', style: { backgroundColor: 'color-mix(in srgb, #9aea62 8%, transparent)', color: '#9aea62', border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' } },
                         { label: 'FOMO', style: { backgroundColor: 'rgba(217,119,6,0.15)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.2)' } },
-                        { label: 'Patient', style: { backgroundColor: 'color-mix(in srgb, var(--color-accent) 10%, transparent)', color: 'var(--color-accent-light)', border: '1px solid color-mix(in srgb, var(--color-accent) 18%, transparent)' } },
+                        { label: 'Patient', style: { backgroundColor: 'color-mix(in srgb, #9aea62 10%, transparent)', color: '#b5f08a', border: '1px solid color-mix(in srgb, #9aea62 18%, transparent)' } },
                         { label: 'Revenge Trade', style: { backgroundColor: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' } },
                       ].map(e => (
                         <span key={e.label} className="text-xs px-2.5 py-1 rounded-full" style={e.style}>{e.label}</span>
@@ -585,17 +585,17 @@ export default function Landing() {
                       <div className="flex-1 bg-gray-800 rounded-full h-2">
                         <div
                           className="h-full w-4/5 rounded-full"
-                          style={{ background: 'linear-gradient(to right, var(--color-accent), var(--color-accent-light))' }}
+                          style={{ background: 'linear-gradient(to right, #9aea62, #b5f08a)' }}
                         />
                       </div>
-                      <span className="text-xs font-bold" style={{ color: 'var(--color-accent-light)' }}>82%</span>
+                      <span className="text-xs font-bold" style={{ color: '#b5f08a' }}>82%</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="order-1 lg:order-2">
-                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent-light)' }}>Psychology Tracking</div>
+                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#b5f08a' }}>Psychology Tracking</div>
                 <h2 className="text-4xl font-bold text-white mb-5 leading-tight">
                   Your mindset is<br />
                   <span className="text-gray-400">part of your edge.</span>
@@ -615,9 +615,9 @@ export default function Landing() {
                     <li key={item} className="flex items-center gap-3 text-sm text-gray-300">
                       <div
                         className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', border: '1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)' }}
+                        style={{ backgroundColor: 'color-mix(in srgb, #9aea62 15%, transparent)', border: '1px solid color-mix(in srgb, #9aea62 30%, transparent)' }}
                       >
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--color-accent-light)' }} />
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#b5f08a' }} />
                       </div>
                       {item}
                     </li>
@@ -632,11 +632,11 @@ export default function Landing() {
         <section
           id="how-it-works"
           className="py-24"
-          style={{ borderTop: '1px solid color-mix(in srgb, var(--color-accent) 8%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--color-accent) 8%, transparent)', backgroundColor: 'color-mix(in srgb, var(--color-accent) 2%, #030712)' }}
+          style={{ borderTop: '1px solid color-mix(in srgb, #9aea62 8%, transparent)', borderBottom: '1px solid color-mix(in srgb, #9aea62 8%, transparent)', backgroundColor: 'color-mix(in srgb, #9aea62 2%, #030712)' }}
         >
           <div className="mx-auto max-w-7xl px-6">
             <div className="text-center max-w-2xl mx-auto mb-16">
-              <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent)' }}>Simple workflow</div>
+              <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#9aea62' }}>Simple workflow</div>
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">How it works</h2>
               <p className="text-gray-400 text-lg">Four steps from raw trades to real insights.</p>
             </div>
@@ -654,14 +654,14 @@ export default function Landing() {
                   {i < HOW_IT_WORKS.length - 1 && (
                     <div
                       className="hidden lg:block absolute top-6 left-full w-full h-px z-0"
-                      style={{ background: 'linear-gradient(to right, color-mix(in srgb, var(--color-accent) 20%, transparent), transparent)' }}
+                      style={{ background: 'linear-gradient(to right, color-mix(in srgb, #9aea62 20%, transparent), transparent)' }}
                     />
                   )}
                   <div
                     className="bg-gray-900 rounded-2xl p-6 relative z-10 transition-all duration-200"
-                    style={{ border: '1px solid color-mix(in srgb, var(--color-accent) 12%, transparent)' }}
+                    style={{ border: '1px solid color-mix(in srgb, #9aea62 12%, transparent)' }}
                   >
-                    <div className="text-4xl font-bold mb-3" style={{ color: 'color-mix(in srgb, var(--color-accent) 20%, transparent)' }}>{step.step}</div>
+                    <div className="text-4xl font-bold mb-3" style={{ color: 'color-mix(in srgb, #9aea62 20%, transparent)' }}>{step.step}</div>
                     <h3 className="text-sm font-semibold text-white mb-2">{step.title}</h3>
                     <p className="text-sm text-gray-400 leading-relaxed">{step.description}</p>
                   </div>
@@ -686,13 +686,13 @@ export default function Landing() {
               >
                 <div
                   className="w-96 h-40 rounded-full blur-3xl"
-                  style={{ background: 'color-mix(in srgb, var(--color-accent) 8%, transparent)' }}
+                  style={{ background: 'color-mix(in srgb, #9aea62 8%, transparent)' }}
                 />
               </div>
 
               <div
                 className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-widest mb-8"
-                style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)', color: 'var(--color-accent)' }}
+                style={{ backgroundColor: 'color-mix(in srgb, #9aea62 8%, transparent)', border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)', color: '#9aea62' }}
               >
                 <Shield className="w-3.5 h-3.5" />
                 Free to use · Your data stays yours
@@ -702,7 +702,7 @@ export default function Landing() {
                 Ready to trade with<br />
                 <span
                   className="bg-clip-text text-transparent"
-                  style={{ backgroundImage: 'linear-gradient(to right, var(--color-accent), var(--color-accent-light))' }}
+                  style={{ backgroundImage: 'linear-gradient(to right, #9aea62, #b5f08a)' }}
                 >
                   full clarity?
                 </span>
@@ -714,9 +714,9 @@ export default function Landing() {
               <Link
                 to="/dashboard"
                 className="group inline-flex items-center gap-2 px-8 py-3.5 font-semibold rounded-xl transition-all duration-200 text-base"
-                style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a', boxShadow: '0 4px 24px color-mix(in srgb, var(--color-accent) 25%, transparent)' }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                style={{ backgroundColor: '#9aea62', color: '#0a1a0a', boxShadow: '0 4px 24px color-mix(in srgb, #9aea62 25%, transparent)' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
               >
                 Open the App
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -726,7 +726,7 @@ export default function Landing() {
         </section>
 
         {/* Footer */}
-        <footer className="py-8" style={{ borderTop: '1px solid color-mix(in srgb, var(--color-accent) 10%, transparent)' }}>
+        <footer className="py-8" style={{ borderTop: '1px solid color-mix(in srgb, #9aea62 10%, transparent)' }}>
           <div className="mx-auto max-w-7xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <Logo />
             <p className="text-xs text-gray-600">
@@ -738,7 +738,7 @@ export default function Landing() {
                   key={label}
                   href={`#${label.toLowerCase()}`}
                   className="transition-colors hover:text-gray-400"
-                  onMouseEnter={e => e.target.style.color = 'var(--color-accent)'}
+                  onMouseEnter={e => e.target.style.color = '#9aea62'}
                   onMouseLeave={e => e.target.style.color = ''}
                 >
                   {label}

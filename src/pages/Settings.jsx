@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react'
 import { importExportApi } from '../api/importexport.js'
 import { markOnboarded } from '../components/onboarding/OnboardingModal.jsx'
-import ThemeEditor from '../components/ui/ThemeEditor.jsx'
 
 function Section({ title, description, children }) {
   return (
@@ -15,11 +14,11 @@ function Section({ title, description, children }) {
   )
 }
 
-const TABS = ['Appearance', 'Backup & Data', 'Advanced']
+const TABS = ['Backup & Data', 'Advanced']
 
 export default function Settings() {
   const fileRef = useRef(null)
-  const [activeTab, setActiveTab] = useState('Appearance')
+  const [activeTab, setActiveTab] = useState('Backup & Data')
   const [restoreMode, setRestoreMode] = useState('merge')
   const [restoreStatus, setRestoreStatus] = useState(null)
   const [exportLoading, setExportLoading] = useState(false)
@@ -86,13 +85,6 @@ export default function Settings() {
           </button>
         ))}
       </div>
-
-      {/* Appearance tab */}
-      {activeTab === 'Appearance' && (
-        <Section title="Theme" description="Choose a preset or build your own colour theme.">
-          <ThemeEditor />
-        </Section>
-      )}
 
       {activeTab === 'Backup & Data' && <>
       {/* Backup & Export */}
