@@ -187,6 +187,10 @@
 /* active nav (legacy — kept for compatibility) */
 .bg-indigo-600.text-white { background-color: var(--color-accent) !important; }
 
+/* Force dark text on solid green backgrounds — must beat [data-theme-name] .text-white specificity */
+[data-theme-name="liquid-dark"] .bg-indigo-600,
+[data-theme-name="liquid-dark"] .bg-indigo-500 { color: #0a1a0a !important; }
+
 /* ─────────────────────────────────────────────────────────────────────────────
    REACT-GRID-LAYOUT — widget resize handles
    ───────────────────────────────────────────────────────────────────────────── */
