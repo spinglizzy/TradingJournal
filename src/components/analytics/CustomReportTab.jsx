@@ -181,7 +181,7 @@ export default function CustomReportTab({ dateRange }) {
   return (
     <div className="space-y-6">
       {/* Controls */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow">
         <div className="flex flex-wrap items-end gap-4">
           {/* X axis */}
           <div>

@@ -9,7 +9,7 @@ import { Section, WinRateBar, ExportButtons, fmt, fmtPnl, fmtR, downloadCSV, dow
 
 function TopList({ items, title, color, Icon }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
       <div className="flex items-center gap-2 mb-3">
         <Icon className={`w-4 h-4 ${color}`} />
         <h3 className="text-sm font-semibold text-gray-300">{title}</h3>
