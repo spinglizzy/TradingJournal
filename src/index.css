@@ -165,7 +165,7 @@
 .hover\:bg-indigo-700:hover     { background-color: var(--color-accent-hover) !important; }
 .hover\:bg-indigo-500:hover     { background-color: color-mix(in srgb, var(--color-accent) 85%, #fff) !important; }
 .focus\:bg-indigo-700:focus     { background-color: var(--color-accent-hover) !important; }
-.bg-indigo-500                  { background-color: var(--color-accent) !important; }
+.bg-indigo-500                  { background-color: var(--color-accent) !important; color: #0a1a0a !important; }
 .bg-indigo-600\/15              { background-color: color-mix(in srgb, var(--color-accent) 15%, transparent) !important; }
 .bg-indigo-600\/20              { background-color: color-mix(in srgb, var(--color-accent) 20%, transparent) !important; }
 .bg-indigo-500\/10              { background-color: color-mix(in srgb, var(--color-accent) 10%, transparent) !important; }
