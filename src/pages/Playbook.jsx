@@ -1569,13 +1569,13 @@ export default function Playbook() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0 border-b border-gray-800">
+      <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-2xl p-1 w-fit overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap border ${
               tab === t.id
-                ? 'border-indigo-500 text-white'
-                : 'border-transparent text-gray-500 hover:text-gray-300'
+                ? 'tab-active'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800'
             }`}>
             {t.label}
           </button>
