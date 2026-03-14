@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { GripVertical, Settings, X, Maximize2, Minimize2 } from 'lucide-react'
 import { WIDGET_REGISTRY } from './widgetRegistry.js'
 
@@ -14,6 +15,7 @@ export default function WidgetWrapper({
   children,
 }) {
   const [showSettings, setShowSettings] = useState(false)
+  const [isHovered,    setIsHovered]    = useState(false)
   const meta  = WIDGET_REGISTRY[config.type]
   const panelRef = useRef(null)
 
@@ -38,15 +40,35 @@ export default function WidgetWrapper({
 
   return (
     <div
-      className={`
-        relative bg-gray-900 border border-gray-800 rounded-xl flex flex-col
-        transition-all duration-200
-        ${isDragging ? 'opacity-50 scale-[0.98] shadow-2xl ring-1 ring-indigo-500/50' : 'hover:border-gray-700'}
-      `}
-      style={{ minHeight }}
+      className="relative flex flex-col rounded-xl transition-all duration-200"
+      style={{
+        minHeight,
+        background:  'var(--color-card)',
+        border:      `1px solid ${isHovered && !isDragging ? 'color-mix(in srgb, var(--color-accent) 35%, transparent)' : 'var(--color-border)'}`,
+        boxShadow:   isHovered && !isDragging ? '0 0 0 1px color-mix(in srgb, var(--color-accent) 10%, transparent), 0 8px 32px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.3)',
+        opacity:     isDragging ? 0.5 : 1,
+        transform:   isDragging ? 'scale(0.98)' : 'scale(1)',
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Animated hover background */}
+      <AnimatePresence>
+        {isHovered && !isDragging && (
+          <motion.div
+            className="absolute inset-0 rounded-xl pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { duration: 0.15 } }}
+            exit={{ opacity: 0, transition: { duration: 0.15, delay: 0.1 } }}
+            style={{
+              background: 'color-mix(in srgb, var(--color-accent) 4%, transparent)',
+              zIndex: 0,
+            }}
+          />
+        )}
+      </AnimatePresence>
       {/* Header bar */}
-      <div className="flex items-center gap-2 px-4 pt-3 pb-0 flex-shrink-0">
+      <div className="relative z-10 flex items-center gap-2 px-4 pt-3 pb-0 flex-shrink-0">
         {/* Drag handle */}
         <button
           {...dragHandleProps}
@@ -98,7 +120,7 @@ export default function WidgetWrapper({
       </div>
 
       {/* Widget content */}
-      <div className="flex-1 px-4 pb-4 pt-3 min-h-0">
+      <div className="relative z-10 flex-1 px-4 pb-4 pt-3 min-h-0">
         {children}
       </div>
     </div>
