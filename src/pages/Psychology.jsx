@@ -58,7 +58,7 @@ function TiltGauge({ score = 0 }) {
 
   return (
     <div className="flex flex-col items-center">
-      <svg viewBox="20 5 160 110" width="260" height="150">
+      <svg viewBox="7 5 186 118" width="280" height="178">
         {/* Track */}
         <path d={arcPath(Math.PI, 0, R)} fill="none" stroke="#374151" strokeWidth="14" />
         {/* Green zone */}
@@ -84,16 +84,16 @@ function TiltGauge({ score = 0 }) {
         />
         <circle cx={cx} cy={cy} r="5" fill={zoneColors[zone.color]} />
         {/* Score text */}
-        <text x={cx} y={cy - 20} textAnchor="middle" fill="white" fontSize="22" fontWeight="bold" fontFamily="monospace">
+        <text x={cx} y={cy - 18} textAnchor="middle" fill="white" fontSize="24" fontWeight="bold" fontFamily="monospace">
           {score}
         </text>
-        <text x={cx} y={cy - 6} textAnchor="middle" fill="#9ca3af" fontSize="7.5">
+        <text x={cx} y={cy - 4} textAnchor="middle" fill="#9ca3af" fontSize="8">
           TILT SCORE
         </text>
         {/* Zone labels */}
-        <text x="32" y={cy + 12} textAnchor="middle" fill="#34d399" fontSize="7">CALM</text>
-        <text x={cx} y="30"    textAnchor="middle" fill="#fbbf24" fontSize="7">CAUTION</text>
-        <text x="168" y={cy + 12} textAnchor="middle" fill="#f87171" fontSize="7">TILT</text>
+        <text x="38" y={cy + 14} textAnchor="middle" fill="#34d399" fontSize="8">CALM</text>
+        <text x={cx} y="32"    textAnchor="middle" fill="#fbbf24" fontSize="8">CAUTION</text>
+        <text x="162" y={cy + 14} textAnchor="middle" fill="#f87171" fontSize="8">TILT</text>
       </svg>
       <div className={`text-lg font-bold ${zoneTextColors[zone.color]}`}>{zone.label}</div>
     </div>
