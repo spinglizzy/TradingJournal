@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { GripVertical, Settings, X, Maximize2, Minimize2 } from 'lucide-react'
 import { WIDGET_REGISTRY } from './widgetRegistry.js'
 
@@ -44,29 +43,14 @@ export default function WidgetWrapper({
       style={{
         minHeight,
         background:  'var(--color-card)',
-        border:      `1px solid ${isHovered && !isDragging ? 'color-mix(in srgb, var(--color-accent) 35%, transparent)' : 'var(--color-border)'}`,
-        boxShadow:   isHovered && !isDragging ? '0 0 0 1px color-mix(in srgb, var(--color-accent) 10%, transparent), 0 8px 32px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.3)',
+        border:      `1px solid ${isHovered && !isDragging ? 'color-mix(in srgb, var(--color-accent) 60%, transparent)' : 'var(--color-border)'}`,
+        boxShadow:   isHovered && !isDragging ? '0 0 12px 2px color-mix(in srgb, var(--color-accent) 25%, transparent), 0 0 4px 0px color-mix(in srgb, var(--color-accent) 40%, transparent)' : 'none',
         opacity:     isDragging ? 0.5 : 1,
         transform:   isDragging ? 'scale(0.98)' : 'scale(1)',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Animated hover background */}
-      <AnimatePresence>
-        {isHovered && !isDragging && (
-          <motion.div
-            className="absolute inset-0 rounded-xl pointer-events-none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.15 } }}
-            exit={{ opacity: 0, transition: { duration: 0.15, delay: 0.1 } }}
-            style={{
-              background: 'color-mix(in srgb, var(--color-accent) 4%, transparent)',
-              zIndex: 0,
-            }}
-          />
-        )}
-      </AnimatePresence>
       {/* Header bar */}
       <div className="relative z-10 flex items-center gap-2 px-4 pt-3 pb-0 flex-shrink-0">
         {/* Drag handle */}
