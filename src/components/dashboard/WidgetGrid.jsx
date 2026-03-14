@@ -80,7 +80,7 @@ export default function WidgetGrid({ layout, setLayout }) {
         const meta      = WIDGET_REGISTRY[widget.type]
         const Component = meta?.component
         return (
-          <div key={widget.id} className="rgl-item">
+          <div key={widget.id} className="rgl-item" style={{ height: '100%', width: '100%' }}>
             <WidgetWrapper
               config={widget}
               onRemove={() => removeWidget(widget.id)}

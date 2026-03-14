@@ -216,21 +216,23 @@
   z-index: 100;
 }
 
-/* All resize handles — hidden by default, shown on hover */
+/* All resize handles — hidden by default, shown on parent hover */
 .react-resizable-handle {
-  position: absolute;
-  opacity:  0;
-  transition: opacity 0.15s ease;
-  z-index: 20;
+  position:         absolute;
+  opacity:          0;
+  transition:       opacity 0.15s ease;
+  z-index:          20;
+  background-image: none !important;  /* clear the default arrow image */
+  padding:          0 !important;
 }
 
-.rgl-item:hover .react-resizable-handle {
-  opacity: 1;
-}
-
-/* Remove the default background-image arrow on handles */
 .react-resizable-handle::after {
   content: none !important;
+}
+
+/* Show handles when hovering the RGL grid item */
+.react-grid-item:hover > .react-resizable-handle {
+  opacity: 1;
 }
 
 /* ── Edge handles (lines) ── */
