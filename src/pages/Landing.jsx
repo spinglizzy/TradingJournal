@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AnimatedGroup } from '../components/ui/AnimatedGroup.jsx'
-import { StarsBackground } from '../components/ui/StarsBackground.jsx'
 import {
   ArrowRight, BarChart2, BookOpen, Brain, LineChart,
   Target, FileText, TrendingUp, Shield, Menu, X, ChevronRight
@@ -299,16 +298,6 @@ function AppPreview() {
 export default function Landing() {
   return (
     <div className="min-h-screen text-white overflow-x-hidden" style={{ backgroundColor: '#030712' }}>
-      {/* Stars */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }} aria-hidden="true">
-        <StarsBackground starDensity={0.00015} minTwinkleSpeed={0.6} maxTwinkleSpeed={1.2} />
-      </div>
-
-      {/* Subtle atmospheric glow */}
-      <div
-        className="fixed top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full blur-3xl pointer-events-none"
-        style={{ zIndex: 0, background: 'radial-gradient(ellipse, color-mix(in srgb, #9aea62 4%, transparent), transparent 70%)' }}
-      />
 
       <div className="relative" style={{ zIndex: 1 }}>
         <Header />
