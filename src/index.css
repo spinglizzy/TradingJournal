@@ -191,12 +191,11 @@
    REACT-GRID-LAYOUT — widget resize handles
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* Let the grid item overflow so corner handles are visible */
 .react-grid-item {
   overflow: visible !important;
 }
 
-/* The placeholder shown while dragging */
+/* Drag/resize placeholder */
 .react-grid-item.react-grid-placeholder {
   background:    color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
   border:        1px dashed color-mix(in srgb, var(--color-accent) 40%, transparent) !important;
@@ -204,114 +203,85 @@
   opacity:       1 !important;
 }
 
-/* Fade widget while dragging */
-.react-grid-item.react-draggable-dragging {
-  opacity: 0.75;
-  z-index: 100;
-}
+.react-grid-item.react-draggable-dragging { opacity: 0.75; z-index: 100; }
+.react-grid-item.resizing                 { opacity: 0.85; z-index: 100; }
 
-/* Fade widget while resizing */
-.react-grid-item.resizing {
-  opacity: 0.85;
-  z-index: 100;
-}
-
-/* All resize handles — hidden by default, shown on parent hover */
+/* ── Base handle reset ── */
 .react-resizable-handle {
-  position:         absolute;
+  position:         absolute !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  padding:          0 !important;
+  z-index:          9999 !important;
   opacity:          0;
   transition:       opacity 0.15s ease;
-  z-index:          20;
-  background-image: none !important;  /* clear the default arrow image */
-  padding:          0 !important;
+  box-sizing:       border-box !important;
 }
+.react-resizable-handle::before,
+.react-resizable-handle::after { content: none !important; }
 
-.react-resizable-handle::after {
-  content: none !important;
-}
+/* Show on hover — use descendant (not child) selector so it works regardless of DOM depth */
+.react-grid-item:hover .react-resizable-handle { opacity: 1; }
 
-/* Show handles when hovering the RGL grid item */
-.react-grid-item:hover > .react-resizable-handle {
-  opacity: 1;
-}
-
-/* ── Edge handles (lines) ── */
-.react-resizable-handle-s,
-.react-resizable-handle-n {
-  left:   10%;
-  width:  80%;
-  height: 6px;
-  cursor: ns-resize;
-}
-.react-resizable-handle-s {
-  bottom: -3px;
-  border-bottom: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
-  border-radius: 0 0 4px 4px;
-}
-.react-resizable-handle-n {
-  top: -3px;
-  border-top: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
-  border-radius: 4px 4px 0 0;
-}
-
-.react-resizable-handle-e,
-.react-resizable-handle-w {
-  top:    10%;
-  height: 80%;
-  width:  6px;
-  cursor: ew-resize;
-}
-.react-resizable-handle-e {
-  right:        -3px;
-  border-right: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
-  border-radius: 0 4px 4px 0;
-}
-.react-resizable-handle-w {
-  left:        -3px;
-  border-left: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
-  border-radius: 4px 0 0 4px;
-}
-
-/* ── Corner handles (small L-shaped marks) ── */
+/* ── Corner handles ── */
 .react-resizable-handle-se,
 .react-resizable-handle-sw,
 .react-resizable-handle-ne,
 .react-resizable-handle-nw {
-  width:  14px;
-  height: 14px;
+  width:  12px !important;
+  height: 12px !important;
 }
-
 .react-resizable-handle-se {
-  bottom: -2px;
-  right:  -2px;
-  cursor: se-resize;
-  border-bottom: 2px solid var(--color-accent);
-  border-right:  2px solid var(--color-accent);
-  border-radius: 0 0 4px 0;
+  bottom: 3px !important; right: 3px !important; cursor: se-resize !important;
+  border-right:  2px solid var(--color-accent) !important;
+  border-bottom: 2px solid var(--color-accent) !important;
 }
 .react-resizable-handle-sw {
-  bottom: -2px;
-  left:   -2px;
-  cursor: sw-resize;
-  border-bottom: 2px solid var(--color-accent);
-  border-left:   2px solid var(--color-accent);
-  border-radius: 0 0 0 4px;
+  bottom: 3px !important; left: 3px !important; cursor: sw-resize !important;
+  border-left:   2px solid var(--color-accent) !important;
+  border-bottom: 2px solid var(--color-accent) !important;
 }
 .react-resizable-handle-ne {
-  top:   -2px;
-  right: -2px;
-  cursor: ne-resize;
-  border-top:   2px solid var(--color-accent);
-  border-right: 2px solid var(--color-accent);
-  border-radius: 0 4px 0 0;
+  top: 3px !important; right: 3px !important; cursor: ne-resize !important;
+  border-right: 2px solid var(--color-accent) !important;
+  border-top:   2px solid var(--color-accent) !important;
 }
 .react-resizable-handle-nw {
-  top:  -2px;
-  left: -2px;
-  cursor: nw-resize;
-  border-top:  2px solid var(--color-accent);
-  border-left: 2px solid var(--color-accent);
-  border-radius: 4px 0 0 0;
+  top: 3px !important; left: 3px !important; cursor: nw-resize !important;
+  border-left: 2px solid var(--color-accent) !important;
+  border-top:  2px solid var(--color-accent) !important;
+}
+
+/* ── Edge handles ── */
+.react-resizable-handle-s,
+.react-resizable-handle-n {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 40px !important;
+  height: 6px !important;
+}
+.react-resizable-handle-s {
+  bottom: 3px !important; cursor: s-resize !important;
+  border-bottom: 2px solid color-mix(in srgb, var(--color-accent) 80%, transparent) !important;
+}
+.react-resizable-handle-n {
+  top: 3px !important; cursor: n-resize !important;
+  border-top: 2px solid color-mix(in srgb, var(--color-accent) 80%, transparent) !important;
+}
+.react-resizable-handle-e,
+.react-resizable-handle-w {
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 6px !important;
+  height: 40px !important;
+}
+.react-resizable-handle-e {
+  right: 3px !important; cursor: e-resize !important;
+  border-right: 2px solid color-mix(in srgb, var(--color-accent) 80%, transparent) !important;
+}
+.react-resizable-handle-w {
+  left: 3px !important; cursor: w-resize !important;
+  border-left: 2px solid color-mix(in srgb, var(--color-accent) 80%, transparent) !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

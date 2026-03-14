@@ -118,8 +118,16 @@ function SettingsPanel({ config, meta, onUpdate }) {
   }
 
   return (
-    <div className="absolute right-0 top-6 z-30 w-56 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-3 space-y-3">
-      <div className="text-xs font-semibold text-gray-300 pb-1 border-b border-gray-700">
+    <div
+      className="absolute right-0 top-6 z-30 w-56 rounded-xl shadow-2xl p-3 space-y-3"
+      style={{
+        background:  'var(--color-card-2)',
+        border:      '1px solid var(--color-border)',
+        boxShadow:   '0 20px 60px rgba(0,0,0,0.8)',
+        backdropFilter: 'none',
+      }}
+    >
+      <div className="text-xs font-semibold pb-1" style={{ color: 'var(--color-text-primary)', borderBottom: '1px solid var(--color-border)' }}>
         {meta?.name ?? config.type} settings
       </div>
 
