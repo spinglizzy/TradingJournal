@@ -292,12 +292,14 @@ function AppPreview() {
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-gray-950 text-white overflow-x-hidden">
-      {/* Stars background — fixed so it covers the entire page */}
-      <div className="fixed inset-0 -z-10 pointer-events-none">
-        <StarsBackground starDensity={0.00018} />
+    <div className="min-h-screen text-white overflow-x-hidden" style={{ backgroundColor: 'var(--color-base, #030712)' }}>
+      {/* Stars background — matches Layout.jsx exactly */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }} aria-hidden="true">
+        <StarsBackground starDensity={0.00015} minTwinkleSpeed={0.6} maxTwinkleSpeed={1.2} />
       </div>
 
+      {/* All page content above the stars */}
+      <div className="relative" style={{ zIndex: 1 }}>
       <Header />
 
       {/* Hero */}
@@ -659,6 +661,7 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+      </div>{/* end z-index wrapper */}
     </div>
   )
 }
