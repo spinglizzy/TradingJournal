@@ -1,6 +1,7 @@
-import { NavLink, Link } from 'react-router-dom'
+import { NavLink, Link, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 const mainLinks = [
   { to: '/',            label: 'Dashboard',  end: true },
@@ -24,6 +25,12 @@ export default function TopNav() {
   const [mobileOpen,     setMobileOpen]     = useState(false)
   const moreRef    = useRef(null)
   const mobileRef  = useRef(null)
+  const location   = useLocation()
+
+  const isLinkActive = (to, end) => {
+    if (end) return location.pathname === to
+    return location.pathname === to || location.pathname.startsWith(to + '/')
+  }
 
   useEffect(() => {
     function handle(e) {
@@ -38,14 +45,14 @@ export default function TopNav() {
     `px-3 py-1.5 rounded-full text-sm transition-all whitespace-nowrap select-none ${
       isActive
         ? 'text-white font-medium bg-white/[0.07]'
-        : 'text-[#666] hover:text-[#ccc]'
+        : 'text-[#666] hover:text-white'
     }`
 
   return (
     <>
       {/* ── Desktop pill nav ── */}
       <nav
-        className="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden md:flex items-center gap-0.5 px-2 py-2"
+        className="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden md:flex items-center gap-0.5 px-2 py-2 overflow-visible"
         style={{
           background:   '#1a1a1a',
           border:       '1px solid rgba(255,255,255,0.09)',
@@ -79,11 +86,64 @@ export default function TopNav() {
         <div className="w-px h-4 bg-white/10 mx-1 flex-shrink-0" />
 
         {/* Main nav links */}
-        {mainLinks.map(link => (
-          <NavLink key={link.to} to={link.to} end={link.end} className={navItemCls}>
-            {link.label}
-          </NavLink>
-        ))}
+        {mainLinks.map(link => {
+          const active = isLinkActive(link.to, link.end)
+          return (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              end={link.end}
+              className={navItemCls}
+              style={{ position: 'relative' }}
+            >
+              {link.label}
+              {active && (
+                <motion.div
+                  layoutId="lamp"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: '999px',
+                    zIndex: -1,
+                    pointerEvents: 'none',
+                  }}
+                  initial={false}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                >
+                  {/* White bar sitting on top of the pill */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '-10px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '32px',
+                    height: '3px',
+                    background: 'white',
+                    borderRadius: '0 0 4px 4px',
+                  }}>
+                    {/* Glow layers */}
+                    <div style={{
+                      position: 'absolute',
+                      width: '48px', height: '8px',
+                      background: 'rgba(255,255,255,0.25)',
+                      borderRadius: '999px',
+                      filter: 'blur(6px)',
+                      top: '0', left: '-8px',
+                    }} />
+                    <div style={{
+                      position: 'absolute',
+                      width: '32px', height: '12px',
+                      background: 'rgba(255,255,255,0.15)',
+                      borderRadius: '999px',
+                      filter: 'blur(8px)',
+                      top: '2px', left: '0',
+                    }} />
+                  </div>
+                </motion.div>
+              )}
+            </NavLink>
+          )
+        })}
 
         {/* More dropdown */}
         <div ref={moreRef} className="relative">
