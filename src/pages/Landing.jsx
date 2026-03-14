@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AnimatedGroup } from '../components/ui/AnimatedGroup.jsx'
 import { StarsBackground } from '../components/ui/StarsBackground.jsx'
+import { ShootingStars } from '../components/ui/ShootingStars.jsx'
 import {
   ArrowRight, BarChart2, BookOpen, Brain, LineChart,
   Target, FileText, TrendingUp, Shield, Menu, X, ChevronRight
@@ -302,6 +303,9 @@ export default function Landing() {
       {/* Stars */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }} aria-hidden="true">
         <StarsBackground starDensity={0.00015} minTwinkleSpeed={0.6} maxTwinkleSpeed={1.2} />
+        <ShootingStars starColor="#9aea62" trailColor="#4ade80" minSpeed={25} maxSpeed={50} minDelay={400} maxDelay={1200} starWidth={28} starHeight={2} />
+        <ShootingStars starColor="#b5f08a" trailColor="#9aea62" minSpeed={20} maxSpeed={40} minDelay={600} maxDelay={1600} starWidth={22} starHeight={2} />
+        <ShootingStars starColor="#7fd64a" trailColor="#22c55e" minSpeed={15} maxSpeed={35} minDelay={800} maxDelay={2000} starWidth={35} starHeight={3} />
       </div>
 
       {/* Subtle atmospheric glow */}
