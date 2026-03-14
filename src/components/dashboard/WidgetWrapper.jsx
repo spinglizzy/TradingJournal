@@ -1,56 +1,55 @@
-import { useState, useRef, useEffect } from 'react'
-import { GripVertical, Settings, X, Maximize2, Minimize2 } from 'lucide-react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
+import { GripVertical, Settings, X } from 'lucide-react'
 import { WIDGET_REGISTRY } from './widgetRegistry.js'
-import { sizeToGrid } from './WidgetGrid.jsx'
 
-const SIZE_LABELS = { small: 'Small (¼)', medium: 'Medium (½)', large: 'Large (¾)', full: 'Full width' }
-
-export default function WidgetWrapper({
-  config,
-  onRemove,
-  onUpdate,
-  children,
-}) {
+export default function WidgetWrapper({ config, onRemove, onUpdate, children }) {
   const [showSettings, setShowSettings] = useState(false)
   const [isHovered,    setIsHovered]    = useState(false)
-  const meta     = WIDGET_REGISTRY[config.type]
-  const panelRef = useRef(null)
+  const [panelPos,     setPanelPos]     = useState(null)
+  const meta       = WIDGET_REGISTRY[config.type]
+  const gearBtnRef = useRef(null)
+  const portalRef  = useRef(null)
 
-  // Close settings on outside click
+  // Close settings panel when clicking outside gear button or panel
   useEffect(() => {
     if (!showSettings) return
     function handle(e) {
-      if (panelRef.current && !panelRef.current.contains(e.target)) setShowSettings(false)
+      if (gearBtnRef.current?.contains(e.target)) return
+      if (portalRef.current?.contains(e.target))  return
+      setShowSettings(false)
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [showSettings])
 
-  function cycleSize() {
-    const allowed  = meta?.allowedSizes ?? ['small', 'medium', 'large', 'full']
-    const curr     = config.size ?? meta?.defaultSize ?? 'medium'
-    const nextIdx  = (allowed.indexOf(curr) + 1) % allowed.length
-    const nextSize = allowed[nextIdx]
-    const { w, h } = sizeToGrid(nextSize)
-    onUpdate({ size: nextSize, w, h })
+  function toggleSettings() {
+    if (!showSettings && gearBtnRef.current) {
+      const rect = gearBtnRef.current.getBoundingClientRect()
+      setPanelPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
+    }
+    setShowSettings(v => !v)
   }
 
   return (
     <div
-      className="relative flex flex-col rounded-xl transition-all duration-200"
+      className="relative flex flex-col rounded-xl"
       style={{
-        height:    '100%',
+        height:     '100%',
         background: 'var(--color-card)',
-        border:     `1px solid ${isHovered ? 'color-mix(in srgb, var(--color-accent) 60%, transparent)' : 'var(--color-border)'}`,
-        boxShadow:  isHovered
+        border:     `1px solid ${isHovered
+          ? 'color-mix(in srgb, var(--color-accent) 60%, transparent)'
+          : 'var(--color-border)'}`,
+        boxShadow: isHovered
           ? '0 0 12px 2px color-mix(in srgb, var(--color-accent) 25%, transparent), 0 0 4px 0px color-mix(in srgb, var(--color-accent) 40%, transparent)'
           : 'none',
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Header bar */}
-      <div className="relative z-10 flex items-center gap-2 px-4 pt-3 pb-0 flex-shrink-0">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-0 flex-shrink-0">
         {/* Drag handle — RGL listens for .widget-drag-handle */}
         <button
           className="widget-drag-handle text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing transition-colors flex-shrink-0 touch-none"
@@ -64,31 +63,17 @@ export default function WidgetWrapper({
           {meta?.name ?? config.type}
         </span>
 
-        {/* Size cycle button */}
+        {/* Settings gear */}
         <button
-          onClick={cycleSize}
-          className="text-gray-600 hover:text-gray-300 transition-colors p-0.5 rounded"
-          title={`Size: ${SIZE_LABELS[config.size] ?? config.size} — click to cycle`}
+          ref={gearBtnRef}
+          onClick={toggleSettings}
+          className={`p-0.5 rounded transition-colors ${
+            showSettings ? 'text-indigo-400' : 'text-gray-600 hover:text-gray-300'
+          }`}
+          title="Widget settings"
         >
-          {config.size === 'full' || config.size === 'large'
-            ? <Minimize2 className="w-3.5 h-3.5" />
-            : <Maximize2 className="w-3.5 h-3.5" />
-          }
+          <Settings className="w-3.5 h-3.5" />
         </button>
-
-        {/* Settings */}
-        <div className="relative" ref={panelRef}>
-          <button
-            onClick={() => setShowSettings(v => !v)}
-            className={`p-0.5 rounded transition-colors ${showSettings ? 'text-indigo-400' : 'text-gray-600 hover:text-gray-300'}`}
-            title="Widget settings"
-          >
-            <Settings className="w-3.5 h-3.5" />
-          </button>
-          {showSettings && (
-            <SettingsPanel config={config} meta={meta} onUpdate={onUpdate} />
-          )}
-        </div>
 
         {/* Remove */}
         <button
@@ -101,63 +86,75 @@ export default function WidgetWrapper({
       </div>
 
       {/* Widget content */}
-      <div className="relative z-10 flex-1 px-4 pb-4 pt-3 min-h-0">
+      <div className="flex-1 px-4 pb-4 pt-3 min-h-0 overflow-hidden">
         {children}
       </div>
+
+      {/* Settings panel — rendered via portal so it's never clipped */}
+      {showSettings && panelPos && createPortal(
+        <SettingsPanel
+          ref={portalRef}
+          config={config}
+          meta={meta}
+          onUpdate={onUpdate}
+          pos={panelPos}
+        />,
+        document.body
+      )}
     </div>
   )
 }
 
-function SettingsPanel({ config, meta, onUpdate }) {
-  const allowed  = meta?.allowedSizes ?? ['small', 'medium', 'large', 'full']
+const SettingsPanel = forwardRef(function SettingsPanel({ config, meta, onUpdate, pos }, ref) {
   const settings = config.settings ?? {}
-
-  function applySize(s) {
-    const { w, h } = sizeToGrid(s)
-    onUpdate({ size: s, w, h })
-  }
 
   return (
     <div
-      className="absolute right-0 top-6 z-30 w-56 rounded-xl shadow-2xl p-3 space-y-3"
+      ref={ref}
       style={{
-        background:  'var(--color-card-2)',
-        border:      '1px solid var(--color-border)',
-        boxShadow:   '0 20px 60px rgba(0,0,0,0.8)',
-        backdropFilter: 'none',
+        position:     'fixed',
+        top:          pos.top,
+        right:        pos.right,
+        zIndex:       99999,
+        width:        '224px',
+        background:   '#1c1c1c',
+        border:       '1px solid rgba(255,255,255,0.14)',
+        borderRadius: '12px',
+        boxShadow:    '0 24px 64px rgba(0,0,0,0.9), 0 4px 16px rgba(0,0,0,0.6)',
+        padding:      '12px',
       }}
     >
-      <div className="text-xs font-semibold pb-1" style={{ color: 'var(--color-text-primary)', borderBottom: '1px solid var(--color-border)' }}>
+      {/* Title */}
+      <div style={{
+        fontSize:     '11px',
+        fontWeight:   600,
+        color:        '#fff',
+        paddingBottom:'8px',
+        marginBottom: '10px',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+      }}>
         {meta?.name ?? config.type} settings
       </div>
 
-      {/* Preset sizes */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400 font-medium">Preset size</label>
-        <div className="grid grid-cols-2 gap-1">
-          {allowed.map(s => (
-            <button
-              key={s}
-              onClick={() => applySize(s)}
-              className={`text-xs py-1.5 rounded-lg transition-colors font-medium ${
-                config.size === s
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-              }`}
-            >
-              {SIZE_LABELS[s] ?? s}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Period override */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400 font-medium">Period override</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <label style={{ fontSize: '11px', color: '#888', fontWeight: 500 }}>
+          Period override
+        </label>
         <select
           value={settings.period ?? 'global'}
           onChange={e => onUpdate({ settings: { ...settings, period: e.target.value } })}
-          className="w-full bg-gray-700 border border-gray-600 rounded-lg text-xs text-gray-200 px-2 py-1.5 outline-none focus:border-indigo-500"
+          style={{
+            width:        '100%',
+            background:   '#2a2a2a',
+            border:       '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '8px',
+            fontSize:     '12px',
+            color:        '#e0e0e0',
+            padding:      '6px 8px',
+            outline:      'none',
+            cursor:       'pointer',
+          }}
         >
           <option value="global">Use global filter</option>
           <option value="all">All time</option>
@@ -169,4 +166,4 @@ function SettingsPanel({ config, meta, onUpdate }) {
       </div>
     </div>
   )
-}
+})

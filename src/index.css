@@ -191,8 +191,13 @@
    REACT-GRID-LAYOUT — widget resize handles
    ───────────────────────────────────────────────────────────────────────────── */
 
+.react-grid-layout {
+  position: relative;
+}
+
 .react-grid-item {
   overflow: visible !important;
+  box-sizing: border-box;
 }
 
 /* Drag/resize placeholder */
@@ -201,87 +206,82 @@
   border:        1px dashed color-mix(in srgb, var(--color-accent) 40%, transparent) !important;
   border-radius: 12px !important;
   opacity:       1 !important;
+  z-index:       2;
 }
 
-.react-grid-item.react-draggable-dragging { opacity: 0.75; z-index: 100; }
-.react-grid-item.resizing                 { opacity: 0.85; z-index: 100; }
+.react-grid-item.react-draggable-dragging { opacity: 0.75 !important; z-index: 100 !important; }
+.react-grid-item.resizing                 { opacity: 0.9 !important;  z-index: 100 !important; }
 
-/* ── Base handle reset ── */
+/* ── Reset ALL handles (clear react-resizable defaults) ── */
 .react-resizable-handle {
   position:         absolute !important;
   background-image: none !important;
   background-color: transparent !important;
+  border:           none !important;
   padding:          0 !important;
-  z-index:          9999 !important;
-  opacity:          0;
-  transition:       opacity 0.15s ease;
   box-sizing:       border-box !important;
+  z-index:          10 !important;
+  opacity:          0;
+  transition:       opacity 0.2s ease;
 }
 .react-resizable-handle::before,
-.react-resizable-handle::after { content: none !important; }
-
-/* Show on hover — use descendant (not child) selector so it works regardless of DOM depth */
-.react-grid-item:hover .react-resizable-handle { opacity: 1; }
-
-/* ── Corner handles ── */
-.react-resizable-handle-se,
-.react-resizable-handle-sw,
-.react-resizable-handle-ne,
-.react-resizable-handle-nw {
-  width:  12px !important;
-  height: 12px !important;
+.react-resizable-handle::after {
+  display: none !important;
+  content: none !important;
 }
+
+/* Show handles when hovering the widget OR the handle itself */
+.react-grid-item:hover .react-resizable-handle,
+.react-resizable-handle:hover {
+  opacity: 1 !important;
+}
+
+/* ── SE corner (bottom-right) ── */
 .react-resizable-handle-se {
-  bottom: 3px !important; right: 3px !important; cursor: se-resize !important;
-  border-right:  2px solid var(--color-accent) !important;
-  border-bottom: 2px solid var(--color-accent) !important;
-}
-.react-resizable-handle-sw {
-  bottom: 3px !important; left: 3px !important; cursor: sw-resize !important;
-  border-left:   2px solid var(--color-accent) !important;
-  border-bottom: 2px solid var(--color-accent) !important;
-}
-.react-resizable-handle-ne {
-  top: 3px !important; right: 3px !important; cursor: ne-resize !important;
-  border-right: 2px solid var(--color-accent) !important;
-  border-top:   2px solid var(--color-accent) !important;
-}
-.react-resizable-handle-nw {
-  top: 3px !important; left: 3px !important; cursor: nw-resize !important;
-  border-left: 2px solid var(--color-accent) !important;
-  border-top:  2px solid var(--color-accent) !important;
+  bottom:  0 !important;
+  right:   0 !important;
+  width:   18px !important;
+  height:  18px !important;
+  cursor:  se-resize !important;
+  border-right:  3px solid var(--color-accent) !important;
+  border-bottom: 3px solid var(--color-accent) !important;
+  border-radius: 0 0 10px 0 !important;
 }
 
-/* ── Edge handles ── */
-.react-resizable-handle-s,
-.react-resizable-handle-n {
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  width: 40px !important;
-  height: 6px !important;
+/* ── SW corner (bottom-left) ── */
+.react-resizable-handle-sw {
+  bottom: 0 !important;
+  left:   0 !important;
+  width:  18px !important;
+  height: 18px !important;
+  cursor: sw-resize !important;
+  border-left:   3px solid var(--color-accent) !important;
+  border-bottom: 3px solid var(--color-accent) !important;
+  border-radius: 0 0 0 10px !important;
 }
+
+/* ── S edge (bottom center) ── */
 .react-resizable-handle-s {
-  bottom: 3px !important; cursor: s-resize !important;
-  border-bottom: 2px solid color-mix(in srgb, var(--color-accent) 80%, transparent) !important;
+  bottom:    0 !important;
+  left:      50% !important;
+  transform: translateX(-50%) !important;
+  width:     48px !important;
+  height:    6px !important;
+  cursor:    s-resize !important;
+  border-bottom: 3px solid color-mix(in srgb, var(--color-accent) 70%, transparent) !important;
+  border-radius: 0 0 4px 4px !important;
 }
-.react-resizable-handle-n {
-  top: 3px !important; cursor: n-resize !important;
-  border-top: 2px solid color-mix(in srgb, var(--color-accent) 80%, transparent) !important;
-}
-.react-resizable-handle-e,
-.react-resizable-handle-w {
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  width: 6px !important;
-  height: 40px !important;
-}
+
+/* ── E edge (right center) ── */
 .react-resizable-handle-e {
-  right: 3px !important; cursor: e-resize !important;
-  border-right: 2px solid color-mix(in srgb, var(--color-accent) 80%, transparent) !important;
-}
-.react-resizable-handle-w {
-  left: 3px !important; cursor: w-resize !important;
-  border-left: 2px solid color-mix(in srgb, var(--color-accent) 80%, transparent) !important;
+  right:     0 !important;
+  top:       50% !important;
+  transform: translateY(-50%) !important;
+  width:     6px !important;
+  height:    48px !important;
+  cursor:    e-resize !important;
+  border-right:  3px solid color-mix(in srgb, var(--color-accent) 70%, transparent) !important;
+  border-radius: 0 4px 4px 0 !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

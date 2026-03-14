@@ -70,7 +70,7 @@ export default function WidgetGrid({ layout, setLayout }) {
       margin={[10, 10]}
       containerPadding={[0, 0]}
       draggableHandle=".widget-drag-handle"
-      resizeHandles={['s', 'e', 'w', 'n', 'se', 'sw', 'ne', 'nw']}
+      resizeHandles={['se', 'sw', 's', 'e']}
       compactType="vertical"
       onDragStop={handleLayoutChange}
       onResizeStop={handleLayoutChange}
