@@ -23,6 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment variables
+.env
+
 # App-specific
 trading_journal.db
 trading_journal.db-shm

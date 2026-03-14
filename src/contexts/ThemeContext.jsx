@@ -2,6 +2,23 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 
 // ── Preset theme definitions ───────────────────────────────────────────────────
 export const PRESET_THEMES = {
+  'Liquid Dark': {
+    accent:        '#9aea62',
+    accentHover:   '#7fd64a',
+    accentLight:   '#b5f08a',
+    profitHex:     '#9aea62',
+    lossHex:       '#f87171',
+    sidebar:       '#141414',
+    base:          '#0a0a0a',
+    card:          '#141414',
+    cardSecondary: '#1c1c1c',
+    border:        'rgba(255,255,255,0.08)',
+    textPrimary:   '#ffffff',
+    textSecondary: '#888888',
+    textMuted:     '#555555',
+    charts:        ['#9aea62','#38bdf8','#fbbf24','#f472b6','#34d399','#a78bfa','#fb923c','#22d3ee'],
+    mode:          'dark',
+  },
   'Classic Dark': {
     accent:        '#6366f1',
     accentHover:   '#4f46e5',
@@ -67,7 +84,7 @@ function getTheme(name, custom) {
 }
 
 // ── Apply a theme object to the DOM ───────────────────────────────────────────
-function applyThemeToDom(theme) {
+function applyThemeToDom(theme, name) {
   const root = document.documentElement
   const s    = root.style
 
@@ -86,8 +103,9 @@ function applyThemeToDom(theme) {
   s.setProperty('--color-text-muted',    theme.textMuted)
   theme.charts.forEach((c, i) => s.setProperty(`--chart-${i + 1}`, c))
 
-  root.setAttribute('data-theme', theme.mode)
-  document.documentElement.style.colorScheme = theme.mode
+  root.setAttribute('data-theme', theme.mode === 'light' ? 'light' : 'dark')
+  root.setAttribute('data-theme-name', (name ?? '').toLowerCase().replace(/\s+/g, '-'))
+  document.documentElement.style.colorScheme = theme.mode === 'light' ? 'light' : 'dark'
 }
 
 // ── Context ───────────────────────────────────────────────────────────────────
@@ -96,15 +114,15 @@ const ThemeContext = createContext(null)
 export function ThemeProvider({ children }) {
   const [customThemes, setCustomThemesRaw] = useState(loadCustomThemes)
   const [themeName, setThemeNameRaw] = useState(
-    () => localStorage.getItem(THEME_KEY) ?? 'Classic Dark'
+    () => localStorage.getItem(THEME_KEY) ?? 'Liquid Dark'
   )
 
   const activeTheme = getTheme(themeName, customThemes)
 
   // Apply theme on mount + whenever it changes
   useEffect(() => {
-    applyThemeToDom(activeTheme)
-  }, [activeTheme])
+    applyThemeToDom(activeTheme, themeName)
+  }, [activeTheme, themeName])
 
   const setTheme = useCallback((name) => {
     setThemeNameRaw(name)

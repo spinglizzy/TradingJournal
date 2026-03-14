@@ -1,185 +1,206 @@
 import { Router } from 'express'
-import db from '../db.js'
+import pool from '../db.js'
 
 const router = Router()
 
 // ── List ─────────────────────────────────────────────────────────────────────
-router.get('/', (req, res) => {
-  const { start_date, end_date, entry_type, tag, search } = req.query
-  const where = ['1=1']
-  const params = []
+router.get('/', async (req, res) => {
+  try {
+    const { start_date, end_date, entry_type, tag, search } = req.query
+    const p = []
+    const w = ['1=1']
 
-  if (start_date) { where.push('date >= ?'); params.push(start_date) }
-  if (end_date)   { where.push('date <= ?'); params.push(end_date) }
-  if (entry_type) { where.push('entry_type = ?'); params.push(entry_type) }
-  if (tag)        { where.push('tags LIKE ?'); params.push(`%"${tag}"%`) }
-  if (search)     {
-    where.push('(title LIKE ? OR content LIKE ?)')
-    params.push(`%${search}%`, `%${search}%`)
+    if (start_date) w.push(`date >= $${p.push(start_date)}`)
+    if (end_date)   w.push(`date <= $${p.push(end_date)}`)
+    if (entry_type) w.push(`entry_type = $${p.push(entry_type)}`)
+    if (tag)        w.push(`tags LIKE $${p.push('%"' + tag + '"%')}`)
+    if (search) {
+      const s = `%${search}%`
+      w.push(`(title ILIKE $${p.push(s)} OR content ILIKE $${p.push(s)})`)
+    }
+
+    const r = await pool.query(`
+      SELECT id,date,entry_type,title,mood,tags,
+             SUBSTRING(content,1,400) AS preview,
+             created_at,updated_at
+      FROM journal_entries WHERE ${w.join(' AND ')}
+      ORDER BY date DESC, created_at DESC
+    `, p)
+
+    res.json(r.rows.map(e => ({ ...e, tags: safeJson(e.tags) })))
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
   }
-
-  const entries = db.prepare(`
-    SELECT id, date, entry_type, title, mood, tags,
-           substr(content, 1, 400) AS preview,
-           created_at, updated_at
-    FROM journal_entries
-    WHERE ${where.join(' AND ')}
-    ORDER BY date DESC, created_at DESC
-  `).all(...params)
-
-  res.json(entries.map(e => ({ ...e, tags: safeJson(e.tags) })))
 })
 
 // ── Calendar data ─────────────────────────────────────────────────────────────
-// MUST be before /:id to avoid matching 'calendar' as an id
-router.get('/calendar', (req, res) => {
-  const { start_date, end_date } = req.query
-  const where = ['1=1']
-  const params = []
-  if (start_date) { where.push('date >= ?'); params.push(start_date) }
-  if (end_date)   { where.push('date <= ?'); params.push(end_date) }
+router.get('/calendar', async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query
+    const p = []
+    const w = ['1=1']
+    if (start_date) w.push(`date >= $${p.push(start_date)}`)
+    if (end_date)   w.push(`date <= $${p.push(end_date)}`)
 
-  const rows = db.prepare(`
-    SELECT date, entry_type, COUNT(*) AS cnt
-    FROM journal_entries
-    WHERE ${where.join(' AND ')}
-    GROUP BY date, entry_type
-    ORDER BY date ASC
-  `).all(...params)
+    const r = await pool.query(`
+      SELECT date, entry_type, COUNT(*) AS cnt
+      FROM journal_entries WHERE ${w.join(' AND ')}
+      GROUP BY date, entry_type ORDER BY date ASC
+    `, p)
 
-  // Aggregate by date → { date, types: [] }
-  const byDate = {}
-  for (const row of rows) {
-    if (!byDate[row.date]) byDate[row.date] = { date: row.date, types: [] }
-    byDate[row.date].types.push(row.entry_type)
+    const byDate = {}
+    for (const row of r.rows) {
+      if (!byDate[row.date]) byDate[row.date] = { date: row.date, types: [] }
+      byDate[row.date].types.push(row.entry_type)
+    }
+    res.json(Object.values(byDate))
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
   }
-
-  res.json(Object.values(byDate))
 })
 
 // ── Weekly review auto-stats ──────────────────────────────────────────────────
-router.get('/weekly-stats', (req, res) => {
-  const { from, to } = req.query
-  if (!from || !to) return res.status(400).json({ error: 'from and to required' })
+router.get('/weekly-stats', async (req, res) => {
+  try {
+    const { from, to } = req.query
+    if (!from || !to) return res.status(400).json({ error: 'from and to required' })
 
-  const stats = db.prepare(`
-    SELECT
-      COUNT(*) AS total_trades,
-      COALESCE(SUM(CASE WHEN status='closed' THEN pnl END), 0) AS total_pnl,
-      COUNT(CASE WHEN pnl > 0  AND status='closed' THEN 1 END) AS wins,
-      COUNT(CASE WHEN pnl <= 0 AND status='closed' THEN 1 END) AS losses,
-      MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
-      MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
-    FROM trades WHERE date >= ? AND date <= ?
-  `).get(from, to)
+    const [statsR, grossR, bestSetupR] = await Promise.all([
+      pool.query(`
+        SELECT COUNT(*) AS total_trades,
+               COALESCE(SUM(CASE WHEN status='closed' THEN pnl END),0) AS total_pnl,
+               COUNT(CASE WHEN pnl>0  AND status='closed' THEN 1 END) AS wins,
+               COUNT(CASE WHEN pnl<=0 AND status='closed' THEN 1 END) AS losses,
+               MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
+               MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
+        FROM trades WHERE date>=$1 AND date<=$2
+      `, [from, to]),
+      pool.query(`
+        SELECT COALESCE(SUM(CASE WHEN pnl>0  THEN pnl END),0)      AS gross_profit,
+               ABS(COALESCE(SUM(CASE WHEN pnl<=0 THEN pnl END),0)) AS gross_loss
+        FROM trades WHERE status='closed' AND date>=$1 AND date<=$2
+      `, [from, to]),
+      pool.query(`
+        SELECT setup, COUNT(*) AS cnt FROM trades
+        WHERE setup IS NOT NULL AND date>=$1 AND date<=$2
+        GROUP BY setup ORDER BY cnt DESC LIMIT 1
+      `, [from, to]),
+    ])
 
-  const closed = stats.wins + stats.losses
-  const win_rate = closed > 0 ? (stats.wins / closed) * 100 : 0
+    const stats = statsR.rows[0]
+    const closed = Number(stats.wins) + Number(stats.losses)
+    const win_rate = closed > 0 ? (Number(stats.wins) / closed) * 100 : 0
+    const gross = grossR.rows[0]
+    const profit_factor = gross.gross_loss > 0 ? gross.gross_profit / gross.gross_loss : null
 
-  const best  = stats.best_pnl  != null
-    ? db.prepare(`SELECT id, ticker, pnl, date FROM trades WHERE status='closed' AND pnl=? AND date>=? AND date<=? LIMIT 1`).get(stats.best_pnl,  from, to)
-    : null
-  const worst = stats.worst_pnl != null
-    ? db.prepare(`SELECT id, ticker, pnl, date FROM trades WHERE status='closed' AND pnl=? AND date>=? AND date<=? LIMIT 1`).get(stats.worst_pnl, from, to)
-    : null
+    const [bestR, worstR] = await Promise.all([
+      stats.best_pnl  != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 AND date>=$2 AND date<=$3 LIMIT 1`, [stats.best_pnl,  from, to]) : Promise.resolve({ rows: [] }),
+      stats.worst_pnl != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 AND date>=$2 AND date<=$3 LIMIT 1`, [stats.worst_pnl, from, to]) : Promise.resolve({ rows: [] }),
+    ])
 
-  const setupRow = db.prepare(`
-    SELECT setup, COUNT(*) AS cnt FROM trades
-    WHERE setup IS NOT NULL AND date >= ? AND date <= ?
-    GROUP BY setup ORDER BY cnt DESC LIMIT 1
-  `).get(from, to)
-
-  const grossRow = db.prepare(`
-    SELECT
-      COALESCE(SUM(CASE WHEN pnl > 0  THEN pnl END), 0)       AS gross_profit,
-      ABS(COALESCE(SUM(CASE WHEN pnl <= 0 THEN pnl END), 0))  AS gross_loss
-    FROM trades WHERE status='closed' AND date >= ? AND date <= ?
-  `).get(from, to)
-
-  const profit_factor = grossRow.gross_loss > 0 ? grossRow.gross_profit / grossRow.gross_loss : null
-
-  res.json({
-    ...stats,
-    win_rate,
-    profit_factor,
-    best_trade:  best,
-    worst_trade: worst,
-    top_setup:   setupRow?.setup ?? null,
-  })
+    res.json({
+      ...stats,
+      win_rate,
+      profit_factor,
+      best_trade:  bestR.rows[0]  ?? null,
+      worst_trade: worstR.rows[0] ?? null,
+      top_setup:   bestSetupR.rows[0]?.setup ?? null,
+    })
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
+  }
 })
 
 // ── All tags used across entries ──────────────────────────────────────────────
-router.get('/tags', (req, res) => {
-  const rows = db.prepare(`SELECT tags FROM journal_entries WHERE tags != '[]'`).all()
-  const tagSet = new Set()
-  for (const r of rows) {
-    safeJson(r.tags).forEach(t => tagSet.add(t))
+router.get('/tags', async (_req, res) => {
+  try {
+    const r = await pool.query(`SELECT tags FROM journal_entries WHERE tags != '[]'`)
+    const tagSet = new Set()
+    for (const row of r.rows) safeJson(row.tags).forEach(t => tagSet.add(t))
+    res.json([...tagSet].sort())
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
   }
-  res.json([...tagSet].sort())
 })
 
 // ── Single entry ──────────────────────────────────────────────────────────────
-router.get('/:id', (req, res) => {
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(req.params.id)
-  if (!entry) return res.status(404).json({ error: 'Entry not found' })
-
-  const linkedTrades = db.prepare(`
-    SELECT t.id, t.date, t.ticker, t.direction, t.pnl, t.status, t.entry_price, t.exit_price
-    FROM journal_trade_links jl
-    JOIN trades t ON jl.trade_id = t.id
-    WHERE jl.journal_id = ?
-  `).all(req.params.id)
-
-  res.json({ ...entry, tags: safeJson(entry.tags), linked_trades: linkedTrades })
+router.get('/:id', async (req, res) => {
+  try {
+    const [entryR, linkedR] = await Promise.all([
+      pool.query('SELECT * FROM journal_entries WHERE id=$1', [req.params.id]),
+      pool.query(`
+        SELECT t.id,t.date,t.ticker,t.direction,t.pnl,t.status,t.entry_price,t.exit_price
+        FROM journal_trade_links jl JOIN trades t ON jl.trade_id=t.id
+        WHERE jl.journal_id=$1
+      `, [req.params.id]),
+    ])
+    if (!entryR.rows[0]) return res.status(404).json({ error: 'Entry not found' })
+    const entry = entryR.rows[0]
+    res.json({ ...entry, tags: safeJson(entry.tags), linked_trades: linkedR.rows })
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
+  }
 })
 
 // ── Create ────────────────────────────────────────────────────────────────────
-router.post('/', (req, res) => {
-  const { date, entry_type = 'daily', title = '', content = '', mood = null, tags = [], trade_ids = [] } = req.body
+router.post('/', async (req, res) => {
+  try {
+    const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[] } = req.body
+    const result = await pool.query(`
+      INSERT INTO journal_entries (date,entry_type,title,content,mood,tags)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
+    `, [date, entry_type, title, content, mood, JSON.stringify(tags)])
 
-  const result = db.prepare(`
-    INSERT INTO journal_entries (date, entry_type, title, content, mood, tags)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(date, entry_type, title, content, mood, JSON.stringify(tags))
+    const id = result.rows[0].id
+    await syncLinks(id, trade_ids)
 
-  const id = result.lastInsertRowid
-  syncLinks(id, trade_ids)
-
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(id)
-  res.status(201).json({ ...entry, tags: safeJson(entry.tags) })
+    const entry = await pool.query('SELECT * FROM journal_entries WHERE id=$1', [id])
+    res.status(201).json({ ...entry.rows[0], tags: safeJson(entry.rows[0].tags) })
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
+  }
 })
 
 // ── Update ────────────────────────────────────────────────────────────────────
-router.put('/:id', (req, res) => {
-  const existing = db.prepare('SELECT id FROM journal_entries WHERE id = ?').get(req.params.id)
-  if (!existing) return res.status(404).json({ error: 'Entry not found' })
+router.put('/:id', async (req, res) => {
+  try {
+    const check = await pool.query('SELECT id FROM journal_entries WHERE id=$1', [req.params.id])
+    if (!check.rows[0]) return res.status(404).json({ error: 'Entry not found' })
 
-  const { date, entry_type = 'daily', title = '', content = '', mood = null, tags = [], trade_ids = [] } = req.body
-  db.prepare(`
-    UPDATE journal_entries
-    SET date=?, entry_type=?, title=?, content=?, mood=?, tags=?, updated_at=datetime('now')
-    WHERE id=?
-  `).run(date, entry_type, title, content, mood, JSON.stringify(tags), req.params.id)
+    const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[] } = req.body
+    const NOW = `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
+    await pool.query(`
+      UPDATE journal_entries
+      SET date=$1,entry_type=$2,title=$3,content=$4,mood=$5,tags=$6,updated_at=${NOW}
+      WHERE id=$7
+    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.params.id])
 
-  syncLinks(req.params.id, trade_ids)
+    await syncLinks(req.params.id, trade_ids)
 
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(req.params.id)
-  res.json({ ...entry, tags: safeJson(entry.tags) })
+    const entry = await pool.query('SELECT * FROM journal_entries WHERE id=$1', [req.params.id])
+    res.json({ ...entry.rows[0], tags: safeJson(entry.rows[0].tags) })
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
+  }
 })
 
 // ── Delete ────────────────────────────────────────────────────────────────────
-router.delete('/:id', (req, res) => {
-  const existing = db.prepare('SELECT id FROM journal_entries WHERE id = ?').get(req.params.id)
-  if (!existing) return res.status(404).json({ error: 'Entry not found' })
-  db.prepare('DELETE FROM journal_entries WHERE id = ?').run(req.params.id)
-  res.json({ success: true })
+router.delete('/:id', async (req, res) => {
+  try {
+    const check = await pool.query('SELECT id FROM journal_entries WHERE id=$1', [req.params.id])
+    if (!check.rows[0]) return res.status(404).json({ error: 'Entry not found' })
+    await pool.query('DELETE FROM journal_entries WHERE id=$1', [req.params.id])
+    res.json({ success: true })
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
+  }
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function syncLinks(journalId, tradeIds) {
-  db.prepare('DELETE FROM journal_trade_links WHERE journal_id = ?').run(journalId)
+async function syncLinks(journalId, tradeIds) {
+  await pool.query('DELETE FROM journal_trade_links WHERE journal_id=$1', [journalId])
   for (const tid of tradeIds) {
-    db.prepare('INSERT OR IGNORE INTO journal_trade_links (journal_id, trade_id) VALUES (?, ?)').run(journalId, tid)
+    await pool.query('INSERT INTO journal_trade_links (journal_id,trade_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [journalId, tid])
   }
 }
 

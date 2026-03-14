@@ -135,7 +135,7 @@ function IntensityPicker({ value, onChange }) {
           type="button"
           onClick={() => onChange(value === n ? null : n)}
           className={`w-8 h-8 rounded-full text-xs font-semibold border-2 transition-all ${
-            n <= (value ?? 0)
+            n === value
               ? 'border-purple-500 bg-purple-500/20 text-purple-300'
               : 'border-gray-700 bg-gray-800 text-gray-600 hover:border-gray-500'
           }`}
@@ -171,6 +171,17 @@ export default function TradeFormPage() {
   const [submitting, setSubmitting] = useState(false)
   const [previewPnl, setPreviewPnl] = useState(null)
 
+  // Entry mode: 'entry_exit' or 'direct_pnl', persisted to localStorage
+  const [entryMode, setEntryMode] = useState(
+    () => localStorage.getItem('trade_entry_mode') || 'entry_exit'
+  )
+
+  function switchEntryMode(mode) {
+    setEntryMode(mode)
+    localStorage.setItem('trade_entry_mode', mode)
+    setPreviewPnl(null)
+  }
+
   // Psychology state (managed outside react-hook-form)
   const [confidence,       setConfidence]       = useState(null)
   const [emotionIntensity, setEmotionIntensity] = useState(null)
@@ -191,13 +202,21 @@ export default function TradeFormPage() {
       entry_price: navState?.entry_price ?? '',
       stop_loss:   navState?.stop_loss   ?? '',
       fees: 0,
+      direct_pnl: '',
     }
   })
 
   const watchedValues = watch(['direction', 'entry_price', 'exit_price', 'position_size', 'fees', 'stop_loss'])
+  const watchedDirectPnl = watch('direct_pnl')
 
   // Live P&L preview
   useEffect(() => {
+    if (entryMode === 'direct_pnl') {
+      const val = Number(watchedDirectPnl)
+      if (!watchedDirectPnl && watchedDirectPnl !== 0) { setPreviewPnl(null); return }
+      setPreviewPnl({ pnl: val, pct: null, r: null })
+      return
+    }
     const [direction, entry, exit, size, fees, stop] = watchedValues
     if (!entry || !exit || !size) { setPreviewPnl(null); return }
     const mult = direction === 'long' ? 1 : -1
@@ -209,7 +228,7 @@ export default function TradeFormPage() {
       if (risk > 0) r = pnl / risk
     }
     setPreviewPnl({ pnl, pct, r })
-  }, [watchedValues])
+  }, [watchedValues, watchedDirectPnl, entryMode])
 
   useEffect(() => {
     strategiesApi.list().then(setStrategies)
@@ -219,18 +238,21 @@ export default function TradeFormPage() {
   useEffect(() => {
     if (!isEdit) return
     tradesApi.get(id).then(trade => {
+      const mode = trade.entry_mode || 'entry_exit'
+      setEntryMode(mode)
       reset({
         date:           trade.date,
         ticker:         trade.ticker,
         direction:      trade.direction,
-        entry_price:    trade.entry_price,
+        entry_price:    mode === 'entry_exit' ? (trade.entry_price ?? '') : '',
         exit_price:     trade.exit_price ?? '',
         stop_loss:      trade.stop_loss ?? '',
-        position_size:  trade.position_size,
+        position_size:  mode === 'entry_exit' ? (trade.position_size ?? '') : '',
         fees:           trade.fees,
         strategy_id:    trade.strategy_id ?? '',
         timeframe:      trade.timeframe ?? '',
         notes:          trade.notes ?? '',
+        direct_pnl:     trade.direct_pnl ?? '',
       })
       setSelectedTags(trade.tags.map(t => t.id))
       setSelectedAccountIdForm(trade.account_id ?? '')
@@ -248,22 +270,52 @@ export default function TradeFormPage() {
   async function onSubmit(data) {
     setSubmitting(true)
     try {
-      const payload = {
-        ...data,
-        entry_price:       Number(data.entry_price),
-        exit_price:        data.exit_price ? Number(data.exit_price) : null,
-        stop_loss:         data.stop_loss  ? Number(data.stop_loss)  : null,
-        position_size:     Number(data.position_size),
-        fees:              Number(data.fees || 0),
-        strategy_id:       data.strategy_id || null,
-        tags:              selectedTags,
-        account_id:        selectedAccountIdForm || null,
-        confidence:        confidence,
-        emotion_intensity: emotionIntensity,
-        emotions:          JSON.stringify(emotions),
-        mistakes:          JSON.stringify(mistakes),
-        rules_followed:    JSON.stringify(rulesFollowed),
-        rules_broken:      JSON.stringify(rulesBroken),
+      let payload
+      if (entryMode === 'direct_pnl') {
+        payload = {
+          date:              data.date,
+          ticker:            data.ticker,
+          direction:         data.direction,
+          timeframe:         data.timeframe || null,
+          strategy_id:       data.strategy_id || null,
+          notes:             data.notes || null,
+          fees:              Number(data.fees || 0),
+          // Placeholders to satisfy DB NOT NULL constraints
+          entry_price:       0,
+          position_size:     1,
+          exit_price:        null,
+          stop_loss:         null,
+          direct_pnl:        Number(data.direct_pnl),
+          entry_mode:        'direct_pnl',
+          tags:              selectedTags,
+          account_id:        selectedAccountIdForm || null,
+          confidence:        confidence,
+          emotion_intensity: emotionIntensity,
+          emotions:          JSON.stringify(emotions),
+          mistakes:          JSON.stringify(mistakes),
+          rules_followed:    JSON.stringify(rulesFollowed),
+          rules_broken:      JSON.stringify(rulesBroken),
+        }
+      } else {
+        payload = {
+          ...data,
+          entry_price:       Number(data.entry_price),
+          exit_price:        data.exit_price ? Number(data.exit_price) : null,
+          stop_loss:         data.stop_loss  ? Number(data.stop_loss)  : null,
+          position_size:     Number(data.position_size),
+          fees:              Number(data.fees || 0),
+          strategy_id:       data.strategy_id || null,
+          entry_mode:        'entry_exit',
+          direct_pnl:        null,
+          tags:              selectedTags,
+          account_id:        selectedAccountIdForm || null,
+          confidence:        confidence,
+          emotion_intensity: emotionIntensity,
+          emotions:          JSON.stringify(emotions),
+          mistakes:          JSON.stringify(mistakes),
+          rules_followed:    JSON.stringify(rulesFollowed),
+          rules_broken:      JSON.stringify(rulesBroken),
+        }
       }
       if (isEdit) {
         await tradesApi.update(id, payload)
@@ -294,7 +346,34 @@ export default function TradeFormPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Core fields */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-300">Trade Details</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-300">Trade Details</h2>
+            {/* Entry mode toggle */}
+            <div className="flex items-center bg-gray-800 rounded-lg p-0.5 gap-0.5">
+              <button
+                type="button"
+                onClick={() => switchEntryMode('entry_exit')}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  entryMode === 'entry_exit'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Entry / Exit
+              </button>
+              <button
+                type="button"
+                onClick={() => switchEntryMode('direct_pnl')}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  entryMode === 'direct_pnl'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Direct P&amp;L
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Date" error={errors.date?.message}>
@@ -323,42 +402,62 @@ export default function TradeFormPage() {
             </Field>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Field label="Entry Price" error={errors.entry_price?.message}>
-              <input type="number" step="0.01" placeholder="0.00" {...register('entry_price', { required: 'Required', min: { value: 0.01, message: 'Must be > 0' } })} className={inputCls} />
-            </Field>
-            <Field label="Exit Price" optional>
-              <input type="number" step="0.01" placeholder="0.00" {...register('exit_price')} className={inputCls} />
-            </Field>
-            <Field label="Stop Loss" optional>
-              <input type="number" step="0.01" placeholder="0.00" {...register('stop_loss')} className={inputCls} />
-            </Field>
-          </div>
+          {entryMode === 'entry_exit' ? (
+            <>
+              <div className="grid grid-cols-3 gap-4">
+                <Field label="Entry Price" error={errors.entry_price?.message}>
+                  <input type="number" step="0.01" placeholder="0.00" {...register('entry_price', { required: 'Required', min: { value: 0.01, message: 'Must be > 0' } })} className={inputCls} />
+                </Field>
+                <Field label="Exit Price" optional>
+                  <input type="number" step="0.01" placeholder="0.00" {...register('exit_price')} className={inputCls} />
+                </Field>
+                <Field label="Stop Loss" optional>
+                  <input type="number" step="0.01" placeholder="0.00" {...register('stop_loss')} className={inputCls} />
+                </Field>
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field
-              label="Position Size (shares/units)"
-              error={errors.position_size?.message}
-              headerAction={
-                <button
-                  type="button"
-                  onClick={() => setShowCalc(true)}
-                  className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              <div className="grid grid-cols-2 gap-4">
+                <Field
+                  label="Position Size (shares/units)"
+                  error={errors.position_size?.message}
+                  headerAction={
+                    <button
+                      type="button"
+                      onClick={() => setShowCalc(true)}
+                      className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Calc Size
+                    </button>
+                  }
                 >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                  Calc Size
-                </button>
-              }
-            >
-              <input type="number" step="1" placeholder="100" {...register('position_size', { required: 'Required', min: { value: 0.001, message: 'Must be > 0' } })} className={inputCls} />
-            </Field>
-            <Field label="Fees / Commission" optional>
-              <input type="number" step="0.01" placeholder="0.00" {...register('fees')} className={inputCls} />
-            </Field>
-          </div>
+                  <input type="number" step="1" placeholder="100" {...register('position_size', { required: 'Required', min: { value: 0.001, message: 'Must be > 0' } })} className={inputCls} />
+                </Field>
+                <Field label="Fees / Commission" optional>
+                  <input type="number" step="0.01" placeholder="0.00" {...register('fees')} className={inputCls} />
+                </Field>
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="P&L Amount ($)" error={errors.direct_pnl?.message}>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 250.00 or -75.50"
+                  {...register('direct_pnl', { required: 'Required' })}
+                  className={inputCls}
+                />
+                <p className="text-xs text-gray-600 mt-1">Positive = profit, negative = loss</p>
+              </Field>
+              <Field label="Fees / Commission" optional>
+                <input type="number" step="0.01" placeholder="0.00" {...register('fees')} className={inputCls} />
+              </Field>
+            </div>
+          )}
         </div>
 
         {/* P&L Preview */}
@@ -366,17 +465,21 @@ export default function TradeFormPage() {
           <div className={`rounded-xl border px-5 py-4 flex items-center gap-6
             ${previewPnl.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
             <div>
-              <div className="text-xs text-gray-500 mb-0.5">Estimated P&L</div>
+              <div className="text-xs text-gray-500 mb-0.5">
+                {entryMode === 'direct_pnl' ? 'P&L' : 'Estimated P&L'}
+              </div>
               <div className={`text-xl font-bold font-mono ${previewPnl.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {previewPnl.pnl >= 0 ? '+' : ''}${previewPnl.pnl.toFixed(2)}
               </div>
             </div>
-            <div>
-              <div className="text-xs text-gray-500 mb-0.5">Return %</div>
-              <div className={`text-sm font-mono ${previewPnl.pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {previewPnl.pct >= 0 ? '+' : ''}{previewPnl.pct.toFixed(2)}%
+            {previewPnl.pct != null && (
+              <div>
+                <div className="text-xs text-gray-500 mb-0.5">Return %</div>
+                <div className={`text-sm font-mono ${previewPnl.pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {previewPnl.pct >= 0 ? '+' : ''}{previewPnl.pct.toFixed(2)}%
+                </div>
               </div>
-            </div>
+            )}
             {previewPnl.r != null && (
               <div>
                 <div className="text-xs text-gray-500 mb-0.5">R Multiple</div>
@@ -510,7 +613,7 @@ export default function TradeFormPage() {
         </div>
 
         {/* Position Calculator Modal */}
-        {showCalc && (
+        {showCalc && entryMode === 'entry_exit' && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60" onClick={() => setShowCalc(false)} />
             <div className="relative bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">

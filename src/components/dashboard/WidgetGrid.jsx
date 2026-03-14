@@ -107,6 +107,7 @@ function SortableWidget({ widget, onRemove, onUpdate }) {
   const style = {
     transform:  CSS.Transform.toString(transform),
     transition,
+    opacity: isDragging ? 0 : undefined,
   }
 
   const meta      = WIDGET_REGISTRY[widget.type]
@@ -116,7 +117,7 @@ function SortableWidget({ widget, onRemove, onUpdate }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`${COL_SPAN[widget.size] ?? 'col-span-2'} transition-all duration-200`}
+      className={`${COL_SPAN[widget.size] ?? 'col-span-2'}`}
     >
       <WidgetWrapper
         config={widget}
