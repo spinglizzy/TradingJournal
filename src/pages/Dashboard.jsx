@@ -6,6 +6,7 @@ import WidgetPicker    from '../components/dashboard/WidgetPicker.jsx'
 import PresetManager   from '../components/dashboard/PresetManager.jsx'
 import DateRangeFilter from '../components/dashboard/DateRangeFilter.jsx'
 import { WIDGET_REGISTRY, DEFAULT_LAYOUT } from '../components/dashboard/widgetRegistry.js'
+import { sizeToGrid } from '../components/dashboard/WidgetGrid.jsx'
 
 const LAYOUT_KEY = 'dashboard_layout'
 
@@ -47,15 +48,12 @@ function DashboardInner() {
   }, [])
 
   function addWidget(type) {
-    const meta = WIDGET_REGISTRY[type]
+    const meta        = WIDGET_REGISTRY[type]
+    const size        = meta?.defaultSize ?? 'medium'
+    const { w, h }    = sizeToGrid(size)
     setLayout(prev => [
       ...prev,
-      {
-        id:       uid(),
-        type,
-        size:     meta?.defaultSize ?? 'medium',
-        settings: {},
-      },
+      { id: uid(), type, size, settings: {}, x: 0, y: 9999, w, h },
     ])
   }
 
@@ -71,7 +69,7 @@ function DashboardInner() {
             <h1 className="text-xl font-bold text-white">Dashboard</h1>
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            Drag widgets to reorder · click ⚙ to configure · click size icon to resize
+            Drag to reorder · drag edges &amp; corners to resize · ⚙ to configure
           </p>
         </div>
 

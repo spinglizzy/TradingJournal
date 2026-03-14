@@ -188,6 +188,131 @@
 .bg-indigo-600.text-white { background-color: var(--color-accent) !important; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   REACT-GRID-LAYOUT — widget resize handles
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Let the grid item overflow so corner handles are visible */
+.react-grid-item {
+  overflow: visible !important;
+}
+
+/* The placeholder shown while dragging */
+.react-grid-item.react-grid-placeholder {
+  background:    color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
+  border:        1px dashed color-mix(in srgb, var(--color-accent) 40%, transparent) !important;
+  border-radius: 12px !important;
+  opacity:       1 !important;
+}
+
+/* Fade widget while dragging */
+.react-grid-item.react-draggable-dragging {
+  opacity: 0.75;
+  z-index: 100;
+}
+
+/* Fade widget while resizing */
+.react-grid-item.resizing {
+  opacity: 0.85;
+  z-index: 100;
+}
+
+/* All resize handles — hidden by default, shown on hover */
+.react-resizable-handle {
+  position: absolute;
+  opacity:  0;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+}
+
+.rgl-item:hover .react-resizable-handle {
+  opacity: 1;
+}
+
+/* Remove the default background-image arrow on handles */
+.react-resizable-handle::after {
+  content: none !important;
+}
+
+/* ── Edge handles (lines) ── */
+.react-resizable-handle-s,
+.react-resizable-handle-n {
+  left:   10%;
+  width:  80%;
+  height: 6px;
+  cursor: ns-resize;
+}
+.react-resizable-handle-s {
+  bottom: -3px;
+  border-bottom: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  border-radius: 0 0 4px 4px;
+}
+.react-resizable-handle-n {
+  top: -3px;
+  border-top: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  border-radius: 4px 4px 0 0;
+}
+
+.react-resizable-handle-e,
+.react-resizable-handle-w {
+  top:    10%;
+  height: 80%;
+  width:  6px;
+  cursor: ew-resize;
+}
+.react-resizable-handle-e {
+  right:        -3px;
+  border-right: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+.react-resizable-handle-w {
+  left:        -3px;
+  border-left: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  border-radius: 4px 0 0 4px;
+}
+
+/* ── Corner handles (small L-shaped marks) ── */
+.react-resizable-handle-se,
+.react-resizable-handle-sw,
+.react-resizable-handle-ne,
+.react-resizable-handle-nw {
+  width:  14px;
+  height: 14px;
+}
+
+.react-resizable-handle-se {
+  bottom: -2px;
+  right:  -2px;
+  cursor: se-resize;
+  border-bottom: 2px solid var(--color-accent);
+  border-right:  2px solid var(--color-accent);
+  border-radius: 0 0 4px 0;
+}
+.react-resizable-handle-sw {
+  bottom: -2px;
+  left:   -2px;
+  cursor: sw-resize;
+  border-bottom: 2px solid var(--color-accent);
+  border-left:   2px solid var(--color-accent);
+  border-radius: 0 0 0 4px;
+}
+.react-resizable-handle-ne {
+  top:   -2px;
+  right: -2px;
+  cursor: ne-resize;
+  border-top:   2px solid var(--color-accent);
+  border-right: 2px solid var(--color-accent);
+  border-radius: 0 4px 0 0;
+}
+.react-resizable-handle-nw {
+  top:  -2px;
+  left: -2px;
+  cursor: nw-resize;
+  border-top:  2px solid var(--color-accent);
+  border-left: 2px solid var(--color-accent);
+  border-radius: 4px 0 0 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    LIGHT MODE overrides
    ───────────────────────────────────────────────────────────────────────────── */
 [data-theme="light"] {
