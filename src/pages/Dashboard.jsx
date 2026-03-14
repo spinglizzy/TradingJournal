@@ -83,7 +83,7 @@ function DashboardInner() {
           {/* Add widget */}
           <button
             onClick={() => setPicker(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-500/20" style={{ color: '#0a1a0a' }}
           >
             <Plus className="w-4 h-4" />
             Add Widget
@@ -101,7 +101,7 @@ function DashboardInner() {
           </div>
           <button
             onClick={() => setPicker(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors mt-2"
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-sm font-medium rounded-xl transition-colors mt-2" style={{ color: '#0a1a0a' }}
           >
             <Plus className="w-4 h-4" />
             Add your first widget
