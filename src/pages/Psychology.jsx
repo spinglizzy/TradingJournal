@@ -58,7 +58,7 @@ function TiltGauge({ score = 0 }) {
 
   return (
     <div className="flex flex-col items-center">
-      <svg viewBox="20 20 160 95" width="260" height="130">
+      <svg viewBox="20 5 160 110" width="260" height="150">
         {/* Track */}
         <path d={arcPath(Math.PI, 0, R)} fill="none" stroke="#374151" strokeWidth="14" />
         {/* Green zone */}
