@@ -324,7 +324,7 @@ function GoalCard({ goal, onEdit, onDelete, onToggle }) {
   const color = goal.is_met ? 'emerald' : goal.progress >= 70 ? 'amber' : 'indigo'
 
   return (
-    <div className={`bg-gray-900 border rounded-xl p-5 transition-all
+    <div className={`bg-gray-900 border rounded-xl p-5 transition-all card-glow
       ${goal.active ? 'border-gray-800' : 'border-gray-800/50 opacity-60'}`}>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
@@ -411,7 +411,7 @@ function StreakCard({ title, icon, current, longest, longestStart, longestEnd, c
   const c = colors[color] || colors.indigo
 
   return (
-    <div className={`bg-gray-900 border rounded-xl p-5 ${c.border}`}>
+    <div className={`bg-gray-900 border rounded-xl p-5 card-glow ${c.border}`}>
       <div className="flex items-center gap-2 mb-4">
         <span className={`w-8 h-8 ${c.bg} rounded-lg flex items-center justify-center text-lg`}>{icon}</span>
         <h3 className="text-sm font-medium text-gray-300">{title}</h3>
@@ -447,7 +447,7 @@ function AchievementBadge({ ach, onEdit, onDelete }) {
   const hasProgress = ach.progress !== null && !earned
 
   return (
-    <div className={`bg-gray-900 border rounded-xl p-4 flex flex-col gap-3 transition-all
+    <div className={`bg-gray-900 border rounded-xl p-4 flex flex-col gap-3 transition-all card-glow
       ${earned ? 'border-yellow-600/40' : 'border-gray-800 opacity-70'}`}>
       <div className="flex items-start justify-between gap-2">
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0
@@ -504,7 +504,7 @@ function AchievementBadge({ ach, onEdit, onDelete }) {
 function GoalCalendar({ data }) {
   if (!data?.days?.length) {
     return (
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center card-glow">
         <p className="text-gray-500 text-sm">No active daily goals to track.</p>
         <p className="text-gray-600 text-xs mt-1">Create a daily goal to see calendar progress here.</p>
       </div>
@@ -533,7 +533,7 @@ function GoalCalendar({ data }) {
   const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 card-glow">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-white font-medium">Daily Goal Completion — Last 90 Days</h3>
         <div className="flex items-center gap-4 text-xs text-gray-500">
@@ -718,7 +718,7 @@ export default function Goals() {
           { label: 'Achievements', value: `${earnedAchs.length} / ${achievements.length}`, color: 'text-yellow-400' },
           { label: 'Journal Streak', value: streaks ? `${streaks.journal.current}d` : '—', color: streaks?.journal.current > 0 ? 'text-indigo-400' : 'text-white' },
         ].map(s => (
-          <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+          <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 card-glow">
             <p className="text-xs text-gray-500 mb-1">{s.label}</p>
             <p className={`text-xl font-bold ${s.color}`}>{loading ? '—' : s.value}</p>
           </div>
@@ -755,7 +755,7 @@ export default function Goals() {
           {tab === 'goals' && (
             <div className="space-y-6">
               {goals.length === 0 ? (
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center card-glow">
                   <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">🎯</div>
                   <h3 className="text-white font-medium mb-2">No goals yet</h3>
                   <p className="text-gray-500 text-sm mb-6">Create your first goal to start tracking progress.</p>
@@ -829,7 +829,7 @@ export default function Goals() {
               </div>
 
               {filteredAchs.length === 0 ? (
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center card-glow">
                   <p className="text-gray-500 text-sm">No achievements in this category.</p>
                 </div>
               ) : (
@@ -880,7 +880,7 @@ export default function Goals() {
                 />
               </div>
 
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 card-glow">
                 <h3 className="text-white font-medium mb-4">Streak Summary</h3>
                 <div className="space-y-3">
                   {[

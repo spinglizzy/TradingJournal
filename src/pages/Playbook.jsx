@@ -82,7 +82,7 @@ function SetupCard({ setup, selected, onClick, onEdit, onDelete }) {
   return (
     <div
       onClick={onClick}
-      className={`group relative cursor-pointer rounded-xl border p-4 transition-all ${
+      className={`group relative cursor-pointer rounded-xl border p-4 transition-all card-glow ${
         selected
           ? 'border-indigo-500/60 bg-indigo-500/5'
           : 'border-gray-800 bg-gray-900 hover:border-gray-700'
@@ -780,7 +780,7 @@ function CompareView({ allSetups }) {
   return (
     <div className="space-y-5">
       {/* Setup selector */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
         <h3 className="text-sm font-medium text-gray-300 mb-3">Select 2–3 setups to compare</h3>
         <div className="flex flex-wrap gap-2">
           {allSetups.map(setup => (
@@ -800,7 +800,7 @@ function CompareView({ allSetups }) {
       {loading && <LoadingSpinner className="h-40" />}
 
       {!loading && compareData.length >= 2 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden card-glow">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800">
@@ -1102,7 +1102,7 @@ function PipelineSection({ setups }) {
 
       {/* Inline form */}
       {(showForm || editPlan) && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
           <h3 className="text-sm font-medium text-white mb-4">{editPlan ? 'Edit Planned Trade' : 'New Planned Trade'}</h3>
           <PlanForm
             plan={editPlan}
@@ -1122,7 +1122,7 @@ function PipelineSection({ setups }) {
           {plans.map(plan => {
             const rr = calcRR(plan.planned_entry, plan.stop_loss, plan.target_price, plan.direction)
             return (
-              <div key={plan.id} className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl px-4 py-3 transition-colors">
+              <div key={plan.id} className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl px-4 py-3 transition-colors card-glow">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     {/* Ticker + direction */}
@@ -1360,7 +1360,7 @@ function MissedSection({ setups }) {
       {/* Summary cards */}
       {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className={`bg-gray-900 border rounded-xl p-4 ${summary.total_missed >= 0 ? 'border-emerald-500/30' : 'border-red-500/30'}`}>
+          <div className={`bg-gray-900 border rounded-xl p-4 card-glow ${summary.total_missed >= 0 ? 'border-emerald-500/30' : 'border-red-500/30'}`}>
             <div className="text-xs text-gray-500 mb-1">Total P&L Left on Table</div>
             <div className={`text-2xl font-bold font-mono ${pnlCls(summary.total_missed)}`}>
               {fmt$(summary.total_missed)}
@@ -1369,7 +1369,7 @@ function MissedSection({ setups }) {
           </div>
 
           {summary.by_setup?.length > 0 && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
               <div className="text-xs text-gray-500 mb-2">By Setup</div>
               <div className="space-y-1.5">
                 {summary.by_setup.slice(0, 4).map(s => (
@@ -1383,7 +1383,7 @@ function MissedSection({ setups }) {
           )}
 
           {summary.by_month?.length > 0 && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
               <div className="text-xs text-gray-500 mb-2">Recent Months</div>
               <div className="space-y-1.5">
                 {summary.by_month.slice(-4).map(m => (
@@ -1412,7 +1412,7 @@ function MissedSection({ setups }) {
 
       {/* Inline form */}
       {(showForm || editItem) && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
           <h3 className="text-sm font-medium text-white mb-4">{editItem ? 'Edit' : 'Log Missed Trade'}</h3>
           <MissedForm
             trade={editItem}
@@ -1428,7 +1428,7 @@ function MissedSection({ setups }) {
           No missed trades logged yet
         </div>
       ) : (
-        <div className="overflow-x-auto bg-gray-900 border border-gray-800 rounded-xl">
+        <div className="overflow-x-auto bg-gray-900 border border-gray-800 rounded-xl card-glow">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800">
@@ -1616,7 +1616,7 @@ export default function Playbook() {
             {/* Right: detail or editor panel */}
             {(showDetail || showEditor) && (
               <div className="hidden lg:block lg:col-span-3">
-                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col" style={{ minHeight: '600px' }}>
+                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col card-glow" style={{ minHeight: '600px' }}>
                   {showEditor ? (
                     <SetupEditorPanel
                       key={editingSetup?.id ?? 'new'}

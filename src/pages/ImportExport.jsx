@@ -107,7 +107,7 @@ function UploadStep({ onNext }) {
       )}
 
       {/* Quick tips */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
         <p className="text-xs font-medium text-gray-400 mb-2">Supported formats</p>
         <div className="flex flex-wrap gap-2">
           {BROKER_TEMPLATES.map(t => (
@@ -182,7 +182,7 @@ function MappingStep({ data, onNext, onBack }) {
   return (
     <div className="space-y-5">
       {/* Template picker */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-300">Broker Template</h3>
           <span className="text-xs text-gray-600">Pre-fill mappings automatically</span>
@@ -213,7 +213,7 @@ function MappingStep({ data, onNext, onBack }) {
       </div>
 
       {/* Field mapping */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
         <h3 className="text-sm font-semibold text-gray-300 mb-3">Column Mapping</h3>
         <div className="grid grid-cols-2 gap-3">
           {JOURNAL_FIELDS.map(field => (
@@ -238,7 +238,7 @@ function MappingStep({ data, onNext, onBack }) {
 
       {/* Preview of mapped data */}
       {mappedPreview.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">Mapped Data Preview (first 5 rows)</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -266,7 +266,7 @@ function MappingStep({ data, onNext, onBack }) {
       )}
 
       {/* Save template */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
         <h3 className="text-sm font-semibold text-gray-300 mb-2">Save as Custom Template</h3>
         <div className="flex gap-2">
           <input className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500"
@@ -306,7 +306,7 @@ function DefaultsStep({ data, onNext, onBack }) {
 
   return (
     <div className="space-y-5">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow space-y-4">
         <h3 className="text-sm font-semibold text-gray-300">Default Values for Unmapped Fields</h3>
         <p className="text-xs text-gray-500">These values will be used when the CSV doesn't have data for these fields.</p>
 
@@ -377,7 +377,7 @@ function ReviewStep({ data, onBack, onDone }) {
   return (
     <div className="space-y-5">
       {/* Summary */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow">
         <h3 className="text-sm font-semibold text-gray-300 mb-4">Import Summary</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center p-3 bg-gray-800 rounded-lg">
@@ -409,7 +409,7 @@ function ReviewStep({ data, onBack, onDone }) {
 
       {/* Import result */}
       {result && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow space-y-4">
           <div className="flex items-center gap-2 text-emerald-400">
             <Check className="w-5 h-5" />
             <h3 className="text-sm font-semibold">Import Complete</h3>
@@ -505,7 +505,7 @@ function ExportPanel() {
   return (
     <div className="space-y-4">
       {/* CSV Export */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow">
         <div className="flex items-center gap-2 mb-4">
           <FileText className="w-4 h-4 text-indigo-400" />
           <h3 className="text-sm font-semibold text-white">Export Trades as CSV</h3>
@@ -547,7 +547,7 @@ function ExportPanel() {
       </div>
 
       {/* JSON Backup */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow">
         <div className="flex items-center gap-2 mb-2">
           <Database className="w-4 h-4 text-purple-400" />
           <h3 className="text-sm font-semibold text-white">Full Database Backup (JSON)</h3>

@@ -192,6 +192,27 @@
 [data-theme-name="liquid-dark"] .bg-indigo-500 { color: #0a1a0a !important; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   CARD GLOW — hover border + glow effect (used on all cards across the app)
+   ───────────────────────────────────────────────────────────────────────────── */
+.card-glow {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.card-glow:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 60%, transparent) !important;
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-accent) 25%, transparent),
+              0 0 4px 0px color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SUB-TAB NAVIGATION — lamp effect (mirrors nav-item-active for inner tab bars)
+   ───────────────────────────────────────────────────────────────────────────── */
+.tab-active {
+  color: var(--color-accent) !important;
+  background-color: color-mix(in srgb, var(--color-accent) 8%, transparent) !important;
+  border-color: color-mix(in srgb, var(--color-accent) 18%, transparent) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    REACT-GRID-LAYOUT — widget resize handles
    ───────────────────────────────────────────────────────────────────────────── */
 

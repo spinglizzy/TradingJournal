@@ -34,7 +34,7 @@ export default function JournalCalendar({
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden card-glow">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800">
         <h2 className="text-sm font-semibold text-white">

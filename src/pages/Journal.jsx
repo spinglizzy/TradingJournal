@@ -776,7 +776,7 @@ export default function Journal() {
           {/* Right: Editor panel — desktop only (mobile uses overlay below) */}
           {isEditorOpen && (
             <div className="hidden lg:block lg:col-span-3">
-              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden h-full flex flex-col" style={{ minHeight: '600px' }}>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden h-full flex flex-col card-glow" style={{ minHeight: '600px' }}>
                 <EntryEditorPanel
                   key={editingEntry?.id ?? `new-${newEntryType}-${newEntryDate}`}
                   entry={editingEntry}

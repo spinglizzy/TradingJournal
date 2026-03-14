@@ -244,7 +244,7 @@ export default function Accounts() {
 
       {/* Create form */}
       {showForm && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow">
           <h2 className="text-sm font-semibold text-gray-300 mb-4">New Account</h2>
           <AccountForm onSave={handleCreate} onCancel={() => setShowForm(false)} />
         </div>
@@ -252,7 +252,7 @@ export default function Accounts() {
 
       {/* Account list */}
       {accounts.length === 0 && !showForm ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center card-glow">
           <div className="text-4xl mb-3">🏦</div>
           <h3 className="text-lg font-semibold text-white mb-1">No accounts yet</h3>
           <p className="text-sm text-gray-500 mb-4">Create your first account to start tracking per-account performance</p>
@@ -269,7 +269,7 @@ export default function Accounts() {
             const pnl = account.realized_pnl ?? 0
             const positive = balance >= account.starting_balance
             return (
-              <div key={account.id} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <div key={account.id} className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow">
                 {editAccount?.id === account.id ? (
                   <>
                     <h3 className="text-sm font-semibold text-gray-300 mb-4">Edit Account</h3>

@@ -41,7 +41,7 @@ export function MetricCard({ label, value, sub, color, size = 'md' }) {
   const valueSize = size === 'lg' ? 'text-2xl' : 'text-xl'
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">{label}</div>
       <div className={`${valueSize} font-bold font-mono ${textColor} leading-tight`}>{value}</div>
       {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
@@ -288,7 +288,7 @@ export function ExportButtons({ onCSV, onPNG, className = '' }) {
 // ── Section card wrapper ───────────────────────────────────────────────────────
 export function Section({ title, actions, children, className = '' }) {
   return (
-    <div className={`bg-gray-900 border border-gray-800 rounded-xl p-5 ${className}`}>
+    <div className={`bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow ${className}`}>
       {(title || actions) && (
         <div className="flex items-center justify-between mb-4">
           {title && <h2 className="text-sm font-semibold text-gray-300">{title}</h2>}

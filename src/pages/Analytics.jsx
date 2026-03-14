@@ -269,10 +269,10 @@ export default function Analytics() {
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap border ${
               activeTab === id
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                ? 'tab-active'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800'
             }`}
           >
             <Icon className="w-4 h-4" />

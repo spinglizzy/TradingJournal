@@ -50,7 +50,7 @@ function calcPnlFrontend(direction, entry, exit, size, fees = 0, stop = null) {
 
 function Section({ title, children, action }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden card-glow">
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800">
         <h2 className="text-sm font-semibold text-gray-300">{title}</h2>
         {action}
@@ -548,7 +548,7 @@ export default function TradeDetailPage() {
       </div>
 
       {/* ── Trade Summary Header ── */}
-      <div className={`rounded-xl border p-6 ${trade.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : trade.pnl != null ? 'border-red-500/30 bg-red-500/5' : 'border-gray-800 bg-gray-900'}`}>
+      <div className={`rounded-xl border p-6 card-glow ${trade.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : trade.pnl != null ? 'border-red-500/30 bg-red-500/5' : 'border-gray-800 bg-gray-900'}`}>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           {/* Left: ticker + meta */}
           <div className="space-y-3">

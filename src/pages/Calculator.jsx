@@ -10,7 +10,7 @@ export default function Calculator() {
         </p>
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 card-glow">
         <PositionCalculator />
       </div>
 
