@@ -36,7 +36,7 @@ const transitionVariants = {
 function Logo() {
   return (
     <div className="flex items-center gap-2">
-      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
         <TrendingUp className="w-4 h-4 text-white" />
       </div>
       <span className="font-bold text-white text-base tracking-tight">TradeJournal</span>
@@ -60,7 +60,7 @@ function Header() {
         className={cn(
           'mx-auto mt-3 max-w-6xl px-6 transition-all duration-300',
           scrolled
-            ? 'bg-gray-950/80 backdrop-blur-xl max-w-4xl rounded-2xl border border-gray-800/60 lg:px-5'
+            ? 'bg-gray-950/80 backdrop-blur-xl max-w-4xl rounded-2xl border border-emerald-900/40 lg:px-5'
             : 'bg-transparent'
         )}
       >
@@ -76,7 +76,7 @@ function Header() {
               <li key={item.label}>
                 <a
                   href={item.href}
-                  className="text-gray-400 hover:text-white transition-colors duration-150"
+                  className="text-gray-400 hover:text-emerald-300 transition-colors duration-150"
                 >
                   {item.label}
                 </a>
@@ -89,7 +89,7 @@ function Header() {
             <Link
               to="/dashboard"
               className={cn(
-                'px-4 py-2 text-sm font-medium text-gray-300 hover:text-white border border-gray-700 hover:border-gray-600 rounded-lg transition-all duration-150',
+                'px-4 py-2 text-sm font-medium text-gray-300 hover:text-white border border-gray-700 hover:border-emerald-800 rounded-lg transition-all duration-150',
                 scrolled ? 'hidden' : ''
               )}
             >
@@ -97,7 +97,7 @@ function Header() {
             </Link>
             <Link
               to="/dashboard"
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-all duration-150"
+              className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all duration-150 shadow-md shadow-emerald-900/40"
             >
               {scrolled ? 'Get Started' : 'Sign Up'}
             </Link>
@@ -106,7 +106,7 @@ function Header() {
           {/* Mobile menu toggle */}
           <button
             onClick={() => setOpen(v => !v)}
-            className="lg:hidden p-2 text-gray-400 hover:text-white transition-colors"
+            className="lg:hidden p-2 text-gray-400 hover:text-emerald-300 transition-colors"
           >
             {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -121,7 +121,7 @@ function Header() {
                   <a
                     href={item.href}
                     onClick={() => setOpen(false)}
-                    className="block text-sm text-gray-400 hover:text-white transition-colors"
+                    className="block text-sm text-gray-400 hover:text-emerald-300 transition-colors"
                   >
                     {item.label}
                   </a>
@@ -131,13 +131,13 @@ function Header() {
             <div className="flex flex-col gap-2 pt-2 border-t border-gray-800">
               <Link
                 to="/dashboard"
-                className="px-4 py-2.5 text-sm font-medium text-center text-gray-300 border border-gray-700 rounded-lg hover:border-gray-600 hover:text-white transition-all"
+                className="px-4 py-2.5 text-sm font-medium text-center text-gray-300 border border-gray-700 rounded-lg hover:border-emerald-800 hover:text-white transition-all"
               >
                 Login
               </Link>
               <Link
                 to="/dashboard"
-                className="px-4 py-2.5 text-sm font-medium text-center text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-all"
+                className="px-4 py-2.5 text-sm font-medium text-center text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all"
               >
                 Sign Up Free
               </Link>
@@ -151,46 +151,46 @@ function Header() {
 
 const FEATURES = [
   {
-    icon: <FileText className="w-5 h-5 text-indigo-400" />,
+    icon: <FileText className="w-5 h-5 text-emerald-400" />,
     title: 'Trade Log',
     description: 'Log every trade with full detail — entry, exit, size, R-multiple, screenshots, and notes. Never lose track of a trade again.',
-    color: 'from-indigo-500/10 to-indigo-600/5',
-    border: 'border-indigo-500/20',
-  },
-  {
-    icon: <BarChart2 className="w-5 h-5 text-violet-400" />,
-    title: 'Deep Analytics',
-    description: 'Slice your performance by ticker, strategy, session, day of week, and more. Find exactly where your edge lives.',
-    color: 'from-violet-500/10 to-violet-600/5',
-    border: 'border-violet-500/20',
-  },
-  {
-    icon: <Brain className="w-5 h-5 text-pink-400" />,
-    title: 'Psychology Tracker',
-    description: 'Track emotions, tilt score, rule violations, and mental state across sessions. Understand how psychology affects your P&L.',
-    color: 'from-pink-500/10 to-pink-600/5',
-    border: 'border-pink-500/20',
-  },
-  {
-    icon: <BookOpen className="w-5 h-5 text-emerald-400" />,
-    title: 'Trading Playbook',
-    description: 'Document your setups, entry rules, and risk management. Keep your strategy sharp and consistent.',
     color: 'from-emerald-500/10 to-emerald-600/5',
     border: 'border-emerald-500/20',
   },
   {
-    icon: <LineChart className="w-5 h-5 text-sky-400" />,
-    title: 'Performance Journal',
-    description: 'Write daily notes, review your sessions, and track growth over time. Build the habit of self-review.',
-    color: 'from-sky-500/10 to-sky-600/5',
-    border: 'border-sky-500/20',
+    icon: <BarChart2 className="w-5 h-5 text-teal-400" />,
+    title: 'Deep Analytics',
+    description: 'Slice your performance by ticker, strategy, session, day of week, and more. Find exactly where your edge lives.',
+    color: 'from-teal-500/10 to-teal-600/5',
+    border: 'border-teal-500/20',
   },
   {
-    icon: <Target className="w-5 h-5 text-amber-400" />,
+    icon: <Brain className="w-5 h-5 text-emerald-300" />,
+    title: 'Psychology Tracker',
+    description: 'Track emotions, tilt score, rule violations, and mental state across sessions. Understand how psychology affects your P&L.',
+    color: 'from-emerald-400/8 to-teal-600/5',
+    border: 'border-emerald-400/15',
+  },
+  {
+    icon: <BookOpen className="w-5 h-5 text-teal-300" />,
+    title: 'Trading Playbook',
+    description: 'Document your setups, entry rules, and risk management. Keep your strategy sharp and consistent.',
+    color: 'from-teal-400/8 to-emerald-600/5',
+    border: 'border-teal-400/15',
+  },
+  {
+    icon: <LineChart className="w-5 h-5 text-emerald-400" />,
+    title: 'Performance Journal',
+    description: 'Write daily notes, review your sessions, and track growth over time. Build the habit of self-review.',
+    color: 'from-emerald-500/10 to-teal-600/5',
+    border: 'border-emerald-500/20',
+  },
+  {
+    icon: <Target className="w-5 h-5 text-teal-400" />,
     title: 'Goals & Targets',
     description: 'Set monthly profit targets, win rate goals, and discipline metrics. Track progress and stay accountable.',
-    color: 'from-amber-500/10 to-amber-600/5',
-    border: 'border-amber-500/20',
+    color: 'from-teal-500/10 to-emerald-600/5',
+    border: 'border-teal-500/20',
   },
 ]
 
@@ -230,7 +230,7 @@ function AppPreview() {
     <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4 shadow-2xl shadow-black/60">
       {/* Fake top nav */}
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-800">
-        <div className="w-5 h-5 rounded bg-indigo-600/80 flex items-center justify-center">
+        <div className="w-5 h-5 rounded bg-emerald-600/80 flex items-center justify-center">
           <TrendingUp className="w-3 h-3 text-white" />
         </div>
         <span className="text-xs font-semibold text-gray-300">TradeJournal</span>
@@ -263,7 +263,7 @@ function AppPreview() {
           {[20, 35, 28, 45, 38, 52, 48, 65, 58, 72, 68, 84].map((h, i) => (
             <div
               key={i}
-              className="flex-1 rounded-sm bg-gradient-to-t from-indigo-600/60 to-indigo-500/30"
+              className="flex-1 rounded-sm bg-gradient-to-t from-emerald-600/60 to-emerald-500/20"
               style={{ height: `${h}%` }}
             />
           ))}
@@ -298,6 +298,9 @@ export default function Landing() {
         <StarsBackground starDensity={0.00015} minTwinkleSpeed={0.6} maxTwinkleSpeed={1.2} />
       </div>
 
+      {/* Subtle green atmospheric glow behind hero */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full bg-emerald-950/60 blur-3xl pointer-events-none" style={{ zIndex: 0 }} />
+
       {/* All page content above the stars */}
       <div className="relative" style={{ zIndex: 1 }}>
       <Header />
@@ -308,11 +311,11 @@ export default function Landing() {
           <div className="text-center max-w-4xl mx-auto">
             <AnimatedGroup variants={transitionVariants}>
               {/* Badge */}
-              <div className="inline-flex items-center gap-3 bg-gray-900 border border-gray-700/60 rounded-full px-4 py-1.5 text-sm mb-8 shadow-sm">
+              <div className="inline-flex items-center gap-3 bg-gray-900/80 border border-emerald-900/50 rounded-full px-4 py-1.5 text-sm mb-8 shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="text-gray-300">Built for serious traders</span>
                 <span className="text-gray-700">|</span>
-                <a href="#features" className="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
+                <a href="#features" className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors">
                   See features <ArrowRight className="w-3 h-3" />
                 </a>
               </div>
@@ -320,7 +323,7 @@ export default function Landing() {
               {/* Headline */}
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-white leading-[1.08] mb-6">
                 Track Every Trade.{' '}
-                <span className="bg-gradient-to-r from-indigo-400 via-violet-400 to-indigo-300 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-300 bg-clip-text text-transparent">
                   Master Your Edge.
                 </span>
               </h1>
@@ -335,14 +338,14 @@ export default function Landing() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
                   to="/dashboard"
-                  className="group flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-indigo-600/25 hover:shadow-indigo-500/35"
+                  className="group flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-emerald-900/50 hover:shadow-emerald-800/50"
                 >
                   Start for Free
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <a
                   href="#features"
-                  className="flex items-center gap-2 px-6 py-3 text-gray-300 hover:text-white border border-gray-700 hover:border-gray-600 font-medium rounded-xl transition-all duration-200"
+                  className="flex items-center gap-2 px-6 py-3 text-gray-300 hover:text-emerald-300 border border-gray-700 hover:border-emerald-900 font-medium rounded-xl transition-all duration-200"
                 >
                   See How It Works
                   <ChevronRight className="w-4 h-4" />
@@ -365,7 +368,9 @@ export default function Landing() {
             <div className="relative max-w-5xl mx-auto">
               {/* Fade overlay at bottom */}
               <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
-              <div className="border border-gray-800 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
+              {/* Green glow under the preview */}
+              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-3/4 h-12 bg-emerald-600/10 blur-2xl rounded-full" />
+              <div className="border border-emerald-900/30 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
                 <AppPreview />
               </div>
             </div>
@@ -374,12 +379,12 @@ export default function Landing() {
       </section>
 
       {/* Stats bar */}
-      <section className="border-y border-gray-800/50 bg-gray-900/30 py-8">
+      <section className="border-y border-emerald-900/30 bg-emerald-950/20 py-8">
         <div className="mx-auto max-w-4xl px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {STATS.map(s => (
               <div key={s.label}>
-                <div className="text-3xl font-bold text-white mb-1">{s.value}</div>
+                <div className="text-3xl font-bold text-emerald-300 mb-1">{s.value}</div>
                 <div className="text-sm text-gray-500">{s.label}</div>
               </div>
             ))}
@@ -391,7 +396,7 @@ export default function Landing() {
       <section id="features" className="py-24 md:py-32">
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center max-w-2xl mx-auto mb-16">
-            <div className="text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-3">Everything you need</div>
+            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-3">Everything you need</div>
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">Your complete trading toolkit</h2>
             <p className="text-gray-400 text-lg">
               Every feature built around one goal: turning your trading data into actionable insights.
@@ -420,11 +425,11 @@ export default function Landing() {
       </section>
 
       {/* Analytics highlight */}
-      <section id="analytics" className="py-24 bg-gray-900/30 border-y border-gray-800/50">
+      <section id="analytics" className="py-24 bg-emerald-950/10 border-y border-emerald-900/20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
-              <div className="text-xs font-semibold text-violet-400 uppercase tracking-widest mb-3">Deep Analytics</div>
+              <div className="text-xs font-semibold text-teal-400 uppercase tracking-widest mb-3">Deep Analytics</div>
               <h2 className="text-4xl font-bold text-white mb-5 leading-tight">
                 Stop guessing.<br />
                 <span className="text-gray-400">Start knowing.</span>
@@ -442,8 +447,8 @@ export default function Landing() {
                   'CSV export for any date range',
                 ].map(item => (
                   <li key={item} className="flex items-center gap-3 text-sm text-gray-300">
-                    <div className="w-4 h-4 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
-                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                    <div className="w-4 h-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     </div>
                     {item}
                   </li>
@@ -452,7 +457,7 @@ export default function Landing() {
             </div>
 
             {/* Mini analytics preview */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-xl">
+            <div className="bg-gray-900 border border-emerald-900/30 rounded-2xl p-5 shadow-xl">
               <div className="text-xs text-gray-500 mb-3 font-medium">Win Rate by Day of Week</div>
               <div className="space-y-2">
                 {[
@@ -466,7 +471,7 @@ export default function Landing() {
                     <span className="text-xs text-gray-500 w-20 flex-shrink-0">{row.day}</span>
                     <div className="flex-1 bg-gray-800 rounded-full h-2 overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${row.wr >= 50 ? 'bg-indigo-500' : 'bg-red-500/70'}`}
+                        className={`h-full rounded-full ${row.wr >= 50 ? 'bg-emerald-500' : 'bg-red-500/70'}`}
                         style={{ width: `${row.wr}%` }}
                       />
                     </div>
@@ -479,7 +484,7 @@ export default function Landing() {
               </div>
               <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between">
                 <span className="text-xs text-gray-500">Best day: Tuesday</span>
-                <span className="text-xs text-indigo-400 font-medium">71% win rate</span>
+                <span className="text-xs text-emerald-400 font-medium">71% win rate</span>
               </div>
             </div>
           </div>
@@ -491,7 +496,7 @@ export default function Landing() {
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             {/* Psychology preview card */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-xl order-2 lg:order-1">
+            <div className="bg-gray-900 border border-emerald-900/30 rounded-2xl p-5 shadow-xl order-2 lg:order-1">
               <div className="text-xs text-gray-500 mb-4 font-medium">Session Psychology Review</div>
               <div className="space-y-4">
                 {/* Tilt gauge mockup */}
@@ -515,10 +520,10 @@ export default function Landing() {
                   <div className="text-xs text-gray-500 mb-2">Emotions logged this week</div>
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      { label: 'Focused', color: 'bg-indigo-600/20 text-indigo-300 border-indigo-500/20' },
-                      { label: 'Confident', color: 'bg-emerald-600/20 text-emerald-300 border-emerald-500/20' },
+                      { label: 'Focused', color: 'bg-emerald-600/20 text-emerald-300 border-emerald-500/20' },
+                      { label: 'Confident', color: 'bg-teal-600/20 text-teal-300 border-teal-500/20' },
                       { label: 'FOMO', color: 'bg-amber-600/20 text-amber-300 border-amber-500/20' },
-                      { label: 'Patient', color: 'bg-sky-600/20 text-sky-300 border-sky-500/20' },
+                      { label: 'Patient', color: 'bg-emerald-700/20 text-emerald-400 border-emerald-600/20' },
                       { label: 'Revenge Trade', color: 'bg-red-600/20 text-red-300 border-red-500/20' },
                     ].map(e => (
                       <span key={e.label} className={`text-xs px-2.5 py-1 rounded-full border ${e.color}`}>{e.label}</span>
@@ -531,16 +536,16 @@ export default function Landing() {
                   <div className="text-xs text-gray-500 mb-2">Rule Adherence</div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 bg-gray-800 rounded-full h-2">
-                      <div className="h-full w-4/5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" />
+                      <div className="h-full w-4/5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" />
                     </div>
-                    <span className="text-xs font-bold text-indigo-300">82%</span>
+                    <span className="text-xs font-bold text-emerald-300">82%</span>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="order-1 lg:order-2">
-              <div className="text-xs font-semibold text-pink-400 uppercase tracking-widest mb-3">Psychology Tracking</div>
+              <div className="text-xs font-semibold text-teal-300 uppercase tracking-widest mb-3">Psychology Tracking</div>
               <h2 className="text-4xl font-bold text-white mb-5 leading-tight">
                 Your mindset is<br />
                 <span className="text-gray-400">part of your edge.</span>
@@ -558,8 +563,8 @@ export default function Landing() {
                   'Weekly psychology review summaries',
                 ].map(item => (
                   <li key={item} className="flex items-center gap-3 text-sm text-gray-300">
-                    <div className="w-4 h-4 rounded-full bg-pink-600/20 border border-pink-500/30 flex items-center justify-center flex-shrink-0">
-                      <div className="w-1.5 h-1.5 rounded-full bg-pink-400" />
+                    <div className="w-4 h-4 rounded-full bg-teal-600/20 border border-teal-500/30 flex items-center justify-center flex-shrink-0">
+                      <div className="w-1.5 h-1.5 rounded-full bg-teal-400" />
                     </div>
                     {item}
                   </li>
@@ -571,7 +576,7 @@ export default function Landing() {
       </section>
 
       {/* How it works */}
-      <section id="how-it-works" className="py-24 bg-gray-900/30 border-y border-gray-800/50">
+      <section id="how-it-works" className="py-24 bg-emerald-950/10 border-y border-emerald-900/20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-3">Simple workflow</div>
@@ -589,12 +594,11 @@ export default function Landing() {
                 transition={{ delay: i * 0.1, duration: 0.5 }}
                 className="relative"
               >
-                {/* Connector line */}
                 {i < HOW_IT_WORKS.length - 1 && (
-                  <div className="hidden lg:block absolute top-6 left-[calc(100%-0px)] w-full h-px bg-gradient-to-r from-gray-700 to-transparent z-0" />
+                  <div className="hidden lg:block absolute top-6 left-[calc(100%-0px)] w-full h-px bg-gradient-to-r from-emerald-900/50 to-transparent z-0" />
                 )}
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 relative z-10">
-                  <div className="text-4xl font-bold text-gray-800 mb-3">{step.step}</div>
+                <div className="bg-gray-900 border border-emerald-900/25 rounded-2xl p-6 relative z-10 hover:border-emerald-800/40 transition-colors duration-200">
+                  <div className="text-4xl font-bold text-emerald-900 mb-3">{step.step}</div>
                   <h3 className="text-sm font-semibold text-white mb-2">{step.title}</h3>
                   <p className="text-sm text-gray-400 leading-relaxed">{step.description}</p>
                 </div>
@@ -616,17 +620,17 @@ export default function Landing() {
           >
             {/* Glow */}
             <div className="absolute inset-0 -z-10 flex items-center justify-center pointer-events-none">
-              <div className="w-96 h-40 rounded-full bg-indigo-600/15 blur-3xl" />
+              <div className="w-96 h-40 rounded-full bg-emerald-600/10 blur-3xl" />
             </div>
 
-            <div className="inline-flex items-center gap-2 bg-indigo-600/10 border border-indigo-500/20 rounded-full px-4 py-1.5 text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-8">
+            <div className="inline-flex items-center gap-2 bg-emerald-600/10 border border-emerald-500/20 rounded-full px-4 py-1.5 text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-8">
               <Shield className="w-3.5 h-3.5" />
               Free to use · Your data stays yours
             </div>
 
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-5">
               Ready to trade with<br />
-              <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
                 full clarity?
               </span>
             </h2>
@@ -637,7 +641,7 @@ export default function Landing() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 to="/dashboard"
-                className="group flex items-center gap-2 px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-indigo-600/25 hover:shadow-indigo-500/35 text-base"
+                className="group flex items-center gap-2 px-8 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-emerald-900/50 hover:shadow-emerald-800/60 text-base"
               >
                 Open the App
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -648,16 +652,16 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 py-8">
+      <footer className="border-t border-emerald-900/30 py-8">
         <div className="mx-auto max-w-7xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <Logo />
           <p className="text-xs text-gray-600">
             © {new Date().getFullYear()} TradeJournal. Built for traders.
           </p>
           <div className="flex gap-6 text-xs text-gray-600">
-            <a href="#features" className="hover:text-gray-400 transition-colors">Features</a>
-            <a href="#analytics" className="hover:text-gray-400 transition-colors">Analytics</a>
-            <a href="#psychology" className="hover:text-gray-400 transition-colors">Psychology</a>
+            <a href="#features" className="hover:text-emerald-400 transition-colors">Features</a>
+            <a href="#analytics" className="hover:text-emerald-400 transition-colors">Analytics</a>
+            <a href="#psychology" className="hover:text-emerald-400 transition-colors">Psychology</a>
           </div>
         </div>
       </footer>
