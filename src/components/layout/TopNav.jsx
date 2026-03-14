@@ -63,7 +63,7 @@ export default function TopNav() {
       >
         {/* Logo */}
         <Link
-          to="/"
+          to="/dashboard"
           className="flex items-center gap-2 px-3 py-0.5 mr-1 select-none"
         >
           <div
@@ -212,7 +212,7 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-1.5 flex-1">
+        <Link to="/dashboard" className="flex items-center gap-1.5 flex-1">
           <div
             className="w-5 h-5 rounded flex items-center justify-center"
             style={{

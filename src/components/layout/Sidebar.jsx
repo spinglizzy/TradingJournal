@@ -3,7 +3,7 @@ import AccountSwitcher from './AccountSwitcher.jsx'
 
 const links = [
   {
-    to: '/',
+    to: '/dashboard',
     label: 'Dashboard',
     icon: (
       <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -179,7 +179,7 @@ export default function Sidebar({ onClose }) {
           <NavLink
             key={link.to}
             to={link.to}
-            end={link.to === '/'}
+            end={link.to === '/dashboard'}
             onClick={() => onClose?.()}
             className={({ isActive }) =>
               link.highlight
