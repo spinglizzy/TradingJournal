@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AnimatedGroup } from '../components/ui/AnimatedGroup.jsx'
+import { StarsBackground } from '../components/ui/StarsBackground.jsx'
 import {
   ArrowRight, BarChart2, BookOpen, Brain, LineChart,
   Target, FileText, TrendingUp, Shield, Menu, X, ChevronRight
@@ -292,16 +293,15 @@ function AppPreview() {
 export default function Landing() {
   return (
     <div className="min-h-screen bg-gray-950 text-white overflow-x-hidden">
+      {/* Stars background — fixed so it covers the entire page */}
+      <div className="fixed inset-0 -z-10 pointer-events-none">
+        <StarsBackground starDensity={0.00018} />
+      </div>
+
       <Header />
 
       {/* Hero */}
       <section className="relative pt-28 pb-20 md:pt-40 md:pb-32">
-        {/* Background glow */}
-        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full bg-indigo-600/10 blur-3xl" />
-          <div className="absolute top-40 left-1/4 w-[400px] h-[400px] rounded-full bg-violet-600/8 blur-3xl" />
-        </div>
-
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center max-w-4xl mx-auto">
             <AnimatedGroup variants={transitionVariants}>
