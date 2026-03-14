@@ -1,10 +1,9 @@
-import ReactGridLayout, { WidthProvider } from 'react-grid-layout'
+import { useRef, useState, useEffect } from 'react'
+import ReactGridLayout from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import WidgetWrapper from './WidgetWrapper.jsx'
 import { WIDGET_REGISTRY } from './widgetRegistry.js'
-
-const GridLayout = WidthProvider(ReactGridLayout)
 
 const COLS       = 4
 const ROW_HEIGHT = 70
@@ -32,7 +31,22 @@ function ensurePositions(widgets) {
   })
 }
 
+// Measure container width so we don't need WidthProvider (not exported in v2 ESM)
+function useContainerWidth() {
+  const ref   = useRef(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    if (!ref.current) return
+    setWidth(ref.current.offsetWidth)
+    const ro = new ResizeObserver(entries => setWidth(entries[0].contentRect.width))
+    ro.observe(ref.current)
+    return () => ro.disconnect()
+  }, [])
+  return [ref, width]
+}
+
 export default function WidgetGrid({ layout, setLayout }) {
+  const [containerRef, width] = useContainerWidth()
   const positioned = ensurePositions(layout)
 
   const rglLayout = positioned.map(w => ({
@@ -62,40 +76,45 @@ export default function WidgetGrid({ layout, setLayout }) {
   }
 
   return (
-    <GridLayout
-      className="rgl-layout"
-      layout={rglLayout}
-      cols={COLS}
-      rowHeight={ROW_HEIGHT}
-      margin={[10, 10]}
-      containerPadding={[0, 0]}
-      draggableHandle=".widget-drag-handle"
-      resizeHandles={['se', 'sw', 's', 'e']}
-      compactType="vertical"
-      onDragStop={handleLayoutChange}
-      onResizeStop={handleLayoutChange}
-      useCSSTransforms
-    >
-      {positioned.map(widget => {
-        const meta      = WIDGET_REGISTRY[widget.type]
-        const Component = meta?.component
-        return (
-          <div key={widget.id} className="rgl-item" style={{ height: '100%', width: '100%' }}>
-            <WidgetWrapper
-              config={widget}
-              onRemove={() => removeWidget(widget.id)}
-              onUpdate={patch => updateWidget(widget.id, patch)}
-            >
-              {Component
-                ? <Component config={widget} />
-                : <div className="flex items-center justify-center h-full text-gray-600 text-xs">
-                    Unknown widget: {widget.type}
-                  </div>
-              }
-            </WidgetWrapper>
-          </div>
-        )
-      })}
-    </GridLayout>
+    <div ref={containerRef}>
+      {width > 0 && (
+        <ReactGridLayout
+          className="rgl-layout"
+          layout={rglLayout}
+          cols={COLS}
+          width={width}
+          rowHeight={ROW_HEIGHT}
+          margin={[10, 10]}
+          containerPadding={[0, 0]}
+          draggableHandle=".widget-drag-handle"
+          resizeHandles={['se', 'sw', 's', 'e']}
+          compactType="vertical"
+          onDragStop={handleLayoutChange}
+          onResizeStop={handleLayoutChange}
+          useCSSTransforms
+        >
+          {positioned.map(widget => {
+            const meta      = WIDGET_REGISTRY[widget.type]
+            const Component = meta?.component
+            return (
+              <div key={widget.id} className="rgl-item" style={{ height: '100%', width: '100%' }}>
+                <WidgetWrapper
+                  config={widget}
+                  onRemove={() => removeWidget(widget.id)}
+                  onUpdate={patch => updateWidget(widget.id, patch)}
+                >
+                  {Component
+                    ? <Component config={widget} />
+                    : <div className="flex items-center justify-center h-full text-gray-600 text-xs">
+                        Unknown widget: {widget.type}
+                      </div>
+                  }
+                </WidgetWrapper>
+              </div>
+            )
+          })}
+        </ReactGridLayout>
+      )}
+    </div>
   )
 }
