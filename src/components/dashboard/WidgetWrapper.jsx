@@ -3,6 +3,68 @@ import { createPortal } from 'react-dom'
 import { GripVertical, Settings, X } from 'lucide-react'
 import { WIDGET_REGISTRY } from './widgetRegistry.js'
 
+// Defined first so WidgetWrapper can reference it
+const SettingsPanel = forwardRef(function SettingsPanel({ config, meta, onUpdate, pos }, ref) {
+  const settings = config.settings ?? {}
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position:     'fixed',
+        top:          pos.top,
+        right:        pos.right,
+        zIndex:       99999,
+        width:        '224px',
+        background:   '#1c1c1c',
+        border:       '1px solid rgba(255,255,255,0.14)',
+        borderRadius: '12px',
+        boxShadow:    '0 24px 64px rgba(0,0,0,0.9), 0 4px 16px rgba(0,0,0,0.6)',
+        padding:      '12px',
+      }}
+    >
+      <div style={{
+        fontSize:     '11px',
+        fontWeight:   600,
+        color:        '#fff',
+        paddingBottom:'8px',
+        marginBottom: '10px',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+      }}>
+        {meta?.name ?? config.type} settings
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <label style={{ fontSize: '11px', color: '#888', fontWeight: 500 }}>
+          Period override
+        </label>
+        <select
+          value={settings.period ?? 'global'}
+          onChange={e => onUpdate({ settings: { ...settings, period: e.target.value } })}
+          style={{
+            width:        '100%',
+            background:   '#2a2a2a',
+            border:       '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '8px',
+            fontSize:     '12px',
+            color:        '#e0e0e0',
+            padding:      '6px 8px',
+            outline:      'none',
+            cursor:       'pointer',
+          }}
+        >
+          <option value="global">Use global filter</option>
+          <option value="all">All time</option>
+          <option value="ytd">Year to date</option>
+          <option value="mtd">Month to date</option>
+          <option value="last30">Last 30 days</option>
+          <option value="last7">Last 7 days</option>
+        </select>
+      </div>
+    </div>
+  )
+})
+
 export default function WidgetWrapper({ config, onRemove, onUpdate, children }) {
   const [showSettings, setShowSettings] = useState(false)
   const [isHovered,    setIsHovered]    = useState(false)
@@ -104,66 +166,3 @@ export default function WidgetWrapper({ config, onRemove, onUpdate, children }) 
     </div>
   )
 }
-
-const SettingsPanel = forwardRef(function SettingsPanel({ config, meta, onUpdate, pos }, ref) {
-  const settings = config.settings ?? {}
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        position:     'fixed',
-        top:          pos.top,
-        right:        pos.right,
-        zIndex:       99999,
-        width:        '224px',
-        background:   '#1c1c1c',
-        border:       '1px solid rgba(255,255,255,0.14)',
-        borderRadius: '12px',
-        boxShadow:    '0 24px 64px rgba(0,0,0,0.9), 0 4px 16px rgba(0,0,0,0.6)',
-        padding:      '12px',
-      }}
-    >
-      {/* Title */}
-      <div style={{
-        fontSize:     '11px',
-        fontWeight:   600,
-        color:        '#fff',
-        paddingBottom:'8px',
-        marginBottom: '10px',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-      }}>
-        {meta?.name ?? config.type} settings
-      </div>
-
-      {/* Period override */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <label style={{ fontSize: '11px', color: '#888', fontWeight: 500 }}>
-          Period override
-        </label>
-        <select
-          value={settings.period ?? 'global'}
-          onChange={e => onUpdate({ settings: { ...settings, period: e.target.value } })}
-          style={{
-            width:        '100%',
-            background:   '#2a2a2a',
-            border:       '1px solid rgba(255,255,255,0.12)',
-            borderRadius: '8px',
-            fontSize:     '12px',
-            color:        '#e0e0e0',
-            padding:      '6px 8px',
-            outline:      'none',
-            cursor:       'pointer',
-          }}
-        >
-          <option value="global">Use global filter</option>
-          <option value="all">All time</option>
-          <option value="ytd">Year to date</option>
-          <option value="mtd">Month to date</option>
-          <option value="last30">Last 30 days</option>
-          <option value="last7">Last 7 days</option>
-        </select>
-      </div>
-    </div>
-  )
-})
