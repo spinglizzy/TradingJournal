@@ -726,19 +726,20 @@ export default function Goals() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-800">
+      <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-2xl p-1 w-fit overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors
-              ${tab === t.id
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap border ${
+              tab === t.id
+                ? 'tab-active'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+            }`}
           >
             {t.label}
             {t.id === 'achievements' && earnedAchs.length > 0 && (
-              <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">
+              <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">
                 {earnedAchs.length}
               </span>
             )}
