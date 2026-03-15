@@ -145,15 +145,15 @@ export default function CalendarHeatmapWidget({ config }) {
                   setTooltip(prev => prev?.day === dateStr ? null : { day: dateStr, entry })
                 }}
               >
-                <span className={`text-xs leading-none font-medium select-none
-                  ${!inMonth ? 'text-gray-700' : entry ? 'text-white' : 'text-gray-500'}
+                <span className={`text-sm leading-none font-semibold select-none
+                  ${!inMonth ? 'text-gray-700' : entry ? 'text-white' : 'text-gray-400'}
                   ${todayDay ? 'text-indigo-300' : ''}
                 `}>
                   {format(day, 'd')}
                 </span>
                 {inMonth && entry && (
-                  <span className={`text-[9px] leading-none font-mono select-none hidden sm:block
-                    ${entry.pnl >= 0 ? 'text-emerald-200' : 'text-red-200'}
+                  <span className={`text-[11px] leading-none font-mono font-medium select-none
+                    ${entry.pnl >= 0 ? 'text-green-200' : 'text-red-200'}
                   `}>
                     {entry.pnl >= 0 ? '+' : '-'}${(Math.abs(entry.pnl) / 1000 >= 0.1 ? `${(Math.abs(entry.pnl)/1000).toFixed(1)}k` : Math.abs(entry.pnl).toFixed(0))}
                   </span>
