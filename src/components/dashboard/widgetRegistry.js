@@ -173,19 +173,30 @@ export const CATEGORIES = {
 
 // Default layout for first-time users
 export const DEFAULT_LAYOUT = [
-  { id: 'w-total-pnl',          type: 'total-pnl',           size: 'small',  settings: {} },
-  { id: 'w-win-rate',           type: 'win-rate',            size: 'small',  settings: {} },
-  { id: 'w-profit-factor',      type: 'profit-factor',       size: 'small',  settings: {} },
-  { id: 'w-expectancy',         type: 'expectancy',          size: 'small',  settings: {} },
-  { id: 'w-total-trades',       type: 'total-trades',        size: 'small',  settings: {} },
-  { id: 'w-best-worst',         type: 'best-worst-trade',    size: 'small',  settings: {} },
-  { id: 'w-streak',             type: 'current-streak',      size: 'small',  settings: {} },
-  { id: 'w-equity',             type: 'equity-curve',        size: 'large',  settings: {} },
-  { id: 'w-calendar',           type: 'calendar-heatmap',    size: 'medium', settings: {} },
-  { id: 'w-daily-pnl',          type: 'daily-pnl',           size: 'medium', settings: {} },
-  { id: 'w-monthly',            type: 'monthly-comparison',  size: 'medium', settings: {} },
-  { id: 'w-by-day',             type: 'win-loss-by-day',     size: 'medium', settings: {} },
-  { id: 'w-by-setup',           type: 'performance-by-setup',size: 'medium', settings: {} },
-  { id: 'w-recent',             type: 'recent-trades',       size: 'medium', settings: {} },
-  { id: 'w-open',               type: 'open-trades',         size: 'medium', settings: {} },
+  // Row 1 — 4 key summary cards across the top
+  { id: 'w-total-pnl',     type: 'total-pnl',            size: 'small',  x: 0, y: 0,  w: 1, h: 2, settings: {} },
+  { id: 'w-win-rate',      type: 'win-rate',             size: 'small',  x: 1, y: 0,  w: 1, h: 2, settings: {} },
+  { id: 'w-profit-factor', type: 'profit-factor',        size: 'small',  x: 2, y: 0,  w: 1, h: 2, settings: {} },
+  { id: 'w-expectancy',    type: 'expectancy',           size: 'small',  x: 3, y: 0,  w: 1, h: 2, settings: {} },
+
+  // Row 2 — Hero equity curve (3 cols) + stacked stat cards on right
+  { id: 'w-equity',        type: 'equity-curve',         size: 'large',  x: 0, y: 2,  w: 3, h: 5, settings: {} },
+  { id: 'w-total-trades',  type: 'total-trades',         size: 'small',  x: 3, y: 2,  w: 1, h: 2, settings: {} },
+  { id: 'w-streak',        type: 'current-streak',       size: 'small',  x: 3, y: 4,  w: 1, h: 2, settings: {} },
+  { id: 'w-best-worst',    type: 'best-worst-trade',     size: 'small',  x: 3, y: 6,  w: 1, h: 2, settings: {} },
+
+  // Row 3 — Daily P&L + Calendar heatmap
+  { id: 'w-daily-pnl',     type: 'daily-pnl',            size: 'medium', x: 0, y: 8,  w: 2, h: 4, settings: {} },
+  { id: 'w-calendar',      type: 'calendar-heatmap',     size: 'medium', x: 2, y: 8,  w: 2, h: 4, settings: {} },
+
+  // Row 4 — Performance by setup + Win/Loss by day
+  { id: 'w-by-setup',      type: 'performance-by-setup', size: 'medium', x: 0, y: 12, w: 2, h: 4, settings: {} },
+  { id: 'w-by-day',        type: 'win-loss-by-day',      size: 'medium', x: 2, y: 12, w: 2, h: 4, settings: {} },
+
+  // Row 5 — Recent trades full width
+  { id: 'w-recent',        type: 'recent-trades',        size: 'full',   x: 0, y: 16, w: 4, h: 5, settings: {} },
+
+  // Row 6 — Monthly comparison + open trades
+  { id: 'w-monthly',       type: 'monthly-comparison',   size: 'medium', x: 0, y: 21, w: 2, h: 4, settings: {} },
+  { id: 'w-open',          type: 'open-trades',          size: 'medium', x: 2, y: 21, w: 2, h: 4, settings: {} },
 ]
