@@ -155,7 +155,7 @@ export default function CalendarHeatmapWidget({ config }) {
                   <span className={`text-[9px] leading-none font-mono select-none hidden sm:block
                     ${entry.pnl >= 0 ? 'text-emerald-200' : 'text-red-200'}
                   `}>
-                    {entry.pnl >= 0 ? '+' : ''}{(entry.pnl / 1000 >= 0.1 ? `${(entry.pnl/1000).toFixed(1)}k` : entry.pnl.toFixed(0))}
+                    {entry.pnl >= 0 ? '+' : '-'}${(Math.abs(entry.pnl) / 1000 >= 0.1 ? `${(Math.abs(entry.pnl)/1000).toFixed(1)}k` : Math.abs(entry.pnl).toFixed(0))}
                   </span>
                 )}
 

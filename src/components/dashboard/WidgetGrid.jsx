@@ -49,18 +49,15 @@ export default function WidgetGrid({ layout, setLayout }) {
   const [containerRef, width] = useContainerWidth()
   const positioned = ensurePositions(layout)
 
-  const rglLayout = positioned.map(w => {
-    const meta = WIDGET_REGISTRY[w.type]
-    return {
-      i:    w.id,
-      x:    w.x,
-      y:    w.y,
-      w:    w.w,
-      h:    w.h,
-      minW: meta?.minW ?? 1,
-      minH: meta?.minH ?? 2,
-    }
-  })
+  const rglLayout = positioned.map(w => ({
+    i:    w.id,
+    x:    w.x,
+    y:    w.y,
+    w:    w.w,
+    h:    w.h,
+    minW: 1,
+    minH: 1,
+  }))
 
   function handleLayoutChange(newRglLayout) {
     const posMap = {}
