@@ -27,6 +27,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['small', 'medium'],
     component: TotalPnLWidget,
     icon: '💰',
+    minW: 1, minH: 2,
   },
   'win-rate': {
     name: 'Win Rate',
@@ -36,6 +37,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['small', 'medium'],
     component: WinRateWidget,
     icon: '🎯',
+    minW: 1, minH: 2,
   },
   'profit-factor': {
     name: 'Profit Factor',
@@ -45,6 +47,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['small', 'medium'],
     component: ProfitFactorWidget,
     icon: '⚖️',
+    minW: 1, minH: 2,
   },
   'expectancy': {
     name: 'Expectancy',
@@ -54,6 +57,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['small', 'medium'],
     component: ExpectancyWidget,
     icon: '📊',
+    minW: 1, minH: 2,
   },
   'total-trades': {
     name: 'Total Trades',
@@ -63,6 +67,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['small', 'medium'],
     component: TotalTradesWidget,
     icon: '📋',
+    minW: 1, minH: 2,
   },
   'best-worst-trade': {
     name: 'Best / Worst Trade',
@@ -72,6 +77,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['small', 'medium'],
     component: BestWorstTradeWidget,
     icon: '🏆',
+    minW: 1, minH: 2,
   },
   'current-streak': {
     name: 'Current Streak',
@@ -81,6 +87,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['small', 'medium'],
     component: CurrentStreakWidget,
     icon: '🔥',
+    minW: 1, minH: 2,
   },
   'equity-curve': {
     name: 'Equity Curve',
@@ -90,6 +97,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['medium', 'large', 'full'],
     component: EquityCurveWidget,
     icon: '📈',
+    minW: 2, minH: 3,
   },
   'daily-pnl': {
     name: 'Daily P&L',
@@ -99,6 +107,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['medium', 'large', 'full'],
     component: DailyPnLWidget,
     icon: '📊',
+    minW: 2, minH: 3,
   },
   'calendar-heatmap': {
     name: 'Calendar Heatmap',
@@ -108,6 +117,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['medium', 'large', 'full'],
     component: CalendarHeatmapWidget,
     icon: '📅',
+    minW: 2, minH: 4,
   },
   'monthly-comparison': {
     name: 'Monthly Comparison',
@@ -117,6 +127,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['medium', 'large', 'full'],
     component: MonthlyComparisonWidget,
     icon: '📉',
+    minW: 2, minH: 3,
   },
   'performance-by-setup': {
     name: 'Performance by Setup',
@@ -126,6 +137,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['medium', 'large', 'full'],
     component: PerformanceBySetupWidget,
     icon: '🎰',
+    minW: 2, minH: 3,
   },
   'win-loss-by-day': {
     name: 'Win/Loss by Day',
@@ -135,6 +147,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['medium', 'large', 'full'],
     component: WinLossByDayWidget,
     icon: '📅',
+    minW: 2, minH: 3,
   },
   'recent-trades': {
     name: 'Recent Trades',
@@ -144,6 +157,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['medium', 'large', 'full'],
     component: RecentTradesWidget,
     icon: '📋',
+    minW: 2, minH: 3,
   },
   'open-trades': {
     name: 'Open / Planned Trades',
@@ -153,6 +167,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['medium', 'large', 'full'],
     component: OpenTradesWidget,
     icon: '🔓',
+    minW: 2, minH: 3,
   },
   'goals': {
     name: 'Goals Progress',
@@ -162,6 +177,7 @@ export const WIDGET_REGISTRY = {
     allowedSizes: ['small', 'medium', 'large'],
     component: GoalsWidget,
     icon: '🎯',
+    minW: 1, minH: 3,
   },
 }
 

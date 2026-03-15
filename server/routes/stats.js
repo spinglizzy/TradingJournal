@@ -108,9 +108,9 @@ router.get('/calendar', async (req, res) => {
     const { clause, params } = dateFilter(from, to, account_id, req.userId)
 
     const r = await pool.query(`
-      SELECT date, COALESCE(SUM(pnl),0) AS pnl, COUNT(*) AS trades
+      SELECT SUBSTRING(date, 1, 10) AS date, COALESCE(SUM(pnl),0) AS pnl, COUNT(*) AS trades
       FROM trades WHERE status='closed' AND pnl IS NOT NULL ${clause}
-      GROUP BY date ORDER BY date ASC
+      GROUP BY SUBSTRING(date, 1, 10) ORDER BY date ASC
     `, params)
     res.json(r.rows)
   } catch (err) {
