@@ -95,16 +95,17 @@ function Header() {
             <Link
               to="/login"
               className={cn(
-                'px-4 py-2 text-sm font-medium text-gray-300 hover:text-white border border-gray-700 rounded-lg transition-all duration-150',
+                'px-4 py-2 text-sm font-medium text-gray-300 hover:text-white rounded-lg transition-all duration-150',
                 scrolled ? 'hidden' : ''
               )}
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
             >
               Login
             </Link>
             <Link
               to="/signup"
               className="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150"
-              style={{ backgroundColor: '#9aea62', color: '#0a1a0a' }}
+              style={{ backgroundColor: '#9aea62', color: '#0a1a0a', border: '1px solid rgba(255,255,255,0.2)' }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
             >
@@ -138,14 +139,15 @@ function Header() {
             <div className="flex flex-col gap-2 pt-2 border-t border-gray-800">
               <Link
                 to="/login"
-                className="px-4 py-2.5 text-sm font-medium text-center text-gray-300 border border-gray-700 rounded-lg hover:text-white transition-all"
+                className="px-4 py-2.5 text-sm font-medium text-center text-gray-300 hover:text-white rounded-lg transition-all"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
               >
                 Login
               </Link>
               <Link
                 to="/signup"
                 className="px-4 py-2.5 text-sm font-semibold text-center rounded-lg transition-all"
-                style={{ backgroundColor: '#9aea62', color: '#0a1a0a' }}
+                style={{ backgroundColor: '#9aea62', color: '#0a1a0a', border: '1px solid rgba(255,255,255,0.2)' }}
               >
                 Sign Up Free
               </Link>
@@ -365,7 +367,7 @@ export default function Landing() {
                   <Link
                     to="/signup"
                     className="group flex items-center gap-2 px-6 py-3 font-semibold rounded-xl transition-all duration-200"
-                    style={{ backgroundColor: '#9aea62', color: '#0a1a0a', boxShadow: '0 4px 20px color-mix(in srgb, #9aea62 30%, transparent)' }}
+                    style={{ backgroundColor: '#9aea62', color: '#0a1a0a', boxShadow: '0 4px 20px color-mix(in srgb, #9aea62 30%, transparent)', border: '1px solid rgba(255,255,255,0.2)' }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
                   >
@@ -374,7 +376,8 @@ export default function Landing() {
                   </Link>
                   <a
                     href="#features"
-                    className="flex items-center gap-2 px-6 py-3 text-gray-300 hover:text-white border border-gray-700 hover:border-gray-600 font-medium rounded-xl transition-all duration-200"
+                    className="flex items-center gap-2 px-6 py-3 text-gray-300 hover:text-white font-medium rounded-xl transition-all duration-200"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
                   >
                     See How It Works
                     <ChevronRight className="w-4 h-4" />
@@ -718,7 +721,7 @@ export default function Landing() {
               <Link
                 to="/signup"
                 className="group inline-flex items-center gap-2 px-8 py-3.5 font-semibold rounded-xl transition-all duration-200 text-base"
-                style={{ backgroundColor: '#9aea62', color: '#0a1a0a', boxShadow: '0 4px 24px color-mix(in srgb, #9aea62 25%, transparent)' }}
+                style={{ backgroundColor: '#9aea62', color: '#0a1a0a', boxShadow: '0 4px 24px color-mix(in srgb, #9aea62 25%, transparent)', border: '1px solid rgba(255,255,255,0.2)' }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
               >
