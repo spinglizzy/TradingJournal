@@ -234,7 +234,7 @@ function OverviewTab({ summary, tiltHistory }) {
             </ComposedChart>
           </ResponsiveContainer>
           <div className="flex items-center gap-5 mt-2 text-xs text-gray-500">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-indigo-500 inline-block" /> Equity</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 inline-block" style={{ background: '#6366f1' }} /> Equity</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-yellow-400 inline-block border-dashed" style={{borderTop:'2px dashed #fbbf24', background:'none'}} /> Tilt Score</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-emerald-400 inline-block opacity-40" /> Calm Zone</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-red-400 inline-block opacity-40" /> Tilt Zone</span>
