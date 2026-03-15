@@ -397,17 +397,30 @@ export default function Landing() {
               }}
               className="mt-16 md:mt-20 relative"
             >
-              <div className="relative max-w-5xl mx-auto">
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
+              <div className="relative max-w-5xl mx-auto" style={{ perspective: '1200px' }}>
+                {/* Glow under the image */}
                 <div
-                  className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-2/3 h-8 rounded-full blur-2xl"
-                  style={{ background: 'color-mix(in srgb, #9aea62 12%, transparent)' }}
+                  className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-3/4 h-12 rounded-full blur-3xl pointer-events-none"
+                  style={{ background: 'color-mix(in srgb, #9aea62 18%, transparent)' }}
                 />
+                {/* Fade out bottom edge */}
+                <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
                 <div
-                  className="rounded-2xl shadow-2xl shadow-black/50 overflow-hidden"
-                  style={{ border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' }}
+                  className="rounded-2xl shadow-2xl overflow-hidden"
+                  style={{
+                    border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)',
+                    boxShadow: '0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px color-mix(in srgb, #9aea62 15%, transparent)',
+                    transform: 'rotateX(6deg) rotateY(-2deg) scale(1.01)',
+                    transformStyle: 'preserve-3d',
+                    transformOrigin: 'center bottom',
+                  }}
                 >
-                  <AppPreview />
+                  <img
+                    src="/dashboard.png"
+                    alt="TradeJournal Dashboard"
+                    className="w-full block"
+                    draggable={false}
+                  />
                 </div>
               </div>
             </AnimatedGroup>
@@ -506,41 +519,19 @@ export default function Landing() {
                 </ul>
               </div>
 
-              <div className="bg-gray-900 rounded-2xl p-5 shadow-xl" style={{ border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' }}>
-                <div className="text-xs text-gray-500 mb-3 font-medium">Win Rate by Day of Week</div>
-                <div className="space-y-2">
-                  {[
-                    { day: 'Monday', wr: 58, pnl: '+$820' },
-                    { day: 'Tuesday', wr: 71, pnl: '+$1,240' },
-                    { day: 'Wednesday', wr: 44, pnl: '-$310' },
-                    { day: 'Thursday', wr: 65, pnl: '+$950' },
-                    { day: 'Friday', wr: 52, pnl: '+$120' },
-                  ].map(row => (
-                    <div key={row.day} className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500 w-20 flex-shrink-0">{row.day}</span>
-                      <div className="flex-1 bg-gray-800 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${row.wr}%`,
-                            backgroundColor: row.wr >= 50 ? '#9aea62' : '#f87171'
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-400 w-10 text-right font-mono">{row.wr}%</span>
-                      <span
-                        className="text-xs font-mono font-semibold w-16 text-right"
-                        style={{ color: row.pnl.startsWith('+') ? '#9aea62' : '#f87171' }}
-                      >
-                        {row.pnl}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Best day: Tuesday</span>
-                  <span className="text-xs font-medium" style={{ color: '#9aea62' }}>71% win rate</span>
-                </div>
+              <div
+                className="rounded-2xl overflow-hidden shadow-2xl"
+                style={{
+                  border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)',
+                  boxShadow: '0 30px 60px rgba(0,0,0,0.6), 0 0 0 1px color-mix(in srgb, #9aea62 10%, transparent)',
+                }}
+              >
+                <img
+                  src="/analytics.png"
+                  alt="TradeJournal Analytics"
+                  className="w-full block"
+                  draggable={false}
+                />
               </div>
             </div>
           </div>
@@ -550,55 +541,19 @@ export default function Landing() {
         <section id="psychology" className="py-24">
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              <div className="bg-gray-900 rounded-2xl p-5 shadow-xl order-2 lg:order-1" style={{ border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' }}>
-                <div className="text-xs text-gray-500 mb-4 font-medium">Session Psychology Review</div>
-                <div className="space-y-4">
-                  <div className="bg-gray-950 rounded-xl p-4 border border-gray-800">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-gray-500">Tilt Score</span>
-                      <span className="text-xs font-bold" style={{ color: '#9aea62' }}>28 — Calm</span>
-                    </div>
-                    <div className="w-full bg-gray-800 rounded-full h-2">
-                      <div
-                        className="h-full w-1/4 rounded-full"
-                        style={{ background: 'linear-gradient(to right, #9aea62, #b5f08a)' }}
-                      />
-                    </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-xs" style={{ color: '#9aea62' }}>Calm</span>
-                      <span className="text-xs text-amber-500">Caution</span>
-                      <span className="text-xs text-red-400">Tilt</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs text-gray-500 mb-2">Emotions logged this week</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { label: 'Focused', style: { backgroundColor: 'color-mix(in srgb, #9aea62 12%, transparent)', color: '#b5f08a', border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)' } },
-                        { label: 'Confident', style: { backgroundColor: 'color-mix(in srgb, #9aea62 8%, transparent)', color: '#9aea62', border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' } },
-                        { label: 'FOMO', style: { backgroundColor: 'rgba(217,119,6,0.15)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.2)' } },
-                        { label: 'Patient', style: { backgroundColor: 'color-mix(in srgb, #9aea62 10%, transparent)', color: '#b5f08a', border: '1px solid color-mix(in srgb, #9aea62 18%, transparent)' } },
-                        { label: 'Revenge Trade', style: { backgroundColor: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' } },
-                      ].map(e => (
-                        <span key={e.label} className="text-xs px-2.5 py-1 rounded-full" style={e.style}>{e.label}</span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-950 rounded-xl p-3 border border-gray-800">
-                    <div className="text-xs text-gray-500 mb-2">Rule Adherence</div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 bg-gray-800 rounded-full h-2">
-                        <div
-                          className="h-full w-4/5 rounded-full"
-                          style={{ background: 'linear-gradient(to right, #9aea62, #b5f08a)' }}
-                        />
-                      </div>
-                      <span className="text-xs font-bold" style={{ color: '#b5f08a' }}>82%</span>
-                    </div>
-                  </div>
-                </div>
+              <div
+                className="rounded-2xl overflow-hidden shadow-2xl order-2 lg:order-1"
+                style={{
+                  border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)',
+                  boxShadow: '0 30px 60px rgba(0,0,0,0.6), 0 0 0 1px color-mix(in srgb, #9aea62 10%, transparent)',
+                }}
+              >
+                <img
+                  src="/psychology.png"
+                  alt="TradeJournal Psychology"
+                  className="w-full block"
+                  draggable={false}
+                />
               </div>
 
               <div className="order-1 lg:order-2">
