@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
     if (!token) { setLoading(false); return }
     fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.user) setUser(data.user) else setToken(null) })
+      .then(data => { if (data?.user) { setUser(data.user) } else { setToken(null) } })
       .catch(() => setToken(null))
       .finally(() => setLoading(false))
   }, [])
