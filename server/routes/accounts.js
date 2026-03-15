@@ -13,9 +13,12 @@ const ACCT_SELECT = `
   LEFT JOIN account_transactions at ON at.account_id=a.id`
 
 // ── List accounts ─────────────────────────────────────────────────────────────
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const result = await pool.query(`${ACCT_SELECT} GROUP BY a.id ORDER BY a.is_default DESC, a.created_at ASC`)
+    const result = await pool.query(
+      `${ACCT_SELECT} WHERE a.user_id=$1 GROUP BY a.id ORDER BY a.is_default DESC, a.created_at ASC`,
+      [req.userId]
+    )
     res.json(result.rows.map(addBalance))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -25,7 +28,10 @@ router.get('/', async (_req, res) => {
 // ── Get single account ────────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
-    const result = await pool.query(`${ACCT_SELECT} WHERE a.id=$1 GROUP BY a.id`, [req.params.id])
+    const result = await pool.query(
+      `${ACCT_SELECT} WHERE a.id=$1 AND a.user_id=$2 GROUP BY a.id`,
+      [req.params.id, req.userId]
+    )
     if (!result.rows[0]) return res.status(404).json({ error: 'Account not found' })
     res.json(addBalance(result.rows[0]))
   } catch (err) {
@@ -40,15 +46,15 @@ router.post('/', async (req, res) => {
             commission_type='fixed', commission_value=0, pnl_method='basic', is_default=0 } = req.body
     if (!name?.trim()) return res.status(400).json({ error: 'Account name is required' })
 
-    if (is_default) await pool.query('UPDATE accounts SET is_default=0')
+    if (is_default) await pool.query('UPDATE accounts SET is_default=0 WHERE user_id=$1', [req.userId])
 
     const result = await pool.query(`
-      INSERT INTO accounts (name,broker_name,currency,starting_balance,commission_type,commission_value,pnl_method,is_default)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id
+      INSERT INTO accounts (name,broker_name,currency,starting_balance,commission_type,commission_value,pnl_method,is_default,user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
     `, [name.trim(), broker_name, currency, Number(starting_balance),
-        commission_type, Number(commission_value), pnl_method, is_default ? 1 : 0])
+        commission_type, Number(commission_value), pnl_method, is_default ? 1 : 0, req.userId])
 
-    res.status(201).json(await getAccount(result.rows[0].id))
+    res.status(201).json(await getAccount(result.rows[0].id, req.userId))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
   }
@@ -57,7 +63,7 @@ router.post('/', async (req, res) => {
 // ── Update account ────────────────────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
-    const existR = await pool.query('SELECT * FROM accounts WHERE id=$1', [req.params.id])
+    const existR = await pool.query('SELECT * FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!existR.rows[0]) return res.status(404).json({ error: 'Account not found' })
 
     const existing = existR.rows[0]
@@ -73,17 +79,17 @@ router.put('/:id', async (req, res) => {
       is_default:       is_default       ?? existing.is_default,
     }
 
-    if (m.is_default) await pool.query('UPDATE accounts SET is_default=0 WHERE id!=$1', [req.params.id])
+    if (m.is_default) await pool.query('UPDATE accounts SET is_default=0 WHERE id!=$1 AND user_id=$2', [req.params.id, req.userId])
 
     await pool.query(`
       UPDATE accounts SET name=$1,broker_name=$2,currency=$3,starting_balance=$4,
         commission_type=$5,commission_value=$6,pnl_method=$7,is_default=$8
-      WHERE id=$9
+      WHERE id=$9 AND user_id=$10
     `, [m.name, m.broker_name, m.currency, Number(m.starting_balance),
         m.commission_type, Number(m.commission_value), m.pnl_method, m.is_default ? 1 : 0,
-        req.params.id])
+        req.params.id, req.userId])
 
-    res.json(await getAccount(req.params.id))
+    res.json(await getAccount(req.params.id, req.userId))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
   }
@@ -92,9 +98,9 @@ router.put('/:id', async (req, res) => {
 // ── Delete account ────────────────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id FROM accounts WHERE id=$1', [req.params.id])
+    const r = await pool.query('SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!r.rows[0]) return res.status(404).json({ error: 'Account not found' })
-    await pool.query('DELETE FROM accounts WHERE id=$1', [req.params.id])
+    await pool.query('DELETE FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     res.json({ success: true })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -104,6 +110,10 @@ router.delete('/:id', async (req, res) => {
 // ── Transactions ──────────────────────────────────────────────────────────────
 router.get('/:id/transactions', async (req, res) => {
   try {
+    // Verify account belongs to user before returning transactions
+    const acct = await pool.query('SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
+    if (!acct.rows[0]) return res.status(404).json({ error: 'Account not found' })
+
     const result = await pool.query(
       'SELECT * FROM account_transactions WHERE account_id=$1 ORDER BY date DESC, created_at DESC',
       [req.params.id]
@@ -116,7 +126,7 @@ router.get('/:id/transactions', async (req, res) => {
 
 router.post('/:id/transactions', async (req, res) => {
   try {
-    const acct = await pool.query('SELECT id FROM accounts WHERE id=$1', [req.params.id])
+    const acct = await pool.query('SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!acct.rows[0]) return res.status(404).json({ error: 'Account not found' })
 
     const { type, amount, date, notes='' } = req.body
@@ -136,6 +146,10 @@ router.post('/:id/transactions', async (req, res) => {
 
 router.delete('/:id/transactions/:txId', async (req, res) => {
   try {
+    // Verify account belongs to user before deleting transaction
+    const acct = await pool.query('SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
+    if (!acct.rows[0]) return res.status(404).json({ error: 'Account not found' })
+
     await pool.query('DELETE FROM account_transactions WHERE id=$1 AND account_id=$2', [req.params.txId, req.params.id])
     res.json({ success: true })
   } catch (err) {
@@ -146,7 +160,7 @@ router.delete('/:id/transactions/:txId', async (req, res) => {
 // ── Equity curve per account ──────────────────────────────────────────────────
 router.get('/:id/equity', async (req, res) => {
   try {
-    const acctR = await pool.query('SELECT * FROM accounts WHERE id=$1', [req.params.id])
+    const acctR = await pool.query('SELECT * FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!acctR.rows[0]) return res.status(404).json({ error: 'Account not found' })
     const account = acctR.rows[0]
 
@@ -176,8 +190,8 @@ router.get('/:id/equity', async (req, res) => {
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-async function getAccount(id) {
-  const r = await pool.query(`${ACCT_SELECT} WHERE a.id=$1 GROUP BY a.id`, [id])
+async function getAccount(id, userId) {
+  const r = await pool.query(`${ACCT_SELECT} WHERE a.id=$1 AND a.user_id=$2 GROUP BY a.id`, [id, userId])
   return r.rows[0] ? addBalance(r.rows[0]) : null
 }
 

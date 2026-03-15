@@ -3,12 +3,17 @@ import pool from '../db.js'
 
 const router = Router()
 
-// Build date+account filter. startIdx lets you offset $N when prepending extra params.
-function dateFilter(from, to, account_id, col='date', startIdx=1) {
+// Build date+account+user filter. startIdx lets you offset $N when prepending extra params.
+// userId is always required for data isolation; account_id and date range are optional.
+function dateFilter(from, to, account_id, userId, col='date', startIdx=1) {
   const params = []
   const parts  = []
   let i = startIdx
   const prefix = col.includes('.') ? col.split('.')[0] + '.' : ''
+
+  // Always filter by user
+  parts.push(`${prefix}user_id = $${i++}`); params.push(userId)
+
   if (account_id) { parts.push(`${prefix}account_id = $${i++}`); params.push(account_id) }
   if (from) { parts.push(`${col} >= $${i++}`); params.push(from) }
   if (to)   { parts.push(`${col} <= $${i++}`); params.push(to)   }
@@ -19,7 +24,7 @@ function dateFilter(from, to, account_id, col='date', startIdx=1) {
 router.get('/summary', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id)
+    const { clause, params } = dateFilter(from, to, account_id, req.userId)
 
     const rowR = await pool.query(`
       SELECT
@@ -52,7 +57,8 @@ router.get('/summary', async (req, res) => {
     const wr = win_rate / 100
     const expectancy = (wr * avg_win) + ((1 - wr) * avg_loss)
 
-    const { clause: bClause, params: bParams } = dateFilter(from, to, account_id, 'date', 2)
+    // startIdx=2 because $1 is the pnl value prepended by the callers below
+    const { clause: bClause, params: bParams } = dateFilter(from, to, account_id, req.userId, 'date', 2)
     const [bestR, worstR] = await Promise.all([
       row.best_pnl  != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 ${bClause} LIMIT 1`, [row.best_pnl,  ...bParams]) : Promise.resolve({ rows: [] }),
       row.worst_pnl != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 ${bClause} LIMIT 1`, [row.worst_pnl, ...bParams]) : Promise.resolve({ rows: [] }),
@@ -77,7 +83,7 @@ router.get('/summary', async (req, res) => {
 router.get('/equity-curve', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id)
+    const { clause, params } = dateFilter(from, to, account_id, req.userId)
 
     const r = await pool.query(`
       SELECT date, SUM(pnl) as day_pnl FROM trades
@@ -99,7 +105,7 @@ router.get('/equity-curve', async (req, res) => {
 router.get('/calendar', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id)
+    const { clause, params } = dateFilter(from, to, account_id, req.userId)
 
     const r = await pool.query(`
       SELECT date, COALESCE(SUM(pnl),0) AS pnl, COUNT(*) AS trades
@@ -116,7 +122,7 @@ router.get('/calendar', async (req, res) => {
 router.get('/monthly', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id)
+    const { clause, params } = dateFilter(from, to, account_id, req.userId)
 
     const r = await pool.query(`
       SELECT
@@ -138,7 +144,7 @@ router.get('/monthly', async (req, res) => {
 router.get('/streaks', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id)
+    const { clause, params } = dateFilter(from, to, account_id, req.userId)
 
     const r = await pool.query(`
       SELECT pnl FROM trades

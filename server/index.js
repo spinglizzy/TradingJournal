@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
 import { initDb } from './db.js'
+import authRouter         from './routes/auth.js'
+import { requireAuth }   from './middleware/auth.js'
 import tradesRouter       from './routes/trades.js'
 import statsRouter        from './routes/stats.js'
 import analyticsRouter    from './routes/analytics.js'
@@ -25,6 +27,10 @@ const PORT = process.env.PORT || 3001
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 app.use('/uploads', express.static(join(__dirname, '..', 'public', 'uploads')))
+
+app.use('/api/auth',      authRouter)
+
+app.use(requireAuth)
 
 app.use('/api/trades',     tradesRouter)
 app.use('/api/stats',      statsRouter)

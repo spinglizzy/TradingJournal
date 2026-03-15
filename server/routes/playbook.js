@@ -10,7 +10,7 @@ function fmtSetup(s) {
   return { ...s, checklist: parseJ(s.checklist,[]), default_fields: parseJ(s.default_fields,{}) }
 }
 
-async function getStats(strategyId) {
+async function getStats(strategyId, userId) {
   const [rowR, grossR] = await Promise.all([
     pool.query(`
       SELECT COUNT(*) AS total_trades,
@@ -23,13 +23,13 @@ async function getStats(strategyId) {
              AVG(CASE WHEN status='closed' THEN r_multiple END) AS avg_r,
              MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
              MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
-      FROM trades WHERE strategy_id=$1
-    `, [strategyId]),
+      FROM trades WHERE strategy_id=$1 AND user_id=$2
+    `, [strategyId, userId]),
     pool.query(`
       SELECT COALESCE(SUM(CASE WHEN pnl>0  THEN pnl END),0)      AS gross_profit,
              ABS(COALESCE(SUM(CASE WHEN pnl<=0 THEN pnl END),0)) AS gross_loss
-      FROM trades WHERE status='closed' AND strategy_id=$1
-    `, [strategyId]),
+      FROM trades WHERE status='closed' AND strategy_id=$1 AND user_id=$2
+    `, [strategyId, userId]),
   ])
   const row   = rowR.rows[0]
   const gross = grossR.rows[0]
@@ -43,22 +43,22 @@ async function getStats(strategyId) {
   return { ...row, win_rate, profit_factor, expectancy }
 }
 
-async function getEquity(strategyId) {
+async function getEquity(strategyId, userId) {
   const r = await pool.query(`
     SELECT date, SUM(pnl) AS day_pnl FROM trades
-    WHERE strategy_id=$1 AND status='closed' AND pnl IS NOT NULL
+    WHERE strategy_id=$1 AND status='closed' AND pnl IS NOT NULL AND user_id=$2
     GROUP BY date ORDER BY date ASC
-  `, [strategyId])
+  `, [strategyId, userId])
   let cum=0
   return r.rows.map(t => { cum+=Number(t.day_pnl); return { date:t.date, pnl:Number(t.day_pnl), cumulative:cum } })
 }
 
 // ── Setup list with performance ───────────────────────────────────────────────
-router.get('/setups', async (_req, res) => {
+router.get('/setups', async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM strategies ORDER BY name')
+    const r = await pool.query('SELECT * FROM strategies WHERE user_id=$1 ORDER BY name', [req.userId])
     const setups = await Promise.all(r.rows.map(async s => ({
-      ...fmtSetup(s), stats: await getStats(s.id), equity_curve: await getEquity(s.id),
+      ...fmtSetup(s), stats: await getStats(s.id, req.userId), equity_curve: await getEquity(s.id, req.userId),
     })))
     res.json(setups)
   } catch (err) {
@@ -69,34 +69,34 @@ router.get('/setups', async (_req, res) => {
 // ── Setup detail ──────────────────────────────────────────────────────────────
 router.get('/setups/:id', async (req, res) => {
   try {
-    const setupR = await pool.query('SELECT * FROM strategies WHERE id=$1', [req.params.id])
+    const setupR = await pool.query('SELECT * FROM strategies WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!setupR.rows[0]) return res.status(404).json({ error: 'Setup not found' })
     const setup = setupR.rows[0]
 
     const [stats, equity, wdR, tkR] = await Promise.all([
-      getStats(setup.id),
-      getEquity(setup.id),
+      getStats(setup.id, req.userId),
+      getEquity(setup.id, req.userId),
       pool.query(`
         SELECT EXTRACT(DOW FROM date::date)::int AS wd,
                COUNT(*) AS trades, COALESCE(SUM(pnl),0) AS total_pnl,
                COUNT(CASE WHEN pnl>0 THEN 1 END) AS wins, AVG(pnl) AS avg_pnl
-        FROM trades WHERE strategy_id=$1 AND status='closed' AND pnl IS NOT NULL
+        FROM trades WHERE strategy_id=$1 AND status='closed' AND pnl IS NOT NULL AND user_id=$2
         GROUP BY wd ORDER BY wd
-      `, [setup.id]),
+      `, [setup.id, req.userId]),
       pool.query(`
         SELECT ticker, COUNT(*) AS trades, COALESCE(SUM(pnl),0) AS total_pnl,
                COUNT(CASE WHEN pnl>0 THEN 1 END) AS wins, AVG(r_multiple) AS avg_r
-        FROM trades WHERE strategy_id=$1 AND status='closed'
+        FROM trades WHERE strategy_id=$1 AND status='closed' AND user_id=$2
         GROUP BY ticker ORDER BY total_pnl DESC LIMIT 10
-      `, [setup.id]),
+      `, [setup.id, req.userId]),
     ])
 
     const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
     const byWeekday = wdR.rows.map(r => ({ ...r, wd:Number(r.wd), day:DAYS[Number(r.wd)] }))
 
     const [bestR, worstR] = await Promise.all([
-      stats.best_pnl  != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE strategy_id=$1 AND pnl=$2 LIMIT 1`, [setup.id, stats.best_pnl])  : Promise.resolve({rows:[]}),
-      stats.worst_pnl != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE strategy_id=$1 AND pnl=$2 LIMIT 1`, [setup.id, stats.worst_pnl]) : Promise.resolve({rows:[]}),
+      stats.best_pnl  != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE strategy_id=$1 AND pnl=$2 AND user_id=$3 LIMIT 1`, [setup.id, stats.best_pnl, req.userId])  : Promise.resolve({rows:[]}),
+      stats.worst_pnl != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE strategy_id=$1 AND pnl=$2 AND user_id=$3 LIMIT 1`, [setup.id, stats.worst_pnl, req.userId]) : Promise.resolve({rows:[]}),
     ])
 
     res.json({
@@ -117,8 +117,8 @@ router.get('/setups/:id/trades', async (req, res) => {
     const r = await pool.query(`
       SELECT t.*, s.name AS strategy_name FROM trades t
       LEFT JOIN strategies s ON t.strategy_id=s.id
-      WHERE t.strategy_id=$1 ORDER BY t.date DESC LIMIT 200
-    `, [req.params.id])
+      WHERE t.strategy_id=$1 AND t.user_id=$2 ORDER BY t.date DESC LIMIT 200
+    `, [req.params.id, req.userId])
     res.json(r.rows)
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -131,9 +131,9 @@ router.get('/compare', async (req, res) => {
     const ids = (req.query.ids||'').split(',').map(Number).filter(n=>n>0)
     if (!ids.length) return res.json([])
     const result = await Promise.all(ids.map(async id => {
-      const r = await pool.query('SELECT * FROM strategies WHERE id=$1', [id])
+      const r = await pool.query('SELECT * FROM strategies WHERE id=$1 AND user_id=$2', [id, req.userId])
       if (!r.rows[0]) return null
-      return { ...fmtSetup(r.rows[0]), stats: await getStats(id), equity_curve: await getEquity(id) }
+      return { ...fmtSetup(r.rows[0]), stats: await getStats(id, req.userId), equity_curve: await getEquity(id, req.userId) }
     }))
     res.json(result.filter(Boolean))
   } catch (err) {
@@ -145,8 +145,8 @@ router.get('/compare', async (req, res) => {
 router.get('/planned', async (req, res) => {
   try {
     const { status } = req.query
-    const p = []
-    const w = ['1=1']
+    const p = [req.userId]
+    const w = ['pt.user_id = $1']
     if (status) w.push(`pt.status = $${p.push(status)}`)
     const r = await pool.query(`
       SELECT pt.*, s.name AS strategy_name FROM planned_trades pt
@@ -165,13 +165,13 @@ router.post('/planned', async (req, res) => {
             planned_entry=null, stop_loss=null, target_price=null,
             notes='', confidence=null } = req.body
     const result = await pool.query(`
-      INSERT INTO planned_trades (ticker,strategy_id,direction,planned_entry,stop_loss,target_price,notes,confidence)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id
-    `, [ticker, strategy_id, direction, planned_entry, stop_loss, target_price, notes, confidence])
+      INSERT INTO planned_trades (ticker,strategy_id,direction,planned_entry,stop_loss,target_price,notes,confidence,user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [ticker, strategy_id, direction, planned_entry, stop_loss, target_price, notes, confidence, req.userId])
     const row = await pool.query(`
       SELECT pt.*, s.name AS strategy_name FROM planned_trades pt
-      LEFT JOIN strategies s ON pt.strategy_id=s.id WHERE pt.id=$1
-    `, [result.rows[0].id])
+      LEFT JOIN strategies s ON pt.strategy_id=s.id WHERE pt.id=$1 AND pt.user_id=$2
+    `, [result.rows[0].id, req.userId])
     res.status(201).json(row.rows[0])
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -180,7 +180,7 @@ router.post('/planned', async (req, res) => {
 
 router.put('/planned/:id', async (req, res) => {
   try {
-    const check = await pool.query('SELECT id FROM planned_trades WHERE id=$1', [req.params.id])
+    const check = await pool.query('SELECT id FROM planned_trades WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!check.rows[0]) return res.status(404).json({ error: 'Not found' })
 
     const { ticker, strategy_id=null, direction='long',
@@ -191,13 +191,13 @@ router.put('/planned/:id', async (req, res) => {
       UPDATE planned_trades
       SET ticker=$1,strategy_id=$2,direction=$3,planned_entry=$4,stop_loss=$5,
           target_price=$6,notes=$7,confidence=$8,status=$9,updated_at=${NOW}
-      WHERE id=$10
-    `, [ticker, strategy_id, direction, planned_entry, stop_loss, target_price, notes, confidence, status, req.params.id])
+      WHERE id=$10 AND user_id=$11
+    `, [ticker, strategy_id, direction, planned_entry, stop_loss, target_price, notes, confidence, status, req.params.id, req.userId])
 
     const row = await pool.query(`
       SELECT pt.*, s.name AS strategy_name FROM planned_trades pt
-      LEFT JOIN strategies s ON pt.strategy_id=s.id WHERE pt.id=$1
-    `, [req.params.id])
+      LEFT JOIN strategies s ON pt.strategy_id=s.id WHERE pt.id=$1 AND pt.user_id=$2
+    `, [req.params.id, req.userId])
     res.json(row.rows[0])
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -206,9 +206,9 @@ router.put('/planned/:id', async (req, res) => {
 
 router.delete('/planned/:id', async (req, res) => {
   try {
-    const check = await pool.query('SELECT id FROM planned_trades WHERE id=$1', [req.params.id])
+    const check = await pool.query('SELECT id FROM planned_trades WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!check.rows[0]) return res.status(404).json({ error: 'Not found' })
-    await pool.query('DELETE FROM planned_trades WHERE id=$1', [req.params.id])
+    await pool.query('DELETE FROM planned_trades WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     res.json({ success: true })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -218,27 +218,28 @@ router.delete('/planned/:id', async (req, res) => {
 // Convert planned trade → actual trade
 router.post('/planned/:id/execute', async (req, res) => {
   try {
-    const ptR = await pool.query('SELECT * FROM planned_trades WHERE id=$1', [req.params.id])
+    const ptR = await pool.query('SELECT * FROM planned_trades WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!ptR.rows[0]) return res.status(404).json({ error: 'Not found' })
     const pt = ptR.rows[0]
 
     const { date, entry_price, position_size=1, fees=0, timeframe='', notes='' } = req.body
     const tradeResult = await pool.query(`
-      INSERT INTO trades (date,ticker,direction,entry_price,stop_loss,position_size,fees,strategy_id,timeframe,notes,status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'open') RETURNING id
+      INSERT INTO trades (date,ticker,direction,entry_price,stop_loss,position_size,fees,strategy_id,timeframe,notes,status,user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'open',$11) RETURNING id
     `, [
       date || new Date().toISOString().split('T')[0],
       pt.ticker, pt.direction,
       entry_price ?? pt.planned_entry ?? 0,
       pt.stop_loss, position_size, fees,
       pt.strategy_id, timeframe, notes || pt.notes || '',
+      req.userId,
     ])
 
     const tradeId = tradeResult.rows[0].id
     const NOW = `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
     await pool.query(
-      `UPDATE planned_trades SET status='executed',trade_id=$1,updated_at=${NOW} WHERE id=$2`,
-      [tradeId, req.params.id]
+      `UPDATE planned_trades SET status='executed',trade_id=$1,updated_at=${NOW} WHERE id=$2 AND user_id=$3`,
+      [tradeId, req.params.id, req.userId]
     )
     res.json({ trade_id: tradeId })
   } catch (err) {
@@ -247,21 +248,22 @@ router.post('/planned/:id/execute', async (req, res) => {
 })
 
 // ── Missed trades ─────────────────────────────────────────────────────────────
-router.get('/missed/summary', async (_req, res) => {
+router.get('/missed/summary', async (req, res) => {
   try {
     const [totalR, bySetupR, byMonthR] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(simulated_pnl),0) AS total_missed, COUNT(*) AS count FROM missed_trades`),
+      pool.query(`SELECT COALESCE(SUM(simulated_pnl),0) AS total_missed, COUNT(*) AS count FROM missed_trades WHERE user_id=$1`, [req.userId]),
       pool.query(`
         SELECT COALESCE(s.name,'Unknown') AS setup_name,
                COUNT(*) AS count, COALESCE(SUM(mt.simulated_pnl),0) AS total_pnl
         FROM missed_trades mt LEFT JOIN strategies s ON mt.strategy_id=s.id
+        WHERE mt.user_id=$1
         GROUP BY mt.strategy_id, s.name ORDER BY total_pnl DESC
-      `),
+      `, [req.userId]),
       pool.query(`
         SELECT SUBSTRING(date,1,7) AS month,
                COUNT(*) AS count, COALESCE(SUM(simulated_pnl),0) AS total_pnl
-        FROM missed_trades GROUP BY SUBSTRING(date,1,7) ORDER BY month ASC
-      `),
+        FROM missed_trades WHERE user_id=$1 GROUP BY SUBSTRING(date,1,7) ORDER BY month ASC
+      `, [req.userId]),
     ])
     res.json({ ...totalR.rows[0], by_setup:bySetupR.rows, by_month:byMonthR.rows })
   } catch (err) {
@@ -269,12 +271,13 @@ router.get('/missed/summary', async (_req, res) => {
   }
 })
 
-router.get('/missed', async (_req, res) => {
+router.get('/missed', async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT mt.*, s.name AS strategy_name FROM missed_trades mt
-      LEFT JOIN strategies s ON mt.strategy_id=s.id ORDER BY mt.date DESC
-    `)
+      LEFT JOIN strategies s ON mt.strategy_id=s.id
+      WHERE mt.user_id=$1 ORDER BY mt.date DESC
+    `, [req.userId])
     res.json(r.rows)
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -287,13 +290,13 @@ router.post('/missed', async (req, res) => {
             entry_would_have_been=null, exit_would_have_been=null,
             position_size=100, simulated_pnl=null, reason_missed='', notes='' } = req.body
     const result = await pool.query(`
-      INSERT INTO missed_trades (date,ticker,strategy_id,direction,entry_would_have_been,exit_would_have_been,position_size,simulated_pnl,reason_missed,notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
-    `, [date, ticker, strategy_id, direction, entry_would_have_been, exit_would_have_been, position_size, simulated_pnl, reason_missed, notes])
+      INSERT INTO missed_trades (date,ticker,strategy_id,direction,entry_would_have_been,exit_would_have_been,position_size,simulated_pnl,reason_missed,notes,user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id
+    `, [date, ticker, strategy_id, direction, entry_would_have_been, exit_would_have_been, position_size, simulated_pnl, reason_missed, notes, req.userId])
     const row = await pool.query(`
       SELECT mt.*, s.name AS strategy_name FROM missed_trades mt
-      LEFT JOIN strategies s ON mt.strategy_id=s.id WHERE mt.id=$1
-    `, [result.rows[0].id])
+      LEFT JOIN strategies s ON mt.strategy_id=s.id WHERE mt.id=$1 AND mt.user_id=$2
+    `, [result.rows[0].id, req.userId])
     res.status(201).json(row.rows[0])
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -302,7 +305,7 @@ router.post('/missed', async (req, res) => {
 
 router.put('/missed/:id', async (req, res) => {
   try {
-    const check = await pool.query('SELECT id FROM missed_trades WHERE id=$1', [req.params.id])
+    const check = await pool.query('SELECT id FROM missed_trades WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!check.rows[0]) return res.status(404).json({ error: 'Not found' })
 
     const { date, ticker, strategy_id=null, direction='long',
@@ -311,14 +314,14 @@ router.put('/missed/:id', async (req, res) => {
     await pool.query(`
       UPDATE missed_trades SET date=$1,ticker=$2,strategy_id=$3,direction=$4,
         entry_would_have_been=$5,exit_would_have_been=$6,position_size=$7,
-        simulated_pnl=$8,reason_missed=$9,notes=$10 WHERE id=$11
+        simulated_pnl=$8,reason_missed=$9,notes=$10 WHERE id=$11 AND user_id=$12
     `, [date, ticker, strategy_id, direction, entry_would_have_been, exit_would_have_been,
-        position_size, simulated_pnl, reason_missed, notes, req.params.id])
+        position_size, simulated_pnl, reason_missed, notes, req.params.id, req.userId])
 
     const row = await pool.query(`
       SELECT mt.*, s.name AS strategy_name FROM missed_trades mt
-      LEFT JOIN strategies s ON mt.strategy_id=s.id WHERE mt.id=$1
-    `, [req.params.id])
+      LEFT JOIN strategies s ON mt.strategy_id=s.id WHERE mt.id=$1 AND mt.user_id=$2
+    `, [req.params.id, req.userId])
     res.json(row.rows[0])
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -327,9 +330,9 @@ router.put('/missed/:id', async (req, res) => {
 
 router.delete('/missed/:id', async (req, res) => {
   try {
-    const check = await pool.query('SELECT id FROM missed_trades WHERE id=$1', [req.params.id])
+    const check = await pool.query('SELECT id FROM missed_trades WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!check.rows[0]) return res.status(404).json({ error: 'Not found' })
-    await pool.query('DELETE FROM missed_trades WHERE id=$1', [req.params.id])
+    await pool.query('DELETE FROM missed_trades WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     res.json({ success: true })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })

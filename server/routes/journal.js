@@ -7,8 +7,8 @@ const router = Router()
 router.get('/', async (req, res) => {
   try {
     const { start_date, end_date, entry_type, tag, search } = req.query
-    const p = []
-    const w = ['1=1']
+    const p = [req.userId]
+    const w = ['user_id = $1']
 
     if (start_date) w.push(`date >= $${p.push(start_date)}`)
     if (end_date)   w.push(`date <= $${p.push(end_date)}`)
@@ -37,8 +37,8 @@ router.get('/', async (req, res) => {
 router.get('/calendar', async (req, res) => {
   try {
     const { start_date, end_date } = req.query
-    const p = []
-    const w = ['1=1']
+    const p = [req.userId]
+    const w = ['user_id = $1']
     if (start_date) w.push(`date >= $${p.push(start_date)}`)
     if (end_date)   w.push(`date <= $${p.push(end_date)}`)
 
@@ -73,18 +73,18 @@ router.get('/weekly-stats', async (req, res) => {
                COUNT(CASE WHEN pnl<=0 AND status='closed' THEN 1 END) AS losses,
                MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
                MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
-        FROM trades WHERE date>=$1 AND date<=$2
-      `, [from, to]),
+        FROM trades WHERE date>=$1 AND date<=$2 AND user_id=$3
+      `, [from, to, req.userId]),
       pool.query(`
         SELECT COALESCE(SUM(CASE WHEN pnl>0  THEN pnl END),0)      AS gross_profit,
                ABS(COALESCE(SUM(CASE WHEN pnl<=0 THEN pnl END),0)) AS gross_loss
-        FROM trades WHERE status='closed' AND date>=$1 AND date<=$2
-      `, [from, to]),
+        FROM trades WHERE status='closed' AND date>=$1 AND date<=$2 AND user_id=$3
+      `, [from, to, req.userId]),
       pool.query(`
         SELECT setup, COUNT(*) AS cnt FROM trades
-        WHERE setup IS NOT NULL AND date>=$1 AND date<=$2
+        WHERE setup IS NOT NULL AND date>=$1 AND date<=$2 AND user_id=$3
         GROUP BY setup ORDER BY cnt DESC LIMIT 1
-      `, [from, to]),
+      `, [from, to, req.userId]),
     ])
 
     const stats = statsR.rows[0]
@@ -94,8 +94,8 @@ router.get('/weekly-stats', async (req, res) => {
     const profit_factor = gross.gross_loss > 0 ? gross.gross_profit / gross.gross_loss : null
 
     const [bestR, worstR] = await Promise.all([
-      stats.best_pnl  != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 AND date>=$2 AND date<=$3 LIMIT 1`, [stats.best_pnl,  from, to]) : Promise.resolve({ rows: [] }),
-      stats.worst_pnl != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 AND date>=$2 AND date<=$3 LIMIT 1`, [stats.worst_pnl, from, to]) : Promise.resolve({ rows: [] }),
+      stats.best_pnl  != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 AND date>=$2 AND date<=$3 AND user_id=$4 LIMIT 1`, [stats.best_pnl,  from, to, req.userId]) : Promise.resolve({ rows: [] }),
+      stats.worst_pnl != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 AND date>=$2 AND date<=$3 AND user_id=$4 LIMIT 1`, [stats.worst_pnl, from, to, req.userId]) : Promise.resolve({ rows: [] }),
     ])
 
     res.json({
@@ -112,9 +112,9 @@ router.get('/weekly-stats', async (req, res) => {
 })
 
 // ── All tags used across entries ──────────────────────────────────────────────
-router.get('/tags', async (_req, res) => {
+router.get('/tags', async (req, res) => {
   try {
-    const r = await pool.query(`SELECT tags FROM journal_entries WHERE tags != '[]'`)
+    const r = await pool.query(`SELECT tags FROM journal_entries WHERE tags != '[]' AND user_id=$1`, [req.userId])
     const tagSet = new Set()
     for (const row of r.rows) safeJson(row.tags).forEach(t => tagSet.add(t))
     res.json([...tagSet].sort())
@@ -127,7 +127,7 @@ router.get('/tags', async (_req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const [entryR, linkedR] = await Promise.all([
-      pool.query('SELECT * FROM journal_entries WHERE id=$1', [req.params.id]),
+      pool.query('SELECT * FROM journal_entries WHERE id=$1 AND user_id=$2', [req.params.id, req.userId]),
       pool.query(`
         SELECT t.id,t.date,t.ticker,t.direction,t.pnl,t.status,t.entry_price,t.exit_price
         FROM journal_trade_links jl JOIN trades t ON jl.trade_id=t.id
@@ -147,14 +147,14 @@ router.post('/', async (req, res) => {
   try {
     const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[] } = req.body
     const result = await pool.query(`
-      INSERT INTO journal_entries (date,entry_type,title,content,mood,tags)
-      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
-    `, [date, entry_type, title, content, mood, JSON.stringify(tags)])
+      INSERT INTO journal_entries (date,entry_type,title,content,mood,tags,user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id
+    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.userId])
 
     const id = result.rows[0].id
     await syncLinks(id, trade_ids)
 
-    const entry = await pool.query('SELECT * FROM journal_entries WHERE id=$1', [id])
+    const entry = await pool.query('SELECT * FROM journal_entries WHERE id=$1 AND user_id=$2', [id, req.userId])
     res.status(201).json({ ...entry.rows[0], tags: safeJson(entry.rows[0].tags) })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -164,7 +164,7 @@ router.post('/', async (req, res) => {
 // ── Update ────────────────────────────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
-    const check = await pool.query('SELECT id FROM journal_entries WHERE id=$1', [req.params.id])
+    const check = await pool.query('SELECT id FROM journal_entries WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!check.rows[0]) return res.status(404).json({ error: 'Entry not found' })
 
     const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[] } = req.body
@@ -172,12 +172,12 @@ router.put('/:id', async (req, res) => {
     await pool.query(`
       UPDATE journal_entries
       SET date=$1,entry_type=$2,title=$3,content=$4,mood=$5,tags=$6,updated_at=${NOW}
-      WHERE id=$7
-    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.params.id])
+      WHERE id=$7 AND user_id=$8
+    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.params.id, req.userId])
 
     await syncLinks(req.params.id, trade_ids)
 
-    const entry = await pool.query('SELECT * FROM journal_entries WHERE id=$1', [req.params.id])
+    const entry = await pool.query('SELECT * FROM journal_entries WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     res.json({ ...entry.rows[0], tags: safeJson(entry.rows[0].tags) })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -187,9 +187,9 @@ router.put('/:id', async (req, res) => {
 // ── Delete ────────────────────────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
-    const check = await pool.query('SELECT id FROM journal_entries WHERE id=$1', [req.params.id])
+    const check = await pool.query('SELECT id FROM journal_entries WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!check.rows[0]) return res.status(404).json({ error: 'Entry not found' })
-    await pool.query('DELETE FROM journal_entries WHERE id=$1', [req.params.id])
+    await pool.query('DELETE FROM journal_entries WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     res.json({ success: true })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })

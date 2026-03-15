@@ -3,12 +3,13 @@ import pool from '../db.js'
 
 const router = Router()
 
-function dateFilter(from, to, account_id, col='t.date', startIdx=1) {
+function dateFilter(from, to, account_id, userId, col='t.date', startIdx=1) {
   const params = []
   const parts  = []
   let i = startIdx
   const prefix = col.includes('.') ? col.split('.')[0] + '.' : ''
   if (account_id) { parts.push(`${prefix}account_id = $${i++}`); params.push(account_id) }
+  parts.push(`${prefix}user_id = $${i++}`); params.push(userId)
   if (from) { parts.push(`${col} >= $${i++}`); params.push(from) }
   if (to)   { parts.push(`${col} <= $${i++}`); params.push(to)   }
   return { clause: parts.length ? `AND ${parts.join(' AND ')}` : '', params }
@@ -18,7 +19,7 @@ function dateFilter(from, to, account_id, col='t.date', startIdx=1) {
 router.get('/by-weekday', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 'date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -44,7 +45,7 @@ router.get('/by-weekday', async (req, res) => {
 router.get('/by-hour', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 'date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -68,7 +69,7 @@ router.get('/by-hour', async (req, res) => {
 router.get('/by-strategy', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 't.date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 't.date')
 
     const r = await pool.query(`
       SELECT
@@ -95,7 +96,7 @@ router.get('/by-strategy', async (req, res) => {
 router.get('/by-setup', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 'date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -121,7 +122,7 @@ router.get('/by-setup', async (req, res) => {
 router.get('/by-ticker', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 'date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -147,7 +148,7 @@ router.get('/by-ticker', async (req, res) => {
 router.get('/by-tag', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 't.date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 't.date')
 
     const r = await pool.query(`
       SELECT
@@ -177,7 +178,7 @@ router.get('/by-tag', async (req, res) => {
 router.get('/rr-dist', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 'date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT r_multiple FROM trades
@@ -194,7 +195,7 @@ router.get('/rr-dist', async (req, res) => {
 router.get('/pnl-dist', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 'date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT pnl FROM trades
@@ -211,7 +212,7 @@ router.get('/pnl-dist', async (req, res) => {
 router.get('/drawdown', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 'date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT date, SUM(pnl) as day_pnl FROM trades
@@ -235,7 +236,7 @@ router.get('/drawdown', async (req, res) => {
 router.get('/hold-time', async (req, res) => {
   try {
     const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, 'date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -312,7 +313,7 @@ router.get('/custom', async (req, res) => {
 
     const xDef  = X_FIELDS[x_field]
     const yExpr = Y_METRICS[y_metric]
-    const { clause, params } = dateFilter(from, to, account_id, 't.date')
+    const { clause, params } = dateFilter(from, to, account_id, req.userId, 't.date')
 
     const orderExpr = xDef.orderBy.includes('value') ? yExpr : xDef.orderBy
     const orderDir  = xDef.orderBy.includes('DESC') ? 'DESC' : ''

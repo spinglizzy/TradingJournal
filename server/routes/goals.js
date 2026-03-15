@@ -26,8 +26,11 @@ function getTimeframeRange(timeframe) {
 }
 
 // ── Metric computation ────────────────────────────────────────────────────────
-async function computeCurrentJournalStreak() {
-  const r = await pool.query('SELECT DISTINCT date FROM journal_entries ORDER BY date DESC')
+async function computeCurrentJournalStreak(userId) {
+  const r = await pool.query(
+    'SELECT DISTINCT date FROM journal_entries WHERE user_id=$1 ORDER BY date DESC',
+    [userId]
+  )
   if (!r.rows.length) return 0
   const today = new Date().toISOString().split('T')[0]
   const dates = new Set(r.rows.map(row => row.date))
@@ -41,33 +44,33 @@ async function computeCurrentJournalStreak() {
   return streak
 }
 
-async function computeCurrentValue(metric, from, to) {
+async function computeCurrentValue(metric, from, to, userId) {
   if (metric === 'pnl') {
     const r = await pool.query(
-      `SELECT COALESCE(SUM(pnl),0) as v FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2`,
-      [from, to]
+      `SELECT COALESCE(SUM(pnl),0) as v FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`,
+      [from, to, userId]
     )
     return Number(r.rows[0].v)
   }
   if (metric === 'win_rate') {
     const r = await pool.query(
-      `SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2`,
-      [from, to]
+      `SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`,
+      [from, to, userId]
     )
     const { total, wins } = r.rows[0]
     return total > 0 ? (Number(wins) / Number(total)) * 100 : 0
   }
   if (metric === 'trade_count') {
     const r = await pool.query(
-      `SELECT COUNT(*) as v FROM trades WHERE date BETWEEN $1 AND $2`,
-      [from, to]
+      `SELECT COUNT(*) as v FROM trades WHERE date BETWEEN $1 AND $2 AND user_id=$3`,
+      [from, to, userId]
     )
     return Number(r.rows[0].v)
   }
   if (metric === 'discipline_score') {
     const r = await pool.query(
-      `SELECT rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2`,
-      [from, to]
+      `SELECT rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`,
+      [from, to, userId]
     )
     if (!r.rows.length) return 0
     const disciplined = r.rows.filter(row => {
@@ -77,12 +80,12 @@ async function computeCurrentValue(metric, from, to) {
     return (disciplined / r.rows.length) * 100
   }
   if (metric === 'journal_streak') {
-    return computeCurrentJournalStreak()
+    return computeCurrentJournalStreak(userId)
   }
   if (metric === 'max_daily_loss') {
     const r = await pool.query(
-      `SELECT MIN(s) as worst FROM (SELECT SUM(pnl) as s FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 GROUP BY date) AS sub`,
-      [from, to]
+      `SELECT MIN(s) as worst FROM (SELECT SUM(pnl) as s FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 GROUP BY date) AS sub`,
+      [from, to, userId]
     )
     const worst = r.rows[0].worst
     return worst !== null && worst < 0 ? Math.abs(worst) : 0
@@ -105,9 +108,9 @@ function computeGoalProgress(goal, currentValue) {
   return { isMet, progress }
 }
 
-async function formatGoal(g) {
+async function formatGoal(g, userId) {
   const range = getTimeframeRange(g.timeframe)
-  const currentValue = await computeCurrentValue(g.metric, range.from, range.to)
+  const currentValue = await computeCurrentValue(g.metric, range.from, range.to, userId)
   const { isMet, progress } = computeGoalProgress(g, currentValue)
   return {
     ...g,
@@ -121,10 +124,13 @@ async function formatGoal(g) {
 }
 
 // ── Goal CRUD ─────────────────────────────────────────────────────────────────
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM goals ORDER BY active DESC, created_at DESC')
-    res.json(await Promise.all(r.rows.map(formatGoal)))
+    const r = await pool.query(
+      'SELECT * FROM goals WHERE user_id=$1 ORDER BY active DESC, created_at DESC',
+      [req.userId]
+    )
+    res.json(await Promise.all(r.rows.map(g => formatGoal(g, req.userId))))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
   }
@@ -134,11 +140,11 @@ router.post('/', async (req, res) => {
   try {
     const { name, metric, target_value, timeframe, direction='above', active=1 } = req.body
     const result = await pool.query(
-      `INSERT INTO goals (name,metric,target_value,timeframe,direction,active) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [name, metric, target_value, timeframe, direction, active ? 1 : 0]
+      `INSERT INTO goals (name,metric,target_value,timeframe,direction,active,user_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [name, metric, target_value, timeframe, direction, active ? 1 : 0, req.userId]
     )
-    const row = await pool.query('SELECT * FROM goals WHERE id=$1', [result.rows[0].id])
-    res.json(await formatGoal(row.rows[0]))
+    const row = await pool.query('SELECT * FROM goals WHERE id=$1 AND user_id=$2', [result.rows[0].id, req.userId])
+    res.json(await formatGoal(row.rows[0], req.userId))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
   }
@@ -148,12 +154,12 @@ router.put('/:id', async (req, res) => {
   try {
     const { name, metric, target_value, timeframe, direction, active } = req.body
     await pool.query(
-      `UPDATE goals SET name=$1,metric=$2,target_value=$3,timeframe=$4,direction=$5,active=$6 WHERE id=$7`,
-      [name, metric, target_value, timeframe, direction, active ? 1 : 0, req.params.id]
+      `UPDATE goals SET name=$1,metric=$2,target_value=$3,timeframe=$4,direction=$5,active=$6 WHERE id=$7 AND user_id=$8`,
+      [name, metric, target_value, timeframe, direction, active ? 1 : 0, req.params.id, req.userId]
     )
-    const row = await pool.query('SELECT * FROM goals WHERE id=$1', [req.params.id])
+    const row = await pool.query('SELECT * FROM goals WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!row.rows[0]) return res.status(404).json({ error: 'Not found' })
-    res.json(await formatGoal(row.rows[0]))
+    res.json(await formatGoal(row.rows[0], req.userId))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
   }
@@ -161,7 +167,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM goals WHERE id=$1', [req.params.id])
+    await pool.query('DELETE FROM goals WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     res.json({ ok: true })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -197,12 +203,12 @@ function currentStreakOf(dateSet) {
   return streak
 }
 
-router.get('/streaks', async (_req, res) => {
+router.get('/streaks', async (req, res) => {
   try {
     const [tradingR, journalR, rulesR] = await Promise.all([
-      pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' GROUP BY date ORDER BY date`),
-      pool.query('SELECT DISTINCT date FROM journal_entries'),
-      pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' ORDER BY date`),
+      pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 GROUP BY date ORDER BY date`, [req.userId]),
+      pool.query('SELECT DISTINCT date FROM journal_entries WHERE user_id=$1', [req.userId]),
+      pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND user_id=$1 ORDER BY date`, [req.userId]),
     ])
 
     const journalDays = new Set(journalR.rows.map(r => r.date))
@@ -235,9 +241,12 @@ router.get('/streaks', async (_req, res) => {
 })
 
 // ── Goal Progress Calendar ────────────────────────────────────────────────────
-router.get('/progress', async (_req, res) => {
+router.get('/progress', async (req, res) => {
   try {
-    const goalsR = await pool.query(`SELECT * FROM goals WHERE active=1 AND timeframe='daily'`)
+    const goalsR = await pool.query(
+      `SELECT * FROM goals WHERE active=1 AND timeframe='daily' AND user_id=$1`,
+      [req.userId]
+    )
     const goals  = goalsR.rows
 
     const today = new Date()
@@ -255,9 +264,9 @@ router.get('/progress', async (_req, res) => {
     const from = days[0], to = days[days.length-1]
 
     const [dailyR, journalR, ruleR] = await Promise.all([
-      pool.query(`SELECT date, SUM(pnl) as pnl, COUNT(*) as trades, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 GROUP BY date`, [from, to]),
-      pool.query(`SELECT DISTINCT date FROM journal_entries WHERE date BETWEEN $1 AND $2`, [from, to]),
-      pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2`, [from, to]),
+      pool.query(`SELECT date, SUM(pnl) as pnl, COUNT(*) as trades, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 GROUP BY date`, [from, to, req.userId]),
+      pool.query(`SELECT DISTINCT date FROM journal_entries WHERE date BETWEEN $1 AND $2 AND user_id=$3`, [from, to, req.userId]),
+      pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`, [from, to, req.userId]),
     ])
 
     const dailyStats = {}
@@ -328,14 +337,14 @@ const PREDEFINED = [
 
 function longestStreak(dateSet) { return longestStreakOf(dateSet).longest }
 
-async function checkAndUpsertAchievements() {
+async function checkAndUpsertAchievements(userId) {
   const [tsR, missedR, strategiesR, tradingR, journalR, rulesR] = await Promise.all([
-    pool.query(`SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins, COALESCE(SUM(pnl),0) as pnl FROM trades WHERE status='closed'`),
-    pool.query(`SELECT COUNT(*) as cnt FROM missed_trades`),
-    pool.query(`SELECT COUNT(DISTINCT strategy_id) as cnt FROM trades WHERE strategy_id IS NOT NULL`),
-    pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' GROUP BY date ORDER BY date`),
-    pool.query('SELECT DISTINCT date FROM journal_entries'),
-    pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' ORDER BY date`),
+    pool.query(`SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins, COALESCE(SUM(pnl),0) as pnl FROM trades WHERE status='closed' AND user_id=$1`, [userId]),
+    pool.query(`SELECT COUNT(*) as cnt FROM missed_trades WHERE user_id=$1`, [userId]),
+    pool.query(`SELECT COUNT(DISTINCT strategy_id) as cnt FROM trades WHERE strategy_id IS NOT NULL AND user_id=$1`, [userId]),
+    pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 GROUP BY date ORDER BY date`, [userId]),
+    pool.query('SELECT DISTINCT date FROM journal_entries WHERE user_id=$1', [userId]),
+    pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND user_id=$1 ORDER BY date`, [userId]),
   ])
 
   const ts         = tsR.rows[0]
@@ -391,25 +400,26 @@ async function checkAndUpsertAchievements() {
 
   const now = new Date().toISOString()
   for (const a of PREDEFINED) {
-    const existR = await pool.query('SELECT * FROM achievements WHERE key=$1', [a.key])
+    const existR = await pool.query('SELECT * FROM achievements WHERE key=$1 AND user_id=$2', [a.key, userId])
     if (!existR.rows[0]) {
       await pool.query(
-        `INSERT INTO achievements (key,name,description,icon,category,custom,earned_at) VALUES ($1,$2,$3,$4,$5,0,$6)`,
-        [a.key, a.name, a.description, a.icon, a.category, checks[a.key] ? now : null]
+        `INSERT INTO achievements (key,name,description,icon,category,custom,earned_at,user_id) VALUES ($1,$2,$3,$4,$5,0,$6,$7)`,
+        [a.key, a.name, a.description, a.icon, a.category, checks[a.key] ? now : null, userId]
       )
     } else if (!existR.rows[0].earned_at && checks[a.key]) {
-      await pool.query('UPDATE achievements SET earned_at=$1 WHERE key=$2', [now, a.key])
+      await pool.query('UPDATE achievements SET earned_at=$1 WHERE key=$2 AND user_id=$3', [now, a.key, userId])
     }
   }
 
   return { progress, thresholds }
 }
 
-router.get('/achievements', async (_req, res) => {
+router.get('/achievements', async (req, res) => {
   try {
-    const { progress, thresholds } = await checkAndUpsertAchievements()
+    const { progress, thresholds } = await checkAndUpsertAchievements(req.userId)
     const r = await pool.query(
-      `SELECT * FROM achievements ORDER BY custom ASC, CASE WHEN earned_at IS NULL THEN 1 ELSE 0 END ASC, earned_at DESC, created_at ASC`
+      `SELECT * FROM achievements WHERE user_id=$1 ORDER BY custom ASC, CASE WHEN earned_at IS NULL THEN 1 ELSE 0 END ASC, earned_at DESC, created_at ASC`,
+      [req.userId]
     )
     res.json(r.rows.map(a => ({
       ...a,
@@ -429,10 +439,10 @@ router.post('/achievements', async (req, res) => {
   try {
     const { name, description='', icon='🏆', category='custom' } = req.body
     const result = await pool.query(
-      `INSERT INTO achievements (name,description,icon,category,custom) VALUES ($1,$2,$3,$4,1) RETURNING id`,
-      [name, description, icon, category]
+      `INSERT INTO achievements (name,description,icon,category,custom,user_id) VALUES ($1,$2,$3,$4,1,$5) RETURNING id`,
+      [name, description, icon, category, req.userId]
     )
-    const row = await pool.query('SELECT * FROM achievements WHERE id=$1', [result.rows[0].id])
+    const row = await pool.query('SELECT * FROM achievements WHERE id=$1 AND user_id=$2', [result.rows[0].id, req.userId])
     res.json(row.rows[0])
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -441,16 +451,16 @@ router.post('/achievements', async (req, res) => {
 
 router.put('/achievements/:id', async (req, res) => {
   try {
-    const aR = await pool.query('SELECT * FROM achievements WHERE id=$1 AND custom=1', [req.params.id])
+    const aR = await pool.query('SELECT * FROM achievements WHERE id=$1 AND custom=1 AND user_id=$2', [req.params.id, req.userId])
     if (!aR.rows[0]) return res.status(404).json({ error: 'Not found or not a custom achievement' })
     const a = aR.rows[0]
     const { name, description, icon, category, earned_at } = req.body
     await pool.query(
-      `UPDATE achievements SET name=$1,description=$2,icon=$3,category=$4,earned_at=$5 WHERE id=$6`,
+      `UPDATE achievements SET name=$1,description=$2,icon=$3,category=$4,earned_at=$5 WHERE id=$6 AND user_id=$7`,
       [name??a.name, description??a.description, icon??a.icon, category??a.category,
-       earned_at !== undefined ? earned_at : a.earned_at, req.params.id]
+       earned_at !== undefined ? earned_at : a.earned_at, req.params.id, req.userId]
     )
-    const row = await pool.query('SELECT * FROM achievements WHERE id=$1', [req.params.id])
+    const row = await pool.query('SELECT * FROM achievements WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     res.json(row.rows[0])
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -459,7 +469,7 @@ router.put('/achievements/:id', async (req, res) => {
 
 router.delete('/achievements/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM achievements WHERE id=$1 AND custom=1', [req.params.id])
+    await pool.query('DELETE FROM achievements WHERE id=$1 AND custom=1 AND user_id=$2', [req.params.id, req.userId])
     res.json({ ok: true })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })

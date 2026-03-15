@@ -98,13 +98,13 @@ router.post('/run', async (req, res) => {
         skipped++; continue
       }
 
-      // Duplicate check
+      // Duplicate check (scoped to this user)
       const dupSql = account_id
-        ? `SELECT id FROM trades WHERE ticker=$1 AND date=$2 AND entry_price=$3 AND account_id=$4 LIMIT 1`
-        : `SELECT id FROM trades WHERE ticker=$1 AND date=$2 AND entry_price=$3 LIMIT 1`
+        ? `SELECT id FROM trades WHERE ticker=$1 AND date=$2 AND entry_price=$3 AND account_id=$4 AND user_id=$5 LIMIT 1`
+        : `SELECT id FROM trades WHERE ticker=$1 AND date=$2 AND entry_price=$3 AND user_id=$4 LIMIT 1`
       const dupParams = account_id
-        ? [trade.ticker, trade.date, trade.entry_price, account_id]
-        : [trade.ticker, trade.date, trade.entry_price]
+        ? [trade.ticker, trade.date, trade.entry_price, account_id, req.userId]
+        : [trade.ticker, trade.date, trade.entry_price, req.userId]
       const dupR = await client.query(dupSql, dupParams)
       if (dupR.rows[0]) {
         duplicates.push({ row:i+2, ticker:trade.ticker, date:trade.date, existing_id:dupR.rows[0].id })
@@ -119,13 +119,13 @@ router.post('/run', async (req, res) => {
 
       await client.query(`
         INSERT INTO trades (date,ticker,direction,entry_price,exit_price,stop_loss,
-          position_size,fees,notes,setup,timeframe,account_id,status,pnl,pnl_percent,r_multiple)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          position_size,fees,notes,setup,timeframe,account_id,status,pnl,pnl_percent,r_multiple,user_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
       `, [
         trade.date, trade.ticker, trade.direction, trade.entry_price,
         trade.exit_price??null, trade.stop_loss??null, trade.position_size, trade.fees,
         trade.notes??null, trade.setup??null, trade.timeframe??null,
-        account_id??null, status, pnl, pnl_percent, r_multiple,
+        account_id??null, status, pnl, pnl_percent, r_multiple, req.userId,
       ])
       imported++
     }
@@ -144,8 +144,8 @@ router.post('/run', async (req, res) => {
 router.get('/csv', async (req, res) => {
   try {
     const { account_id, from, to, status } = req.query
-    const p = []
-    const w = ['1=1']
+    const p = [req.userId]
+    const w = ['t.user_id = $1']
     if (account_id) w.push(`t.account_id = $${p.push(account_id)}`)
     if (from)       w.push(`t.date >= $${p.push(from)}`)
     if (to)         w.push(`t.date <= $${p.push(to)}`)
@@ -196,17 +196,18 @@ router.get('/csv', async (req, res) => {
 })
 
 // ── Export full database backup as JSON ───────────────────────────────────────
-router.get('/json', async (_req, res) => {
+router.get('/json', async (req, res) => {
   try {
+    const uid = req.userId
     const [accounts, trades, tags, strategies, journal, goals, achievements, transactions] = await Promise.all([
-      pool.query('SELECT * FROM accounts'),
-      pool.query(`SELECT t.*, STRING_AGG(tt.tag_id::text, ',' ORDER BY tt.tag_id) as tag_ids FROM trades t LEFT JOIN trade_tags tt ON t.id=tt.trade_id GROUP BY t.id`),
-      pool.query('SELECT * FROM tags'),
-      pool.query('SELECT * FROM strategies'),
-      pool.query('SELECT * FROM journal_entries'),
-      pool.query('SELECT * FROM goals'),
-      pool.query('SELECT * FROM achievements WHERE earned_at IS NOT NULL'),
-      pool.query('SELECT * FROM account_transactions'),
+      pool.query('SELECT * FROM accounts WHERE user_id=$1', [uid]),
+      pool.query(`SELECT t.*, STRING_AGG(tt.tag_id::text, ',' ORDER BY tt.tag_id) as tag_ids FROM trades t LEFT JOIN trade_tags tt ON t.id=tt.trade_id WHERE t.user_id=$1 GROUP BY t.id`, [uid]),
+      pool.query('SELECT * FROM tags WHERE user_id=$1', [uid]),
+      pool.query('SELECT * FROM strategies WHERE user_id=$1', [uid]),
+      pool.query('SELECT * FROM journal_entries WHERE user_id=$1', [uid]),
+      pool.query('SELECT * FROM goals WHERE user_id=$1', [uid]),
+      pool.query('SELECT * FROM achievements WHERE user_id=$1 AND earned_at IS NOT NULL', [uid]),
+      pool.query('SELECT at.* FROM account_transactions at JOIN accounts a ON at.account_id=a.id WHERE a.user_id=$1', [uid]),
     ])
 
     const data = {

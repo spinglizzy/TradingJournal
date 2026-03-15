@@ -93,7 +93,7 @@ function Header() {
 
           <div className="hidden lg:flex items-center gap-3">
             <Link
-              to="/dashboard"
+              to="/login"
               className={cn(
                 'px-4 py-2 text-sm font-medium text-gray-300 hover:text-white border border-gray-700 rounded-lg transition-all duration-150',
                 scrolled ? 'hidden' : ''
@@ -102,7 +102,7 @@ function Header() {
               Login
             </Link>
             <Link
-              to="/dashboard"
+              to="/signup"
               className="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150"
               style={{ backgroundColor: '#9aea62', color: '#0a1a0a' }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
@@ -137,13 +137,13 @@ function Header() {
             </ul>
             <div className="flex flex-col gap-2 pt-2 border-t border-gray-800">
               <Link
-                to="/dashboard"
+                to="/login"
                 className="px-4 py-2.5 text-sm font-medium text-center text-gray-300 border border-gray-700 rounded-lg hover:text-white transition-all"
               >
                 Login
               </Link>
               <Link
-                to="/dashboard"
+                to="/signup"
                 className="px-4 py-2.5 text-sm font-semibold text-center rounded-lg transition-all"
                 style={{ backgroundColor: '#9aea62', color: '#0a1a0a' }}
               >
@@ -363,7 +363,7 @@ export default function Landing() {
                 {/* CTAs */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <Link
-                    to="/dashboard"
+                    to="/signup"
                     className="group flex items-center gap-2 px-6 py-3 font-semibold rounded-xl transition-all duration-200"
                     style={{ backgroundColor: '#9aea62', color: '#0a1a0a', boxShadow: '0 4px 20px color-mix(in srgb, #9aea62 30%, transparent)' }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
@@ -716,13 +716,13 @@ export default function Landing() {
               </p>
 
               <Link
-                to="/dashboard"
+                to="/signup"
                 className="group inline-flex items-center gap-2 px-8 py-3.5 font-semibold rounded-xl transition-all duration-200 text-base"
                 style={{ backgroundColor: '#9aea62', color: '#0a1a0a', boxShadow: '0 4px 24px color-mix(in srgb, #9aea62 25%, transparent)' }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
               >
-                Open the App
+                Get Started Free
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </motion.div>

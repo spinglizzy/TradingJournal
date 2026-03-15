@@ -3,10 +3,11 @@ import pool from '../db.js'
 
 const router = Router()
 
-function dateFilter(from, to, col='date', startIdx=1) {
+function dateFilter(from, to, userId, col='date', startIdx=1) {
   const params = []
   const parts  = []
   let i = startIdx
+  parts.push(`user_id = $${i++}`); params.push(userId)
   if (from) { parts.push(`${col} >= $${i++}`); params.push(from) }
   if (to)   { parts.push(`${col} <= $${i++}`); params.push(to)   }
   return { clause: parts.length ? `AND ${parts.join(' AND ')}` : '', params }
@@ -38,7 +39,7 @@ function computeTiltHistory(trades) {
 router.get('/tilt-history', async (req, res) => {
   try {
     const { from, to } = req.query
-    const { clause, params } = dateFilter(from, to)
+    const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
       SELECT id,date,pnl,confidence,emotions,mistakes,rules_broken
@@ -61,7 +62,7 @@ router.get('/tilt-history', async (req, res) => {
 router.get('/summary', async (req, res) => {
   try {
     const { from, to } = req.query
-    const { clause, params } = dateFilter(from, to)
+    const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
       SELECT id,date,pnl,confidence,emotions,mistakes,rules_followed,rules_broken
@@ -138,7 +139,7 @@ router.get('/summary', async (req, res) => {
 router.get('/emotion-performance', async (req, res) => {
   try {
     const { from, to } = req.query
-    const { clause, params } = dateFilter(from, to)
+    const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
       SELECT pnl,emotions FROM trades
@@ -170,7 +171,7 @@ router.get('/emotion-performance', async (req, res) => {
 router.get('/emotion-frequency', async (req, res) => {
   try {
     const { from, to } = req.query
-    const { clause, params } = dateFilter(from, to)
+    const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
       SELECT date,emotions FROM trades
@@ -199,7 +200,7 @@ router.get('/emotion-frequency', async (req, res) => {
 router.get('/rule-compliance', async (req, res) => {
   try {
     const { from, to } = req.query
-    const { clause, params } = dateFilter(from, to)
+    const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
       SELECT pnl,mistakes,rules_followed,rules_broken FROM trades
@@ -253,7 +254,7 @@ router.get('/rule-compliance', async (req, res) => {
 router.get('/mistake-stats', async (req, res) => {
   try {
     const { from, to } = req.query
-    const { clause, params } = dateFilter(from, to)
+    const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
       SELECT date,pnl,mistakes FROM trades
@@ -293,11 +294,11 @@ router.get('/session-quality', async (req, res) => {
   try {
     const { from, to } = req.query
     const jp = []
-    const jw = ['je.mood IS NOT NULL']
+    const jw = ['je.mood IS NOT NULL', `je.user_id = $${jp.push(req.userId)}`]
     if (from) jw.push(`je.date >= $${jp.push(from)}`)
     if (to)   jw.push(`je.date <= $${jp.push(to)}`)
 
-    const { clause, params } = dateFilter(from, to)
+    const { clause, params } = dateFilter(from, to, req.userId)
 
     const [sessR, pnlR] = await Promise.all([
       pool.query(`SELECT je.date,je.mood FROM journal_entries je WHERE ${jw.join(' AND ')} ORDER BY je.date ASC`, jp),

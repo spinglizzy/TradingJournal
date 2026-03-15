@@ -2,7 +2,7 @@ import 'dotenv/config'
 import pg from 'pg'
 const { Pool } = pg
 
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_SSL !== 'false' ? { rejectUnauthorized: false } : false,
 })
@@ -10,6 +10,16 @@ const pool = new Pool({
 const NOW_TEXT = `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
 
 export async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            SERIAL PRIMARY KEY,
+      email         TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      name          TEXT,
+      created_at    TEXT DEFAULT ${NOW_TEXT}
+    )
+  `)
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS strategies (
       id                SERIAL PRIMARY KEY,
@@ -216,6 +226,39 @@ export async function initDb() {
       created_at  TEXT DEFAULT ${NOW_TEXT}
     )
   `)
+
+  // Add user_id to all user-owned tables (migration for existing deployments)
+  const userIdMigrations = [
+    'trades', 'accounts', 'strategies', 'tags', 'journal_entries',
+    'goals', 'achievements', 'planned_trades', 'missed_trades',
+  ]
+  for (const table of userIdMigrations) {
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = '${table}' AND column_name = 'user_id'
+        ) THEN
+          ALTER TABLE ${table} ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        END IF;
+      END $$
+    `)
+  }
+
+  // Psychology-related tables
+  for (const table of ['psychology_entries', 'playbook_entries']) {
+    await pool.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '${table}')
+        AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = '${table}' AND column_name = 'user_id'
+        ) THEN
+          ALTER TABLE ${table} ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        END IF;
+      END $$
+    `)
+  }
 
   const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_trades_date           ON trades(date)`,
