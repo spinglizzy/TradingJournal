@@ -302,7 +302,7 @@ export default function Landing() {
     <div className="min-h-screen text-white overflow-x-hidden" style={{ backgroundColor: '#030712' }}>
       {/* Stars */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }} aria-hidden="true">
-        <StarsBackground starDensity={0.00015} minTwinkleSpeed={0.6} maxTwinkleSpeed={1.2} />
+        <StarsBackground starDensity={0.00015} minTwinkleSpeed={0.6} maxTwinkleSpeed={1.2} starColor="154, 234, 98" />
         <ShootingStars starColor="#9aea62" trailColor="#4ade80" minSpeed={25} maxSpeed={50} minDelay={400} maxDelay={1200} starWidth={28} starHeight={2} />
         <ShootingStars starColor="#b5f08a" trailColor="#9aea62" minSpeed={20} maxSpeed={40} minDelay={600} maxDelay={1600} starWidth={22} starHeight={2} />
         <ShootingStars starColor="#7fd64a" trailColor="#22c55e" minSpeed={15} maxSpeed={35} minDelay={800} maxDelay={2000} starWidth={35} starHeight={3} />

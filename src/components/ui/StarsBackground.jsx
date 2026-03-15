@@ -7,6 +7,7 @@ export function StarsBackground({
   twinkleProbability = 0.7,
   minTwinkleSpeed   = 0.5,
   maxTwinkleSpeed   = 1,
+  starColor         = '255, 255, 255',
   className,
 }) {
   const [stars, setStars] = useState([])
@@ -67,7 +68,7 @@ export function StarsBackground({
       stars.forEach(star => {
         ctx.beginPath()
         ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`
+        ctx.fillStyle = `rgba(${starColor}, ${star.opacity})`
         ctx.fill()
 
         if (star.twinkleSpeed !== null) {
