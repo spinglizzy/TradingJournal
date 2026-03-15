@@ -56,9 +56,11 @@ export default function TopNav() {
       isActive ? 'text-white font-medium bg-white/[0.07]' : 'text-[#666] hover:text-white'
     }`
 
-  // User initials for avatar
+  // User initials — first + last name, fallback to email first char
   const initials = user
-    ? (user.name ? user.name.charAt(0) : user.email.charAt(0)).toUpperCase()
+    ? user.name
+      ? user.name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
+      : user.email.charAt(0).toUpperCase()
     : '?'
 
   const dropdownStyle = {
@@ -190,72 +192,71 @@ export default function TopNav() {
           + Log Trade
         </NavLink>
 
-        {/* Divider */}
-        <div className="w-px h-4 bg-white/10 mx-1 flex-shrink-0" />
+      </nav>
 
-        {/* User avatar + dropdown */}
-        <div ref={userRef} className="relative">
-          <button
-            onClick={() => setShowUser(v => !v)}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all select-none flex-shrink-0"
-            style={{
-              background:  showUser
-                ? 'color-mix(in srgb, var(--color-accent) 25%, transparent)'
-                : 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
-              border: `1px solid color-mix(in srgb, var(--color-accent) ${showUser ? '40%' : '25%'}, transparent)`,
-              color: 'var(--color-accent)',
-            }}
-            title={user?.email}
-          >
-            {initials}
-          </button>
+      {/* ── Floating user avatar (desktop) ── */}
+      <div ref={userRef} className="fixed top-4 right-4 z-50 hidden md:block">
+        <button
+          onClick={() => setShowUser(v => !v)}
+          className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all select-none"
+          style={{
+            background: showUser ? '#2a2a2a' : '#1a1a1a',
+            border: `1px solid ${showUser
+              ? 'color-mix(in srgb, var(--color-accent) 50%, transparent)'
+              : 'rgba(255,255,255,0.12)'}`,
+            color: 'var(--color-accent)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          }}
+          title={user?.email}
+        >
+          {initials}
+        </button>
 
-          {showUser && (
-            <div className="absolute top-full mt-2 right-0 min-w-[220px] py-1.5" style={dropdownStyle}>
-              {/* User info */}
-              <div className="px-4 py-3 border-b border-white/[0.06]">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                    style={{
-                      background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
-                      border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
-                      color: 'var(--color-accent)',
-                    }}
-                  >
-                    {initials}
-                  </div>
-                  <div className="min-w-0">
-                    {user?.name && (
-                      <p className="text-sm font-medium text-white truncate">{user.name}</p>
-                    )}
-                    <p className="text-xs text-[#666] truncate">{user?.email}</p>
-                  </div>
+        {showUser && (
+          <div className="absolute top-full mt-2 right-0 min-w-[220px] py-1.5" style={dropdownStyle}>
+            {/* User info */}
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                  style={{
+                    background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
+                    color: 'var(--color-accent)',
+                  }}
+                >
+                  {initials}
+                </div>
+                <div className="min-w-0">
+                  {user?.name && (
+                    <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                  )}
+                  <p className="text-xs text-[#666] truncate">{user?.email}</p>
                 </div>
               </div>
-
-              {/* Menu items */}
-              <div className="py-1">
-                <NavLink
-                  to="/settings"
-                  onClick={() => setShowUser(false)}
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-white transition-colors"
-                >
-                  <Settings className="w-4 h-4 flex-shrink-0" />
-                  Settings
-                </NavLink>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-red-400 transition-colors"
-                >
-                  <LogOut className="w-4 h-4 flex-shrink-0" />
-                  Sign Out
-                </button>
-              </div>
             </div>
-          )}
-        </div>
-      </nav>
+
+            {/* Menu items */}
+            <div className="py-1">
+              <NavLink
+                to="/settings"
+                onClick={() => setShowUser(false)}
+                className="flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-white transition-colors"
+              >
+                <Settings className="w-4 h-4 flex-shrink-0" />
+                Settings
+              </NavLink>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-red-400 transition-colors"
+              >
+                <LogOut className="w-4 h-4 flex-shrink-0" />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Mobile pill nav ── */}
       <div
