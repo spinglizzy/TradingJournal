@@ -413,14 +413,12 @@ export default function Landing() {
                     transform: 'rotateX(6deg) rotateY(-2deg) scale(1.01)',
                     transformStyle: 'preserve-3d',
                     transformOrigin: 'center bottom',
-                    backgroundColor: '#030712',
-                    padding: '20px 20px 0 20px',
                   }}
                 >
                   <img
                     src="/dashboard.png"
                     alt="TradeJournal Dashboard"
-                    className="w-full block rounded-t-xl"
+                    className="w-full block"
                     draggable={false}
                   />
                 </div>
@@ -526,14 +524,12 @@ export default function Landing() {
                 style={{
                   border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)',
                   boxShadow: '0 30px 60px rgba(0,0,0,0.6), 0 0 0 1px color-mix(in srgb, #9aea62 10%, transparent)',
-                  backgroundColor: '#030712',
-                  padding: '16px',
                 }}
               >
                 <img
                   src="/analytics.png"
                   alt="TradeJournal Analytics"
-                  className="w-full block rounded-xl"
+                  className="w-full block"
                   draggable={false}
                 />
               </div>
@@ -550,14 +546,12 @@ export default function Landing() {
                 style={{
                   border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)',
                   boxShadow: '0 30px 60px rgba(0,0,0,0.6), 0 0 0 1px color-mix(in srgb, #9aea62 10%, transparent)',
-                  backgroundColor: '#030712',
-                  padding: '16px',
                 }}
               >
                 <img
                   src="/psychology.png"
                   alt="TradeJournal Psychology"
-                  className="w-full block rounded-xl"
+                  className="w-full block"
                   draggable={false}
                 />
               </div>
