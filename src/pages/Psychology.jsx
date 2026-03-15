@@ -87,7 +87,7 @@ function TiltGauge({ score = 0 }) {
         <text x={cx} y={cy - 18} textAnchor="middle" fill="white" fontSize="24" fontWeight="bold" fontFamily="monospace">
           {score}
         </text>
-        <text x={cx} y={cy - 4} textAnchor="middle" fill="#9ca3af" fontSize="8">
+        <text x={cx} y={cy - 4} textAnchor="middle" fill="#ffffff" fontSize="9" fontWeight="700">
           TILT SCORE
         </text>
         {/* Zone labels */}
