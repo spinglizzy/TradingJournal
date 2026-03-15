@@ -1,31 +1,35 @@
-import { NavLink, Link, useLocation } from 'react-router-dom'
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Settings, LogOut, User } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useAuth } from '../../contexts/AuthContext.jsx'
 
 const mainLinks = [
-  { to: '/',            label: 'Dashboard',  end: true },
-  { to: '/trades',      label: 'Trades' },
-  { to: '/analytics',   label: 'Analytics' },
-  { to: '/journal',     label: 'Journal' },
-  { to: '/playbook',    label: 'Playbook' },
-  { to: '/goals',       label: 'Goals' },
-  { to: '/psychology',  label: 'Psychology' },
+  { to: '/dashboard',  label: 'Dashboard',  end: true },
+  { to: '/trades',     label: 'Trades' },
+  { to: '/analytics',  label: 'Analytics' },
+  { to: '/journal',    label: 'Journal' },
+  { to: '/playbook',   label: 'Playbook' },
+  { to: '/goals',      label: 'Goals' },
+  { to: '/psychology', label: 'Psychology' },
 ]
 
 const moreLinks = [
   { to: '/calculator',    label: 'Position Calc' },
   { to: '/import-export', label: 'Import / Export' },
   { to: '/accounts',      label: 'Accounts' },
-  { to: '/settings',      label: 'Settings' },
 ]
 
 export default function TopNav() {
-  const [showMore,       setShowMore]       = useState(false)
-  const [mobileOpen,     setMobileOpen]     = useState(false)
-  const moreRef    = useRef(null)
-  const mobileRef  = useRef(null)
-  const location   = useLocation()
+  const [showMore,   setShowMore]   = useState(false)
+  const [showUser,   setShowUser]   = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const moreRef   = useRef(null)
+  const userRef   = useRef(null)
+  const mobileRef = useRef(null)
+  const location  = useLocation()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
   const isLinkActive = (to, end) => {
     if (end) return location.pathname === to
@@ -35,18 +39,34 @@ export default function TopNav() {
   useEffect(() => {
     function handle(e) {
       if (moreRef.current   && !moreRef.current.contains(e.target))   setShowMore(false)
+      if (userRef.current   && !userRef.current.contains(e.target))   setShowUser(false)
       if (mobileRef.current && !mobileRef.current.contains(e.target)) setMobileOpen(false)
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [])
 
+  const handleLogout = () => {
+    logout()
+    navigate('/')
+  }
+
   const navItemCls = ({ isActive }) =>
     `px-3 py-1.5 rounded-full text-sm transition-all whitespace-nowrap select-none ${
-      isActive
-        ? 'text-white font-medium bg-white/[0.07]'
-        : 'text-[#666] hover:text-white'
+      isActive ? 'text-white font-medium bg-white/[0.07]' : 'text-[#666] hover:text-white'
     }`
+
+  // User initials for avatar
+  const initials = user
+    ? (user.name ? user.name.charAt(0) : user.email.charAt(0)).toUpperCase()
+    : '?'
+
+  const dropdownStyle = {
+    background:   '#1a1a1a',
+    border:       '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '16px',
+    boxShadow:    '0 16px 48px rgba(0,0,0,0.6)',
+  }
 
   return (
     <>
@@ -62,10 +82,7 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <Link
-          to="/dashboard"
-          className="flex items-center gap-2 px-3 py-0.5 mr-1 select-none"
-        >
+        <Link to="/dashboard" className="flex items-center gap-2 px-3 py-0.5 mr-1 select-none">
           <div
             className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
             style={{
@@ -101,42 +118,27 @@ export default function TopNav() {
                 <motion.div
                   layoutId="lamp"
                   style={{
-                    position: 'absolute',
-                    inset: 0,
-                    borderRadius: '999px',
-                    zIndex: -1,
-                    pointerEvents: 'none',
+                    position: 'absolute', inset: 0,
+                    borderRadius: '999px', zIndex: -1, pointerEvents: 'none',
                   }}
                   initial={false}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 >
-                  {/* White bar sitting on top of the pill */}
                   <div style={{
-                    position: 'absolute',
-                    top: '-10px',
-                    left: '50%',
+                    position: 'absolute', top: '-10px', left: '50%',
                     transform: 'translateX(-50%)',
-                    width: '32px',
-                    height: '3px',
-                    background: 'white',
-                    borderRadius: '0 0 4px 4px',
+                    width: '32px', height: '3px',
+                    background: 'white', borderRadius: '0 0 4px 4px',
                   }}>
-                    {/* Glow layers */}
                     <div style={{
-                      position: 'absolute',
-                      width: '48px', height: '8px',
-                      background: 'rgba(255,255,255,0.25)',
-                      borderRadius: '999px',
-                      filter: 'blur(6px)',
-                      top: '0', left: '-8px',
+                      position: 'absolute', width: '48px', height: '8px',
+                      background: 'rgba(255,255,255,0.25)', borderRadius: '999px',
+                      filter: 'blur(6px)', top: '0', left: '-8px',
                     }} />
                     <div style={{
-                      position: 'absolute',
-                      width: '32px', height: '12px',
-                      background: 'rgba(255,255,255,0.15)',
-                      borderRadius: '999px',
-                      filter: 'blur(8px)',
-                      top: '2px', left: '0',
+                      position: 'absolute', width: '32px', height: '12px',
+                      background: 'rgba(255,255,255,0.15)', borderRadius: '999px',
+                      filter: 'blur(8px)', top: '2px', left: '0',
                     }} />
                   </div>
                 </motion.div>
@@ -156,17 +158,8 @@ export default function TopNav() {
             More
             <ChevronDown className={`w-3 h-3 transition-transform ${showMore ? 'rotate-180' : ''}`} />
           </button>
-
           {showMore && (
-            <div
-              className="absolute top-full mt-2 right-0 py-1.5 min-w-[168px]"
-              style={{
-                background:   '#1a1a1a',
-                border:       '1px solid rgba(255,255,255,0.09)',
-                borderRadius: '16px',
-                boxShadow:    '0 16px 48px rgba(0,0,0,0.6)',
-              }}
-            >
+            <div className="absolute top-full mt-2 right-0 py-1.5 min-w-[168px]" style={dropdownStyle}>
               {moreLinks.map(link => (
                 <NavLink
                   key={link.to}
@@ -196,6 +189,72 @@ export default function TopNav() {
         >
           + Log Trade
         </NavLink>
+
+        {/* Divider */}
+        <div className="w-px h-4 bg-white/10 mx-1 flex-shrink-0" />
+
+        {/* User avatar + dropdown */}
+        <div ref={userRef} className="relative">
+          <button
+            onClick={() => setShowUser(v => !v)}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all select-none flex-shrink-0"
+            style={{
+              background:  showUser
+                ? 'color-mix(in srgb, var(--color-accent) 25%, transparent)'
+                : 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
+              border: `1px solid color-mix(in srgb, var(--color-accent) ${showUser ? '40%' : '25%'}, transparent)`,
+              color: 'var(--color-accent)',
+            }}
+            title={user?.email}
+          >
+            {initials}
+          </button>
+
+          {showUser && (
+            <div className="absolute top-full mt-2 right-0 min-w-[220px] py-1.5" style={dropdownStyle}>
+              {/* User info */}
+              <div className="px-4 py-3 border-b border-white/[0.06]">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    style={{
+                      background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
+                      color: 'var(--color-accent)',
+                    }}
+                  >
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    {user?.name && (
+                      <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                    )}
+                    <p className="text-xs text-[#666] truncate">{user?.email}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Menu items */}
+              <div className="py-1">
+                <NavLink
+                  to="/settings"
+                  onClick={() => setShowUser(false)}
+                  className="flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-white transition-colors"
+                >
+                  <Settings className="w-4 h-4 flex-shrink-0" />
+                  Settings
+                </NavLink>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-red-400 transition-colors"
+                >
+                  <LogOut className="w-4 h-4 flex-shrink-0" />
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* ── Mobile pill nav ── */}
@@ -279,6 +338,28 @@ export default function TopNav() {
                 {link.label}
               </NavLink>
             ))}
+
+            {/* Mobile user section */}
+            <div className="mt-1 pt-2 border-t border-white/[0.06]">
+              <div className="px-5 py-2">
+                <p className="text-xs text-[#444]">{user?.email}</p>
+              </div>
+              <NavLink
+                to="/settings"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-5 py-2.5 text-sm text-[#666] hover:text-white transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                Settings
+              </NavLink>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-[#666] hover:text-red-400 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
           </div>
         )}
       </div>

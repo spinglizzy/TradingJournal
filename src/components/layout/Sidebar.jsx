@@ -1,6 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import AccountSwitcher from './AccountSwitcher.jsx'
-import { useAuth } from '../../contexts/AuthContext.jsx'
 
 const links = [
   {
@@ -131,14 +130,6 @@ const toolLinks = [
 ]
 
 export default function Sidebar({ onClose }) {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-
-  const handleLogout = () => {
-    logout()
-    navigate('/')
-  }
-
   return (
     <aside
       className="w-60 shrink-0 h-screen flex flex-col"
@@ -229,36 +220,9 @@ export default function Sidebar({ onClose }) {
 
       {/* Footer */}
       <div
-        className="px-4 py-4 flex-shrink-0 space-y-3"
+        className="px-5 py-4 flex-shrink-0"
         style={{ borderTop: '1px solid var(--color-border)' }}
       >
-        {user && (
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-xs font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
-                {user.name || user.email}
-              </p>
-              {user.name && (
-                <p className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>
-                  {user.email}
-                </p>
-              )}
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Sign out"
-              className="flex-shrink-0 p-1.5 rounded-lg transition-colors hover:bg-red-500/10"
-              style={{ color: 'var(--color-text-muted)' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          </div>
-        )}
         <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>TradeLog v1.0</p>
       </div>
     </aside>
