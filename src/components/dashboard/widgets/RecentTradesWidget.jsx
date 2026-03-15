@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { tradesApi } from '../../../api/trades.js'
 import { useDashboard } from '../../../contexts/DashboardContext.jsx'
 
 export default function RecentTradesWidget({ config }) {
   const { apiParams } = useDashboard()
+  const navigate = useNavigate()
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -56,12 +57,12 @@ export default function RecentTradesWidget({ config }) {
             </thead>
             <tbody className="divide-y divide-gray-800/50">
               {trades.map(t => (
-                <tr key={t.id} className="hover:bg-gray-800/30 transition-colors group">
+                <tr key={t.id} className="hover:bg-gray-800/30 transition-colors group cursor-pointer" onClick={() => navigate(`/trades/${t.id}/edit`)}>
                   <td className="py-2 text-gray-400">{t.date}</td>
                   <td className="py-2">
-                    <Link to={`/trades/${t.id}`} className="text-gray-200 font-medium hover:text-indigo-400 transition-colors group-hover:text-indigo-400">
+                    <span className="text-gray-200 font-medium group-hover:text-indigo-400 transition-colors">
                       {t.ticker}
-                    </Link>
+                    </span>
                   </td>
                   <td className="py-2">
                     <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${t.direction === 'long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>

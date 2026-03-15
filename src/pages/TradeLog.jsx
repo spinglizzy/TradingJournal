@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { tradesApi } from '../api/trades.js'
 import { strategiesApi } from '../api/strategies.js'
 import { tagsApi } from '../api/tags.js'
@@ -12,6 +12,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 
 export default function TradeLog() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { selectedAccountId } = useAccount()
   const [trades, setTrades]         = useState([])
   const [total, setTotal]           = useState(0)
@@ -21,8 +22,9 @@ export default function TradeLog() {
   const [error, setError]           = useState(null)
   const [deleteId, setDeleteId]     = useState(null)
 
+  const dateParam = searchParams.get('date') ?? ''
   const [filters, setFilters] = useState({
-    start_date: '', end_date: '', ticker: '', direction: '',
+    start_date: dateParam, end_date: dateParam, ticker: '', direction: '',
     strategy_id: '', status: '', tag: '', search: '',
   })
   const [sort, setSort]   = useState({ sort_by: 'date', sort_dir: 'desc' })
@@ -161,7 +163,7 @@ export default function TradeLog() {
           trades={trades}
           sort={sort}
           onSort={handleSort}
-          onView={(id) => navigate(`/trades/${id}`)}
+          onView={(id) => navigate(`/trades/${id}/edit`)}
           onEdit={(id) => navigate(`/trades/${id}/edit`)}
           onDelete={(id) => setDeleteId(id)}
         />

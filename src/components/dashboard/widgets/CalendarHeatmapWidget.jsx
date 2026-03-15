@@ -7,9 +7,11 @@ import {
 import { statsApi } from '../../../api/stats.js'
 import { useDashboard } from '../../../contexts/DashboardContext.jsx'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 export default function CalendarHeatmapWidget({ config }) {
   const { apiParams } = useDashboard()
+  const navigate = useNavigate()
   const [viewDate, setViewDate]   = useState(new Date())
   const [allData, setAllData]     = useState([])
   const [loading, setLoading]     = useState(true)
@@ -142,7 +144,7 @@ export default function CalendarHeatmapWidget({ config }) {
                 onClick={e => {
                   e.stopPropagation()
                   if (!inMonth || !entry) return
-                  setTooltip(prev => prev?.day === dateStr ? null : { day: dateStr, entry })
+                  navigate(`/trades?date=${dateStr}`)
                 }}
               >
                 <span className={`text-sm leading-none font-semibold select-none
