@@ -249,8 +249,13 @@
   opacity:          0;
   transition:       opacity 0.2s ease;
 }
-.react-resizable-handle::before,
-.react-resizable-handle::after {
+/* Only suppress pseudo-elements on corner handles (se, sw) */
+.react-resizable-handle-se::before,
+.react-resizable-handle-se::after,
+.react-resizable-handle-sw::before,
+.react-resizable-handle-sw::after,
+.react-resizable-handle-e::before,
+.react-resizable-handle-e::after {
   display: none !important;
   content: none !important;
 }
@@ -285,16 +290,26 @@
   border-radius: 0 0 0 10px !important;
 }
 
-/* ── S edge (bottom center) ── */
+/* ── S edge (bottom center) — wide hit area, thin visual ── */
 .react-resizable-handle-s {
   bottom:    0 !important;
   left:      50% !important;
   transform: translateX(-50%) !important;
-  width:     48px !important;
-  height:    6px !important;
+  width:     80px !important;
+  height:    16px !important;
   cursor:    s-resize !important;
-  border-bottom: 3px solid color-mix(in srgb, var(--color-accent) 70%, transparent) !important;
-  border-radius: 0 0 4px 4px !important;
+  display:   flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding-bottom: 3px !important;
+}
+.react-resizable-handle-s::after {
+  content:       '' !important;
+  display:       block !important;
+  width:         48px !important;
+  height:        3px !important;
+  background:    color-mix(in srgb, var(--color-accent) 70%, transparent) !important;
+  border-radius: 2px !important;
 }
 
 /* ── E edge (right center) ── */
