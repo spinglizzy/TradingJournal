@@ -72,15 +72,17 @@ export default function TopNav() {
 
   return (
     <>
-      {/* ── Desktop pill nav ── */}
+      {/* ── Desktop: wrapper centers both pills together ── */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden md:flex items-center gap-2" style={{ maxWidth: 'calc(100vw - 32px)' }}>
+
+      {/* Main pill nav */}
       <nav
-        className="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden md:flex items-center gap-0.5 px-2 py-2 overflow-visible"
+        className="flex items-center gap-0.5 px-2 py-2 overflow-visible"
         style={{
           background:   '#1a1a1a',
           border:       '1px solid rgba(255,255,255,0.09)',
           borderRadius: '999px',
           boxShadow:    '0 8px 40px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset',
-          maxWidth:     'calc(100vw - 32px)',
         }}
       >
         {/* Logo */}
@@ -194,8 +196,8 @@ export default function TopNav() {
 
       </nav>
 
-      {/* ── Floating user avatar (desktop) ── */}
-      <div ref={userRef} className="fixed top-4 right-4 z-50 hidden md:block">
+      {/* User avatar pill — sits right next to main nav */}
+      <div ref={userRef} className="relative">
         <button
           onClick={() => setShowUser(v => !v)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all select-none"
@@ -203,9 +205,9 @@ export default function TopNav() {
             background: showUser ? '#2a2a2a' : '#1a1a1a',
             border: `1px solid ${showUser
               ? 'color-mix(in srgb, var(--color-accent) 50%, transparent)'
-              : 'rgba(255,255,255,0.12)'}`,
+              : 'rgba(255,255,255,0.09)'}`,
             color: 'var(--color-accent)',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset',
           }}
           title={user?.email}
         >
@@ -257,6 +259,8 @@ export default function TopNav() {
           </div>
         )}
       </div>
+
+      </div>{/* end desktop wrapper */}
 
       {/* ── Mobile pill nav ── */}
       <div
