@@ -50,18 +50,18 @@ export default function CalendarHeatmapWidget({ config }) {
 
   const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 
-  function pnlColor(pnl, inMonth) {
-    if (!inMonth) return 'bg-gray-900/30'
-    if (pnl == null) return 'bg-gray-800/40 hover:bg-gray-700/50'
+  function pnlBg(pnl, inMonth) {
+    if (!inMonth) return 'rgba(17,24,39,0.3)'
+    if (pnl == null) return 'rgba(31,41,55,0.5)'
     const ratio = Math.min(Math.abs(pnl) / maxAbsPnl, 1)
     if (pnl > 0) {
-      if (ratio > 0.66) return 'bg-emerald-600 hover:bg-emerald-500'
-      if (ratio > 0.33) return 'bg-emerald-700/90 hover:bg-emerald-600/90'
-      return 'bg-emerald-900/80 hover:bg-emerald-800/80'
+      if (ratio > 0.66) return 'rgba(52,110,74,0.92)'
+      if (ratio > 0.33) return 'rgba(38,82,55,0.85)'
+      return 'rgba(26,55,38,0.80)'
     } else {
-      if (ratio > 0.66) return 'bg-red-600 hover:bg-red-500'
-      if (ratio > 0.33) return 'bg-red-700/90 hover:bg-red-600/90'
-      return 'bg-red-900/80 hover:bg-red-800/80'
+      if (ratio > 0.66) return 'rgba(130,52,52,0.92)'
+      if (ratio > 0.33) return 'rgba(98,38,38,0.85)'
+      return 'rgba(65,25,25,0.80)'
     }
   }
 
@@ -135,10 +135,10 @@ export default function CalendarHeatmapWidget({ config }) {
                 className={`
                   relative aspect-square rounded cursor-pointer transition-colors text-center
                   flex flex-col items-center justify-center gap-0
-                  ${pnlColor(pnl, inMonth)}
                   ${todayDay ? 'ring-1 ring-indigo-400' : ''}
                   ${!inMonth ? 'cursor-default' : ''}
                 `}
+                style={{ backgroundColor: pnlBg(pnl, inMonth) }}
                 onClick={e => {
                   e.stopPropagation()
                   if (!inMonth || !entry) return
@@ -181,13 +181,13 @@ export default function CalendarHeatmapWidget({ config }) {
       {/* Legend */}
       <div className="flex items-center justify-end gap-3 mt-2 text-xs text-gray-600">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-red-600" /><span>Loss</span>
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(130,52,52,0.92)' }} /><span>Loss</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-gray-800" /><span>No trades</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-emerald-600" /><span>Profit</span>
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(52,110,74,0.92)' }} /><span>Profit</span>
         </div>
       </div>
     </div>
