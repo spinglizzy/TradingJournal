@@ -56,7 +56,8 @@ export default function Signup() {
       {/* Back to home */}
       <Link
         to="/"
-        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors z-10"
+        className="fixed top-6 right-6 flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors z-20 px-3 py-1.5 rounded-full"
+        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
       >
         <ArrowLeft className="w-4 h-4" />
         Home
