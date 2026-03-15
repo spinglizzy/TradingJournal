@@ -56,7 +56,7 @@ export default function WidgetGrid({ layout, setLayout }) {
     w:    w.w,
     h:    w.h,
     minW: 1,
-    minH: 2,
+    minH: 1,
   }))
 
   function handleLayoutChange(newRglLayout) {
