@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, LayoutDashboard } from 'lucide-react'
+import { Plus, LayoutDashboard, BarChart3 } from 'lucide-react'
 import { DashboardProvider } from '../contexts/DashboardContext.jsx'
 import WidgetGrid      from '../components/dashboard/WidgetGrid.jsx'
 import WidgetPicker    from '../components/dashboard/WidgetPicker.jsx'
@@ -94,7 +94,7 @@ function DashboardInner() {
       {/* Empty state */}
       {layout.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 gap-4 border-2 border-dashed border-gray-800 rounded-2xl">
-          <div className="text-5xl">📊</div>
+          <div className="w-16 h-16 flex items-center justify-center"><BarChart3 className="w-8 h-8 text-gray-600" /></div>
           <div className="text-center">
             <p className="text-gray-300 font-semibold">Your dashboard is empty</p>
             <p className="text-gray-500 text-sm mt-1">Add widgets to start tracking your performance</p>

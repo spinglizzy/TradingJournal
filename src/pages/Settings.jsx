@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { Download, Upload, AlertTriangle } from 'lucide-react'
 import { importExportApi } from '../api/importexport.js'
 import { markOnboarded } from '../components/onboarding/OnboardingModal.jsx'
 
@@ -103,9 +104,7 @@ export default function Settings() {
               disabled={exportLoading}
               className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition-colors"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
+              <Download className="w-3.5 h-3.5" />
               Download .json
             </button>
           </div>
@@ -119,9 +118,7 @@ export default function Settings() {
               onClick={handleExportCsv}
               className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg transition-colors"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
+              <Download className="w-3.5 h-3.5" />
               Download .csv
             </button>
           </div>
@@ -158,9 +155,7 @@ export default function Settings() {
 
           {restoreMode === 'replace' && (
             <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-800/40 rounded-lg">
-              <svg className="w-4 h-4 text-red-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+              <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
               <p className="text-xs text-red-400">Replace mode will permanently delete all existing trades, journal entries, and goals before restoring. This cannot be undone.</p>
             </div>
           )}
@@ -211,9 +206,7 @@ export default function Settings() {
               onClick={() => { setRestoreStatus(null); fileRef.current?.click() }}
               className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-sm font-medium rounded-lg transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
+              <Upload className="w-4 h-4" />
               Choose Backup File
             </button>
             <span className="text-xs text-gray-600">Accepts .json backup files only</span>

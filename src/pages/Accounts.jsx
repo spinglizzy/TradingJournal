@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { Plus, Building2 } from 'lucide-react'
 import { accountsApi } from '../api/accounts.js'
 import { useAccount } from '../contexts/AccountContext.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
@@ -234,9 +235,7 @@ export default function Accounts() {
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="w-4 h-4" />
             New Account
           </button>
         )}
@@ -253,7 +252,7 @@ export default function Accounts() {
       {/* Account list */}
       {accounts.length === 0 && !showForm ? (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center card-glow">
-          <div className="text-4xl mb-3">🏦</div>
+          <div className="w-14 h-14 bg-gray-800 rounded-2xl flex items-center justify-center mb-3"><Building2 className="w-8 h-8 text-gray-600" /></div>
           <h3 className="text-lg font-semibold text-white mb-1">No accounts yet</h3>
           <p className="text-sm text-gray-500 mb-4">Create your first account to start tracking per-account performance</p>
           <button onClick={() => setShowForm(true)}

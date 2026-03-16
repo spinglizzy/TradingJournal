@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Download, Plus, AlertTriangle, ClipboardList } from 'lucide-react'
 import { tradesApi } from '../api/trades.js'
 import { strategiesApi } from '../api/strategies.js'
 import { tagsApi } from '../api/tags.js'
@@ -91,19 +92,14 @@ export default function TradeLog() {
             className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium rounded-lg transition-colors border border-gray-700"
             title="Export filtered trades as CSV"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
+            <Download className="w-4 h-4" />
             Export CSV
           </button>
           <button
             onClick={() => navigate('/trades/new')}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="w-4 h-4" />
             Log Trade
           </button>
         </div>
@@ -121,9 +117,7 @@ export default function TradeLog() {
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-12 h-12 bg-red-900/20 border border-red-800/40 rounded-full flex items-center justify-center mb-4">
-            <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+            <AlertTriangle className="w-6 h-6 text-red-400" />
           </div>
           <p className="text-gray-400 text-sm">{error}</p>
           <button onClick={fetchTrades} className="mt-3 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors">
@@ -133,10 +127,7 @@ export default function TradeLog() {
       ) : trades.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-gray-800 rounded-xl">
           <div className="w-14 h-14 bg-gray-800 rounded-2xl flex items-center justify-center mb-4">
-            <svg className="w-7 h-7 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
+            <ClipboardList className="w-7 h-7 text-gray-600" />
           </div>
           <p className="text-white font-medium">
             {Object.values(filters).some(Boolean) ? 'No trades match your filters' : 'No trades yet'}
@@ -151,9 +142,7 @@ export default function TradeLog() {
               onClick={() => navigate('/trades/new')}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus className="w-4 h-4" />
               Log Your First Trade
             </button>
           )}

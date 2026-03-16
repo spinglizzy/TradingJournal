@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { Calculator, Lightbulb, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { tradesApi } from '../api/trades.js'
 import { strategiesApi } from '../api/strategies.js'
@@ -426,10 +427,7 @@ export default function TradeFormPage() {
                       onClick={() => setShowCalc(true)}
                       className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                     >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
+                      <Calculator className="w-4 h-4" />
                       Calc Size
                     </button>
                   }
@@ -544,10 +542,7 @@ export default function TradeFormPage() {
         {/* Psychology section */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-5">
           <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
+            <Lightbulb className="w-4 h-4 text-purple-400" />
             <h2 className="text-sm font-semibold text-gray-300">Psychology <span className="text-gray-600 font-normal">(optional)</span></h2>
           </div>
 
@@ -624,9 +619,7 @@ export default function TradeFormPage() {
                   onClick={() => setShowCalc(false)}
                   className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               <PositionCalculator

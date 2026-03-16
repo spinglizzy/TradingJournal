@@ -1,3 +1,5 @@
+import { TrendingUp, TrendingDown } from 'lucide-react'
+
 export default function Badge({ children, color = '#6366f1', className = '' }) {
   return (
     <span
@@ -20,9 +22,14 @@ export function PnlBadge({ value, className = '' }) {
 }
 
 export function DirectionBadge({ direction }) {
+  const isLong = direction === 'long'
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide
-      ${direction === 'long' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide
+      ${isLong ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+      {isLong
+        ? <TrendingUp className="w-3 h-3" />
+        : <TrendingDown className="w-3 h-3" />
+      }
       {direction}
     </span>
   )

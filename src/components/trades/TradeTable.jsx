@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns'
 import { DirectionBadge, PnlBadge, StatusBadge } from '../ui/Badge.jsx'
 import Badge from '../ui/Badge.jsx'
+import { ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react'
 
 const COLS = [
   { key: 'date',          label: 'Date',      sortable: true },
@@ -20,12 +21,8 @@ const COLS = [
 function SortIcon({ active, dir }) {
   return (
     <span className="ml-1 inline-flex flex-col gap-px">
-      <svg className={`w-2.5 h-2.5 ${active && dir === 'asc' ? 'text-indigo-400' : 'text-gray-600'}`} viewBox="0 0 10 6" fill="currentColor">
-        <path d="M5 0L10 6H0L5 0z" />
-      </svg>
-      <svg className={`w-2.5 h-2.5 ${active && dir === 'desc' ? 'text-indigo-400' : 'text-gray-600'}`} viewBox="0 0 10 6" fill="currentColor">
-        <path d="M5 6L0 0H10L5 6z" />
-      </svg>
+      <ChevronUp className={`w-2.5 h-2.5 ${active && dir === 'asc' ? 'text-indigo-400' : 'text-gray-600'}`} />
+      <ChevronDown className={`w-2.5 h-2.5 ${active && dir === 'desc' ? 'text-indigo-400' : 'text-gray-600'}`} />
     </span>
   )
 }
@@ -101,15 +98,11 @@ export default function TradeTable({ trades, sort, onSort, onEdit, onDelete, onV
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={(e) => { e.stopPropagation(); onEdit(trade.id) }}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
+                      <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); onDelete(trade.id) }}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </td>

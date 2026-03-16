@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { X, Eye, EyeOff, Pencil, Trash2, Plus, Target } from 'lucide-react'
 import { goalsApi } from '../api/goals.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -80,9 +81,7 @@ function GoalFormModal({ goal, onSave, onClose }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <h2 className="text-white font-semibold">{goal ? 'Edit Goal' : 'New Goal'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -211,9 +210,7 @@ function AchievementFormModal({ ach, onSave, onClose }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <h2 className="text-white font-semibold">{ach ? 'Edit Milestone' : 'New Milestone'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -348,30 +345,19 @@ function GoalCard({ goal, onEdit, onDelete, onToggle }) {
             title={goal.active ? 'Deactivate' : 'Activate'}
             className={`p-1.5 rounded transition-colors ${goal.active ? 'text-indigo-400 hover:text-indigo-300' : 'text-gray-600 hover:text-gray-400'}`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d={goal.active
-                  ? 'M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a9 9 0 11-18 0 9 9 0 0118 0z'
-                  : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z'} />
-            </svg>
+            {goal.active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
           </button>
           <button
             onClick={() => onEdit(goal)}
             className="p-1.5 rounded text-gray-500 hover:text-gray-300 transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
+            <Pencil className="w-4 h-4" />
           </button>
           <button
             onClick={() => onDelete(goal)}
             className="p-1.5 rounded text-gray-600 hover:text-red-400 transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -457,16 +443,10 @@ function AchievementBadge({ ach, onEdit, onDelete }) {
         {ach.custom && (
           <div className="flex gap-1 shrink-0">
             <button onClick={() => onEdit?.(ach)} className="p-1 text-gray-600 hover:text-gray-400 transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
+              <Pencil className="w-3.5 h-3.5" />
             </button>
             <button onClick={() => onDelete?.(ach)} className="p-1 text-gray-600 hover:text-red-400 transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -691,9 +671,7 @@ export default function Goals() {
             onClick={() => setGoalModal({})}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="w-4 h-4" />
             New Goal
           </button>
         )}
@@ -702,9 +680,7 @@ export default function Goals() {
             onClick={() => setAchModal({})}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="w-4 h-4" />
             New Milestone
           </button>
         )}
@@ -757,7 +733,7 @@ export default function Goals() {
             <div className="space-y-6">
               {goals.length === 0 ? (
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center card-glow">
-                  <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">🎯</div>
+                  <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4"><Target className="w-8 h-8 text-indigo-400" /></div>
                   <h3 className="text-white font-medium mb-2">No goals yet</h3>
                   <p className="text-gray-500 text-sm mb-6">Create your first goal to start tracking progress.</p>
                   <button
