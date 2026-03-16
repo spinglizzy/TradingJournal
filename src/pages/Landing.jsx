@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../lib/utils.js'
 import { NeonGradientCard } from '../components/ui/NeonGradientCard.jsx'
+import { PulseJournalLogo } from '../components/ui/PulseJournalLogo.jsx'
 
 // App accent: #9aea62 (lime green), hover: #7fd64a, light: #b5f08a
 
@@ -38,17 +39,7 @@ const transitionVariants = {
 }
 
 function Logo() {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        className="w-7 h-7 rounded-lg flex items-center justify-center shadow-lg"
-        style={{ backgroundColor: '#9aea62', boxShadow: '0 4px 12px color-mix(in srgb, #9aea62 30%, transparent)' }}
-      >
-        <TrendingUp className="w-4 h-4" style={{ color: '#0a1a0a' }} />
-      </div>
-      <span className="font-bold text-white text-base tracking-tight">TradeJournal</span>
-    </div>
-  )
+  return <PulseJournalLogo size="md" />
 }
 
 function Header() {
@@ -233,7 +224,7 @@ function AppPreview() {
         >
           <TrendingUp className="w-3 h-3" style={{ color: '#9aea62' }} />
         </div>
-        <span className="text-xs font-semibold text-gray-300">TradeJournal</span>
+        <span className="text-xs font-semibold text-gray-300">PulseJournal</span>
         <div className="ml-auto flex gap-2">
           {['Dashboard', 'Trades', 'Analytics', 'Psychology'].map(t => (
             <span key={t} className="text-xs text-gray-600 hidden sm:block">{t}</span>
@@ -359,7 +350,7 @@ function DashboardPreviewCard() {
   return (
     <TiltImage
       src="/dashboard.png"
-      alt="TradeJournal Dashboard"
+      alt="PulseJournal Dashboard"
       restRx={6}
       restRy={-2}
       wrapperClassName="max-w-5xl mx-auto"
@@ -571,7 +562,7 @@ export default function Landing() {
                 </ul>
               </div>
 
-              <TiltImage src="/analytics.png" alt="TradeJournal Analytics" restRx={2} restRy={3} />
+              <TiltImage src="/analytics.png" alt="PulseJournal Analytics" restRx={2} restRy={3} />
             </div>
           </div>
         </section>
@@ -581,7 +572,7 @@ export default function Landing() {
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               <div className="order-2 lg:order-1">
-                <TiltImage src="/psychology.png" alt="TradeJournal Psychology" restRx={2} restRy={-3} />
+                <TiltImage src="/psychology.png" alt="PulseJournal Psychology" restRx={2} restRy={-3} />
               </div>
 
               <div className="order-1 lg:order-2">
@@ -592,7 +583,7 @@ export default function Landing() {
                 </h2>
                 <p className="text-gray-400 leading-relaxed mb-8">
                   Most traders ignore psychology until it blows up their account.
-                  TradeJournal tracks your emotional state, rule violations, and tilt score so you can catch patterns before they become problems.
+                  PulseJournal tracks your emotional state, rule violations, and tilt score so you can catch patterns before they become problems.
                 </p>
                 <ul className="space-y-3">
                   {[
@@ -723,7 +714,7 @@ export default function Landing() {
           <div className="mx-auto max-w-7xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <Logo />
             <p className="text-xs text-gray-600">
-              © {new Date().getFullYear()} TradeJournal. Built for traders.
+              © {new Date().getFullYear()} PulseJournal. Built for traders.
             </p>
             <div className="flex gap-6 text-xs text-gray-600">
               {['Features', 'Analytics', 'Psychology'].map(label => (

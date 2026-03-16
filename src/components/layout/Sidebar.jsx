@@ -4,8 +4,9 @@ import {
   LayoutDashboard, ClipboardList, PlusCircle, BarChart3,
   BookOpen, BookMarked, Target, Brain,
   Calculator, ArrowLeftRight, CreditCard, Settings,
-  TrendingUp, X
+  X
 } from 'lucide-react'
+import { PulseJournalLogo } from '../ui/PulseJournalLogo.jsx'
 
 const links = [
   { to: '/dashboard',   label: 'Dashboard',  icon: <LayoutDashboard className="w-4 h-4 flex-shrink-0" /> },
@@ -37,15 +38,7 @@ export default function Sidebar({ onClose }) {
       {/* Logo */}
       <div className="px-5 py-5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)', border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)' }}
-          >
-            <TrendingUp className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
-          </div>
-          <span className="font-semibold tracking-tight text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            TradeLog
-          </span>
+          <PulseJournalLogo size="sm" />
         </div>
         {onClose && (
           <button
@@ -111,7 +104,7 @@ export default function Sidebar({ onClose }) {
         className="px-5 py-4 flex-shrink-0"
         style={{ borderTop: '1px solid var(--color-border)' }}
       >
-        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>TradeLog v1.0</p>
+        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PulseJournal v1.0</p>
       </div>
     </aside>
   )

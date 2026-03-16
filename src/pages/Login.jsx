@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { TrendingUp, ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { Particles } from '../components/ui/Particles.jsx'
+import { PulseJournalLogo } from '../components/ui/PulseJournalLogo.jsx'
 
 export default function Login() {
   const { login } = useAuth()
@@ -65,15 +66,7 @@ export default function Login() {
       <div className="relative flex min-h-screen items-center justify-center px-4 z-10">
         <div className="w-full max-w-sm space-y-8">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg flex-shrink-0"
-              style={{ backgroundColor: '#9aea62', boxShadow: '0 4px 16px rgba(154,234,98,0.3)' }}
-            >
-              <TrendingUp className="w-4 h-4" style={{ color: '#0a1a0a' }} />
-            </div>
-            <span className="font-bold text-white text-lg tracking-tight">TradeJournal</span>
-          </div>
+          <PulseJournalLogo size="md" />
 
           {/* Heading */}
           <div className="space-y-1">
