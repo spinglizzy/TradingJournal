@@ -3,6 +3,7 @@ import { cn } from '../../lib/utils.js'
 
 const NeonGradientCard = ({
   className,
+  innerClassName,
   children,
   borderSize = 2,
   borderRadius = 20,
@@ -63,6 +64,7 @@ const NeonGradientCard = ({
       <div
         className={cn(
           'relative size-full min-h-[inherit] rounded-[var(--card-content-radius)] p-6',
+          innerClassName,
           // before — solid spinning gradient border
           'before:absolute before:-left-[var(--border-size)] before:-top-[var(--border-size)] before:-z-10 before:block',
           'before:h-[var(--pseudo-element-height)] before:w-[var(--pseudo-element-width)] before:rounded-[var(--border-radius)] before:content-[""]',

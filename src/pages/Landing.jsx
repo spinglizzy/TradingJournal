@@ -5,8 +5,7 @@ import { AnimatedGroup } from '../components/ui/AnimatedGroup.jsx'
 import { StarsBackground } from '../components/ui/StarsBackground.jsx'
 import { ShootingStars } from '../components/ui/ShootingStars.jsx'
 import {
-  ArrowRight, BarChart2, BookOpen, Brain, LineChart,
-  Target, FileText, TrendingUp, Shield, Menu, X, ChevronRight
+  ArrowRight, TrendingUp, Shield, Menu, X, ChevronRight
 } from 'lucide-react'
 import { cn } from '../lib/utils.js'
 import { NeonGradientCard } from '../components/ui/NeonGradientCard.jsx'
@@ -162,34 +161,34 @@ function Header() {
 
 const FEATURES = [
   {
-    icon: <FileText className="w-5 h-5" style={{ color: '#9aea62' }} />,
     title: 'Trade Log',
     description: 'Log every trade with full detail — entry, exit, size, R-multiple, screenshots, and notes. Never lose track of a trade again.',
+    imageUrl: 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Memo/3D/memo_3d.png',
   },
   {
-    icon: <BarChart2 className="w-5 h-5" style={{ color: '#b5f08a' }} />,
     title: 'Deep Analytics',
     description: 'Slice your performance by ticker, strategy, session, day of week, and more. Find exactly where your edge lives.',
+    imageUrl: 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Bar%20chart/3D/bar_chart_3d.png',
   },
   {
-    icon: <Brain className="w-5 h-5" style={{ color: '#9aea62' }} />,
     title: 'Psychology Tracker',
-    description: 'Track emotions, tilt score, rule violations, and mental state across sessions. Understand how psychology affects your P&L.',
+    description: 'Track emotions, tilt score, rule violations, and mental state. Understand how psychology affects your P&L.',
+    imageUrl: 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Brain/3D/brain_3d.png',
   },
   {
-    icon: <BookOpen className="w-5 h-5" style={{ color: '#b5f08a' }} />,
     title: 'Trading Playbook',
     description: 'Document your setups, entry rules, and risk management. Keep your strategy sharp and consistent.',
+    imageUrl: 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Open%20book/3D/open_book_3d.png',
   },
   {
-    icon: <LineChart className="w-5 h-5" style={{ color: '#9aea62' }} />,
     title: 'Performance Journal',
     description: 'Write daily notes, review your sessions, and track growth over time. Build the habit of self-review.',
+    imageUrl: 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Spiral%20notepad/3D/spiral_notepad_3d.png',
   },
   {
-    icon: <Target className="w-5 h-5" style={{ color: '#b5f08a' }} />,
     title: 'Goals & Targets',
     description: 'Set monthly profit targets, win rate goals, and discipline metrics. Track progress and stay accountable.',
+    imageUrl: 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Direct%20hit/3D/direct_hit_3d.png',
   },
 ]
 
@@ -297,6 +296,45 @@ function AppPreview() {
         ))}
       </div>
     </div>
+  )
+}
+
+// Feature card — LinkCard-style layout with neon border + spring hover + 3D illustration
+function FeatureCard({ title, description, imageUrl, delay }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ delay, duration: 0.5 }}
+      whileHover={{ scale: 1.03, y: -6, transition: { type: 'spring', stiffness: 300, damping: 15 } }}
+      className="group"
+    >
+      <NeonGradientCard
+        borderSize={1.5}
+        borderRadius={20}
+        neonColors={{ firstColor: '#9aea62', secondColor: '#00d4ff' }}
+        innerClassName="p-0 overflow-hidden"
+        className="h-72"
+      >
+        <div className="relative h-full p-6 overflow-hidden">
+          {/* Text */}
+          <div className="relative z-10 max-w-[68%]">
+            <h3 className="text-2xl font-semibold text-white mb-2 tracking-tight leading-tight">{title}</h3>
+            <p className="text-sm leading-relaxed" style={{ color: '#8b9db5' }}>{description}</p>
+          </div>
+          {/* 3D illustration — bottom-right, partially clipped for depth */}
+          <div className="absolute bottom-0 right-0 h-48 w-48 translate-x-8 translate-y-8 pointer-events-none">
+            <img
+              src={imageUrl}
+              alt={title}
+              className="h-full w-full object-contain drop-shadow-2xl transition-transform duration-300 ease-out group-hover:scale-110"
+              draggable={false}
+            />
+          </div>
+        </div>
+      </NeonGradientCard>
+    </motion.div>
   )
 }
 
@@ -501,32 +539,13 @@ export default function Landing() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {FEATURES.map((f, i) => (
-                <motion.div
+                <FeatureCard
                   key={f.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-60px' }}
-                  transition={{ delay: i * 0.07, duration: 0.5 }}
-                  className="hover:scale-[1.02] transition-transform duration-200"
-                >
-                  <NeonGradientCard
-                    borderSize={1.5}
-                    borderRadius={20}
-                    neonColors={{ firstColor: '#9aea62', secondColor: '#00d4ff' }}
-                  >
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
-                      style={{
-                        backgroundColor: 'color-mix(in srgb, #9aea62 10%, #0d1117)',
-                        border: '1px solid color-mix(in srgb, #9aea62 25%, transparent)',
-                      }}
-                    >
-                      {f.icon}
-                    </div>
-                    <h3 className="text-base font-semibold text-white mb-2">{f.title}</h3>
-                    <p className="text-sm leading-relaxed" style={{ color: '#8b9db5' }}>{f.description}</p>
-                  </NeonGradientCard>
-                </motion.div>
+                  title={f.title}
+                  description={f.description}
+                  imageUrl={f.imageUrl}
+                  delay={i * 0.07}
+                />
               ))}
             </div>
           </div>
