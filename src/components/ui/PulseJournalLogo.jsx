@@ -1,19 +1,15 @@
 /**
- * PulseJournal logo using the actual brand PNG (2000×2000, black background).
- *
- * Pixel analysis found the lockup lives at:
- *   x: 280–1680px (14–84%), y: 870–1130px (43.5–56.5%)
- *
- * mix-blend-mode: lighten makes black pixels show the underlying background,
- * so the black canvas disappears on any dark surface — no visible box.
+ * PulseJournal logo — rendered from the brand PNG (1280×1280 RGBA).
+ * Pixel-scanned content bounds: x:299–951, y:583–697 (native pixels).
+ * Background is truly transparent so it blends on any surface.
  */
 export function PulseJournalLogo({ size = 'md' }) {
-  // scale so content height (260px native) fills `h` display pixels
+  // scale so content height (114 native px) == h display px
   const cfg = {
     //       h    img    ox    oy     w
-    xs: { h: 22, img: 169, ox: 24, oy:  74, w: 118 },
-    sm: { h: 28, img: 215, ox: 30, oy:  94, w: 151 },
-    md: { h: 34, img: 262, ox: 37, oy: 114, w: 183 },
+    xs: { h: 22, img: 247, ox: 58, oy: 113, w: 128 },
+    sm: { h: 28, img: 314, ox: 73, oy: 143, w: 162 },
+    md: { h: 34, img: 382, ox: 89, oy: 174, w: 196 },
   }
   const { h, img, ox, oy, w } = cfg[size] ?? cfg.md
 
@@ -30,7 +26,6 @@ export function PulseJournalLogo({ size = 'md' }) {
         backgroundSize: `${img}px ${img}px`,
         backgroundPosition: `-${ox}px -${oy}px`,
         backgroundRepeat: 'no-repeat',
-        mixBlendMode: 'lighten',
       }}
     />
   )
