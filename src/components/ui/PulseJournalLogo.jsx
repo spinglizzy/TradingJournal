@@ -1,46 +1,34 @@
-// PJ monogram + wordmark — matches the brand logo
+/**
+ * Uses the actual brand PNG (public/logo.png, 1080×1080).
+ * The logo content (PJ mark + wordmark) sits at ~x:22–84%, y:40–61% of the square image.
+ * We scale the image so that content height matches `h`, then offset to crop to it.
+ */
 export function PulseJournalLogo({ size = 'md' }) {
-  const small = size === 'sm'
-  const markH = small ? 18 : 22
-  const fontSize = small ? 13 : 15
+  // imgSize = full-image display px  (content height ≈ 21% of imgSize)
+  // offsetX  = how far left  to shift so content's left edge aligns with div edge
+  // offsetY  = how far up    to shift so content's top  edge aligns with div edge
+  // w        = visible container width (content is ~62% of imgSize wide)
+  const cfg = {
+    xs: { h: 24, imgSize: 116, offsetX: 26, offsetY: 46, w: 80  },
+    sm: { h: 28, imgSize: 134, offsetX: 30, offsetY: 54, w: 93  },
+    md: { h: 34, imgSize: 162, offsetX: 36, offsetY: 65, w: 113 },
+  }
+  const { h, imgSize, offsetX, offsetY, w } = cfg[size] ?? cfg.md
 
   return (
-    <div className="flex items-center" style={{ gap: small ? 8 : 9 }}>
-      {/* PJ monogram */}
-      <svg
-        width={markH * (34 / 24)}
-        height={markH}
-        viewBox="0 0 34 24"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-        style={{ flexShrink: 0 }}
-      >
-        {/* P — left vert + top bar + bowl right side + bowl bottom */}
-        <rect x="0"  y="0"  width="4"  height="24" rx="0.5" fill="#1dc97d" />
-        <rect x="0"  y="0"  width="14" height="4"  rx="0.5" fill="#1dc97d" />
-        <rect x="10" y="0"  width="4"  height="13" rx="0.5" fill="#1dc97d" />
-        <rect x="0"  y="9"  width="14" height="4"  rx="0.5" fill="#1dc97d" />
-        {/* J — top bar + right vert + bottom hook */}
-        <rect x="20" y="0"  width="14" height="4"  rx="0.5" fill="#1dc97d" />
-        <rect x="30" y="0"  width="4"  height="24" rx="0.5" fill="#1dc97d" />
-        <rect x="20" y="20" width="14" height="4"  rx="0.5" fill="#1dc97d" />
-        <rect x="20" y="15" width="4"  height="9"  rx="0.5" fill="#1dc97d" />
-      </svg>
-
-      {/* Wordmark */}
-      <span
-        style={{
-          color: '#ffffff',
-          fontWeight: 600,
-          fontSize,
-          letterSpacing: '-0.3px',
-          lineHeight: 1,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        PulseJournal
-      </span>
-    </div>
+    <div
+      role="img"
+      aria-label="PulseJournal"
+      style={{
+        width: w,
+        height: h,
+        flexShrink: 0,
+        overflow: 'hidden',
+        backgroundImage: 'url(/logo.png)',
+        backgroundSize: `${imgSize}px ${imgSize}px`,
+        backgroundPosition: `-${offsetX}px -${offsetY}px`,
+        backgroundRepeat: 'no-repeat',
+      }}
+    />
   )
 }

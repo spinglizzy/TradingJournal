@@ -67,7 +67,7 @@ export default function Settings() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage your TradeLog data and preferences.</p>
+        <p className="text-sm text-gray-500 mt-1">Manage your PulseJournal data and preferences.</p>
       </div>
 
       {/* Tab nav */}
@@ -274,7 +274,7 @@ export default function Settings() {
 
       {/* About */}
       <div className="text-center py-4">
-        <p className="text-xs text-gray-600">TradeLog v1.0 · Built with React + Express + SQLite</p>
+        <p className="text-xs text-gray-600">PulseJournal v1.0 · Built with React + Express + SQLite</p>
         <p className="text-xs text-gray-700 mt-1">Your data is stored locally — no cloud, no subscriptions.</p>
       </div>
     </div>

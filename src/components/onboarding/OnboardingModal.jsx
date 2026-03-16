@@ -86,7 +86,7 @@ export default function OnboardingModal({ isOpen, onClose }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-white">Welcome to TradeLog</h2>
+              <h2 className="text-xl font-bold text-white">Welcome to PulseJournal</h2>
               <p className="text-sm text-gray-400 mt-1">Let's set up your first trading account to get started.</p>
             </div>
 

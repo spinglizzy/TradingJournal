@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { ChevronDown, Settings, LogOut, User } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext.jsx'
+import { PulseJournalLogo } from '../ui/PulseJournalLogo.jsx'
 
 const mainLinks = [
   { to: '/dashboard',  label: 'Dashboard',  end: true },
@@ -86,21 +87,8 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <Link to="/dashboard" className="flex items-center gap-2 px-3 py-0.5 mr-1 select-none">
-          <div
-            className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-            style={{
-              background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
-              border:     '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
-            }}
-          >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              style={{ color: 'var(--color-accent)' }}>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
-          </div>
-          <span className="text-white text-sm font-semibold tracking-tight">TradeLog</span>
+        <Link to="/dashboard" className="flex items-center px-2 py-0.5 mr-1 select-none">
+          <PulseJournalLogo size="sm" />
         </Link>
 
         {/* Divider */}
@@ -276,21 +264,8 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <Link to="/dashboard" className="flex items-center gap-1.5 flex-1">
-          <div
-            className="w-5 h-5 rounded flex items-center justify-center"
-            style={{
-              background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
-              border:     '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
-            }}
-          >
-            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              style={{ color: 'var(--color-accent)' }}>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
-          </div>
-          <span className="text-white text-sm font-semibold">TradeLog</span>
+        <Link to="/dashboard" className="flex items-center flex-1">
+          <PulseJournalLogo size="xs" />
         </Link>
 
         {/* Log Trade (mobile) */}
