@@ -9,6 +9,7 @@ import {
   Target, FileText, TrendingUp, Shield, Menu, X, ChevronRight
 } from 'lucide-react'
 import { cn } from '../lib/utils.js'
+import { NeonGradientCard } from '../components/ui/NeonGradientCard.jsx'
 
 // App accent: #9aea62 (lime green), hover: #7fd64a, light: #b5f08a
 
@@ -491,7 +492,7 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {FEATURES.map((f, i) => (
                 <motion.div
                   key={f.title}
@@ -499,17 +500,25 @@ export default function Landing() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-60px' }}
                   transition={{ delay: i * 0.07, duration: 0.5 }}
-                  className="rounded-2xl p-6 hover:scale-[1.02] transition-transform duration-200 bg-gray-900"
-                  style={{ border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)' }}
+                  className="hover:scale-[1.02] transition-transform duration-200"
                 >
-                  <div
-                    className="w-10 h-10 rounded-xl border border-gray-800 flex items-center justify-center mb-4"
-                    style={{ backgroundColor: 'color-mix(in srgb, #9aea62 8%, #111827)' }}
+                  <NeonGradientCard
+                    borderSize={1.5}
+                    borderRadius={20}
+                    neonColors={{ firstColor: '#9aea62', secondColor: '#00d4ff' }}
                   >
-                    {f.icon}
-                  </div>
-                  <h3 className="text-base font-semibold text-white mb-2">{f.title}</h3>
-                  <p className="text-sm text-gray-400 leading-relaxed">{f.description}</p>
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, #9aea62 10%, #0d1117)',
+                        border: '1px solid color-mix(in srgb, #9aea62 25%, transparent)',
+                      }}
+                    >
+                      {f.icon}
+                    </div>
+                    <h3 className="text-base font-semibold text-white mb-2">{f.title}</h3>
+                    <p className="text-sm leading-relaxed" style={{ color: '#8b9db5' }}>{f.description}</p>
+                  </NeonGradientCard>
                 </motion.div>
               ))}
             </div>
