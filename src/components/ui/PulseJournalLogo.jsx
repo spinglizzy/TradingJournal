@@ -1,19 +1,18 @@
 /**
- * Uses the actual brand PNG (public/logo.png, 1080×1080).
- * The logo content (PJ mark + wordmark) sits at ~x:22–84%, y:40–61% of the square image.
- * We scale the image so that content height matches `h`, then offset to crop to it.
+ * Crops the transparent 1080×1080 brand PNG to show just the logo lockup.
+ * Transparent background means it blends perfectly on any dark surface.
+ *
+ * Content sits at approx x:14–84%, y:44–63% of the square canvas.
+ * We scale the image so content height = h, then offset to align it.
  */
 export function PulseJournalLogo({ size = 'md' }) {
-  // imgSize = full-image display px  (content height ≈ 21% of imgSize)
-  // offsetX  = how far left  to shift so content's left edge aligns with div edge
-  // offsetY  = how far up    to shift so content's top  edge aligns with div edge
-  // w        = visible container width (content is ~62% of imgSize wide)
   const cfg = {
-    xs: { h: 24, imgSize: 116, offsetX: 26, offsetY: 46, w: 80  },
-    sm: { h: 28, imgSize: 134, offsetX: 30, offsetY: 54, w: 93  },
-    md: { h: 34, imgSize: 162, offsetX: 36, offsetY: 65, w: 113 },
+    //        h    imgSize  offsetX  offsetY   w
+    xs: { h: 24, img: 126,  ox: 16,  oy: 53,  w:  94 },
+    sm: { h: 28, img: 147,  ox: 19,  oy: 63,  w: 110 },
+    md: { h: 34, img: 179,  ox: 23,  oy: 77,  w: 133 },
   }
-  const { h, imgSize, offsetX, offsetY, w } = cfg[size] ?? cfg.md
+  const { h, img, ox, oy, w } = cfg[size] ?? cfg.md
 
   return (
     <div
@@ -24,9 +23,9 @@ export function PulseJournalLogo({ size = 'md' }) {
         height: h,
         flexShrink: 0,
         overflow: 'hidden',
-        backgroundImage: 'url(/logo.png)',
-        backgroundSize: `${imgSize}px ${imgSize}px`,
-        backgroundPosition: `-${offsetX}px -${offsetY}px`,
+        backgroundImage: 'url(/logo-transparent.png)',
+        backgroundSize: `${img}px ${img}px`,
+        backgroundPosition: `-${ox}px -${oy}px`,
         backgroundRepeat: 'no-repeat',
       }}
     />
