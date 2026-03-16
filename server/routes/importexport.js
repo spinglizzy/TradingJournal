@@ -243,25 +243,33 @@ router.post('/restore', async (req, res) => {
     const stats = { accounts:0, strategies:0, tags:0, trades:0, journal:0, goals:0, achievements:0 }
 
     if (mode === 'replace') {
-      for (const tbl of ['journal_trade_links','trade_tags','executions','account_transactions','journal_entries','trades','strategies','tags','accounts','goals','achievements']) {
-        await client.query(`DELETE FROM ${tbl}`)
-      }
+      await client.query('DELETE FROM journal_trade_links WHERE journal_id IN (SELECT id FROM journal_entries WHERE user_id=$1)', [req.userId])
+      await client.query('DELETE FROM trade_tags WHERE trade_id IN (SELECT id FROM trades WHERE user_id=$1)', [req.userId])
+      await client.query('DELETE FROM executions WHERE trade_id IN (SELECT id FROM trades WHERE user_id=$1)', [req.userId])
+      await client.query('DELETE FROM account_transactions WHERE account_id IN (SELECT id FROM accounts WHERE user_id=$1)', [req.userId])
+      await client.query('DELETE FROM journal_entries WHERE user_id=$1', [req.userId])
+      await client.query('DELETE FROM trades WHERE user_id=$1', [req.userId])
+      await client.query('DELETE FROM strategies WHERE user_id=$1', [req.userId])
+      await client.query('DELETE FROM tags WHERE user_id=$1', [req.userId])
+      await client.query('DELETE FROM accounts WHERE user_id=$1', [req.userId])
+      await client.query('DELETE FROM goals WHERE user_id=$1', [req.userId])
+      await client.query('DELETE FROM achievements WHERE user_id=$1', [req.userId])
     }
 
     // Accounts
     const accountIdMap = {}
     for (const a of (data.accounts ?? [])) {
       const { id:oldId, created_at, ...fields } = a
-      const ex = await client.query('SELECT id FROM accounts WHERE name=$1', [fields.name])
+      const ex = await client.query('SELECT id FROM accounts WHERE name=$1 AND user_id=$2', [fields.name, req.userId])
       if (ex.rows[0]) {
         accountIdMap[oldId] = ex.rows[0].id
       } else {
         const r = await client.query(`
-          INSERT INTO accounts (name,broker_name,currency,starting_balance,commission_type,commission_value,pnl_method,is_default,created_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+          INSERT INTO accounts (name,broker_name,currency,starting_balance,commission_type,commission_value,pnl_method,is_default,user_id,created_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
         `, [fields.name, fields.broker_name||'', fields.currency||'USD', fields.starting_balance||0,
             fields.commission_type||'fixed', fields.commission_value||0, fields.pnl_method||'basic',
-            fields.is_default||0, created_at])
+            fields.is_default||0, req.userId, created_at])
         accountIdMap[oldId] = r.rows[0].id
         stats.accounts++
       }
@@ -271,16 +279,16 @@ router.post('/restore', async (req, res) => {
     const stratIdMap = {}
     for (const s of (data.strategies ?? [])) {
       const { id:oldId, created_at, ...fields } = s
-      const ex = await client.query('SELECT id FROM strategies WHERE name=$1', [fields.name])
+      const ex = await client.query('SELECT id FROM strategies WHERE name=$1 AND user_id=$2', [fields.name, req.userId])
       if (ex.rows[0]) {
         stratIdMap[oldId] = ex.rows[0].id
       } else {
         const r = await client.query(`
-          INSERT INTO strategies (name,description,rich_description,entry_rules,exit_rules,market_conditions,timeframe,checklist,default_fields,screenshot_path,created_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id
+          INSERT INTO strategies (name,description,rich_description,entry_rules,exit_rules,market_conditions,timeframe,checklist,default_fields,screenshot_path,user_id,created_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id
         `, [fields.name, fields.description||'', fields.rich_description||'', fields.entry_rules||'',
             fields.exit_rules||'', fields.market_conditions||'', fields.timeframe||'',
-            fields.checklist||'[]', fields.default_fields||'{}', fields.screenshot_path||null, created_at])
+            fields.checklist||'[]', fields.default_fields||'{}', fields.screenshot_path||null, req.userId, created_at])
         stratIdMap[oldId] = r.rows[0].id
         stats.strategies++
       }
@@ -290,11 +298,11 @@ router.post('/restore', async (req, res) => {
     const tagIdMap = {}
     for (const t of (data.tags ?? [])) {
       const { id:oldId, ...fields } = t
-      const ex = await client.query('SELECT id FROM tags WHERE name=$1', [fields.name])
+      const ex = await client.query('SELECT id FROM tags WHERE name=$1 AND user_id=$2', [fields.name, req.userId])
       if (ex.rows[0]) {
         tagIdMap[oldId] = ex.rows[0].id
       } else {
-        const r = await client.query('INSERT INTO tags (name,color) VALUES ($1,$2) RETURNING id', [fields.name, fields.color||'#6366f1'])
+        const r = await client.query('INSERT INTO tags (name,color,user_id) VALUES ($1,$2,$3) RETURNING id', [fields.name, fields.color||'#6366f1', req.userId])
         tagIdMap[oldId] = r.rows[0].id
         stats.tags++
       }
@@ -307,15 +315,15 @@ router.post('/restore', async (req, res) => {
       if (fields.account_id  && accountIdMap[fields.account_id])  fields.account_id  = accountIdMap[fields.account_id]
       if (fields.strategy_id && stratIdMap[fields.strategy_id])   fields.strategy_id = stratIdMap[fields.strategy_id]
 
-      const dup = await client.query('SELECT id FROM trades WHERE ticker=$1 AND date=$2 AND entry_price=$3', [fields.ticker, fields.date, fields.entry_price])
+      const dup = await client.query('SELECT id FROM trades WHERE ticker=$1 AND date=$2 AND entry_price=$3 AND user_id=$4', [fields.ticker, fields.date, fields.entry_price, req.userId])
       if (dup.rows[0]) { tradeIdMap[oldId]=dup.rows[0].id; continue }
 
       const r = await client.query(`
         INSERT INTO trades (date,ticker,direction,entry_price,exit_price,stop_loss,position_size,fees,
           strategy_id,timeframe,notes,screenshot_path,account_id,status,pnl,pnl_percent,r_multiple,
           confidence,emotions,mistakes,setup,emotion_intensity,rules_followed,rules_broken,
-          exit_date,mfe,mae,created_at,updated_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+          exit_date,mfe,mae,user_id,created_at,updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
         RETURNING id
       `, [
         fields.date, fields.ticker, fields.direction, fields.entry_price, fields.exit_price||null, fields.stop_loss||null,
@@ -325,7 +333,7 @@ router.post('/restore', async (req, res) => {
         fields.confidence||null, fields.emotions||null, fields.mistakes||null, fields.setup||null,
         fields.emotion_intensity||null, fields.rules_followed||null, fields.rules_broken||null,
         fields.exit_date||null, fields.mfe||null, fields.mae||null,
-        fields.created_at||null, fields.updated_at||null,
+        req.userId, fields.created_at||null, fields.updated_at||null,
       ])
 
       tradeIdMap[oldId] = r.rows[0].id
@@ -343,12 +351,12 @@ router.post('/restore', async (req, res) => {
     // Journal entries
     for (const je of (data.journal_entries ?? [])) {
       const { id:oldId, ...fields } = je
-      const dup = await client.query('SELECT id FROM journal_entries WHERE date=$1 AND entry_type=$2 AND title=$3', [fields.date, fields.entry_type, fields.title])
+      const dup = await client.query('SELECT id FROM journal_entries WHERE date=$1 AND entry_type=$2 AND title=$3 AND user_id=$4', [fields.date, fields.entry_type, fields.title, req.userId])
       if (!dup.rows[0]) {
         await client.query(`
-          INSERT INTO journal_entries (date,entry_type,title,content,mood,tags,created_at,updated_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-        `, [fields.date, fields.entry_type||'daily', fields.title||'', fields.content||'', fields.mood||null, fields.tags||'[]', fields.created_at||null, fields.updated_at||null])
+          INSERT INTO journal_entries (date,entry_type,title,content,mood,tags,user_id,created_at,updated_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `, [fields.date, fields.entry_type||'daily', fields.title||'', fields.content||'', fields.mood||null, fields.tags||'[]', req.userId, fields.created_at||null, fields.updated_at||null])
         stats.journal++
       }
     }
@@ -366,8 +374,8 @@ router.post('/restore', async (req, res) => {
     // Goals
     for (const g of (data.goals ?? [])) {
       const { id, created_at, ...fields } = g
-      await client.query(`INSERT INTO goals (name,metric,target_value,timeframe,direction,active,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [fields.name, fields.metric, fields.target_value, fields.timeframe, fields.direction, fields.active, created_at])
+      await client.query(`INSERT INTO goals (name,metric,target_value,timeframe,direction,active,user_id,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [fields.name, fields.metric, fields.target_value, fields.timeframe, fields.direction, fields.active, req.userId, created_at])
       stats.goals++
     }
 

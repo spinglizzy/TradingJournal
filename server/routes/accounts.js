@@ -133,9 +133,9 @@ router.post('/:id/transactions', async (req, res) => {
     if (!type || !amount || !date) return res.status(400).json({ error: 'type, amount, and date are required' })
 
     const result = await pool.query(`
-      INSERT INTO account_transactions (account_id,type,amount,date,notes)
-      VALUES ($1,$2,$3,$4,$5) RETURNING id
-    `, [req.params.id, type, Number(amount), date, notes])
+      INSERT INTO account_transactions (account_id,type,amount,date,notes,user_id)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
+    `, [req.params.id, type, Number(amount), date, notes, req.userId])
 
     const row = await pool.query('SELECT * FROM account_transactions WHERE id=$1', [result.rows[0].id])
     res.status(201).json(row.rows[0])
