@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AnimatedGroup } from '../components/ui/AnimatedGroup.jsx'
@@ -299,6 +299,67 @@ function AppPreview() {
   )
 }
 
+function DashboardPreviewCard() {
+  const containerRef = useRef(null)
+  const [tilt, setTilt] = useState({ rx: 6, ry: -2 })
+  const [isHovered, setIsHovered] = useState(false)
+
+  const handleMouseMove = useCallback((e) => {
+    const el = containerRef.current
+    if (!el) return
+    const { left, top, width, height } = el.getBoundingClientRect()
+    const cx = left + width / 2
+    const cy = top + height / 2
+    const dx = (e.clientX - cx) / (width / 2)   // -1 to +1
+    const dy = (e.clientY - cy) / (height / 2)  // -1 to +1
+    setTilt({ rx: 6 - dy * 4, ry: -2 + dx * 8 })
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false)
+    setTilt({ rx: 6, ry: -2 })
+  }, [])
+
+  return (
+    <div className="relative max-w-5xl mx-auto" style={{ perspective: '1200px' }}>
+      {/* Glow under the image */}
+      <div
+        className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-3/4 h-12 rounded-full blur-3xl pointer-events-none"
+        style={{ background: 'color-mix(in srgb, #9aea62 18%, transparent)' }}
+      />
+      {/* Fade out bottom edge */}
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
+      <div
+        ref={containerRef}
+        onMouseMove={handleMouseMove}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={handleMouseLeave}
+        className="rounded-2xl shadow-2xl overflow-hidden"
+        style={{
+          border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)',
+          boxShadow: isHovered
+            ? '0 50px 100px rgba(0,0,0,0.75), 0 0 0 1px color-mix(in srgb, #9aea62 25%, transparent)'
+            : '0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px color-mix(in srgb, #9aea62 15%, transparent)',
+          transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) scale(${isHovered ? 1.02 : 1.01})`,
+          transformStyle: 'preserve-3d',
+          transformOrigin: 'center bottom',
+          transition: isHovered
+            ? 'transform 0.1s ease-out, box-shadow 0.2s ease-out'
+            : 'transform 0.6s ease-out, box-shadow 0.4s ease-out',
+          willChange: 'transform',
+        }}
+      >
+        <img
+          src="/dashboard.png"
+          alt="TradeJournal Dashboard"
+          className="w-full block"
+          draggable={false}
+        />
+      </div>
+    </div>
+  )
+}
+
 export default function Landing() {
   return (
     <div className="min-h-screen text-white overflow-x-hidden" style={{ backgroundColor: '#030712' }}>
@@ -397,32 +458,7 @@ export default function Landing() {
               }}
               className="mt-16 md:mt-20 relative"
             >
-              <div className="relative max-w-5xl mx-auto" style={{ perspective: '1200px' }}>
-                {/* Glow under the image */}
-                <div
-                  className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-3/4 h-12 rounded-full blur-3xl pointer-events-none"
-                  style={{ background: 'color-mix(in srgb, #9aea62 18%, transparent)' }}
-                />
-                {/* Fade out bottom edge */}
-                <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
-                <div
-                  className="rounded-2xl shadow-2xl overflow-hidden"
-                  style={{
-                    border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)',
-                    boxShadow: '0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px color-mix(in srgb, #9aea62 15%, transparent)',
-                    transform: 'rotateX(6deg) rotateY(-2deg) scale(1.01)',
-                    transformStyle: 'preserve-3d',
-                    transformOrigin: 'center bottom',
-                  }}
-                >
-                  <img
-                    src="/dashboard.png"
-                    alt="TradeJournal Dashboard"
-                    className="w-full block"
-                    draggable={false}
-                  />
-                </div>
-              </div>
+              <DashboardPreviewCard />
             </AnimatedGroup>
           </div>
         </section>
