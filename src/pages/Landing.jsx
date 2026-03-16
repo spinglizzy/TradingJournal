@@ -300,36 +300,35 @@ function AppPreview() {
   )
 }
 
-function DashboardPreviewCard() {
+// Reusable tilt card — wraps any screenshot with mouse-tracking 3D tilt
+function TiltImage({ src, alt, restRx = 6, restRy = -2, wrapperClassName = '', fadeBottom = false }) {
   const containerRef = useRef(null)
-  const [tilt, setTilt] = useState({ rx: 6, ry: -2 })
+  const [tilt, setTilt] = useState({ rx: restRx, ry: restRy })
   const [isHovered, setIsHovered] = useState(false)
 
   const handleMouseMove = useCallback((e) => {
     const el = containerRef.current
     if (!el) return
     const { left, top, width, height } = el.getBoundingClientRect()
-    const cx = left + width / 2
-    const cy = top + height / 2
-    const dx = (e.clientX - cx) / (width / 2)   // -1 to +1
-    const dy = (e.clientY - cy) / (height / 2)  // -1 to +1
-    setTilt({ rx: 6 - dy * 4, ry: -2 + dx * 8 })
-  }, [])
+    const dx = (e.clientX - (left + width / 2))  / (width / 2)
+    const dy = (e.clientY - (top  + height / 2)) / (height / 2)
+    setTilt({ rx: restRx - dy * 4, ry: restRy + dx * 8 })
+  }, [restRx, restRy])
 
   const handleMouseLeave = useCallback(() => {
     setIsHovered(false)
-    setTilt({ rx: 6, ry: -2 })
-  }, [])
+    setTilt({ rx: restRx, ry: restRy })
+  }, [restRx, restRy])
 
   return (
-    <div className="relative max-w-5xl mx-auto" style={{ perspective: '1200px' }}>
-      {/* Glow under the image */}
+    <div className={`relative ${wrapperClassName}`} style={{ perspective: '1200px' }}>
       <div
-        className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-3/4 h-12 rounded-full blur-3xl pointer-events-none"
-        style={{ background: 'color-mix(in srgb, #9aea62 18%, transparent)' }}
+        className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-3/4 h-10 rounded-full blur-3xl pointer-events-none"
+        style={{ background: 'color-mix(in srgb, #9aea62 15%, transparent)' }}
       />
-      {/* Fade out bottom edge */}
-      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
+      {fadeBottom && (
+        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
+      )}
       <div
         ref={containerRef}
         onMouseMove={handleMouseMove}
@@ -340,24 +339,32 @@ function DashboardPreviewCard() {
           border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)',
           boxShadow: isHovered
             ? '0 50px 100px rgba(0,0,0,0.75), 0 0 0 1px color-mix(in srgb, #9aea62 25%, transparent)'
-            : '0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px color-mix(in srgb, #9aea62 15%, transparent)',
-          transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) scale(${isHovered ? 1.02 : 1.01})`,
+            : '0 30px 60px rgba(0,0,0,0.6), 0 0 0 1px color-mix(in srgb, #9aea62 15%, transparent)',
+          transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) scale(${isHovered ? 1.02 : 1.0})`,
           transformStyle: 'preserve-3d',
-          transformOrigin: 'center bottom',
+          transformOrigin: 'center center',
           transition: isHovered
             ? 'transform 0.1s ease-out, box-shadow 0.2s ease-out'
             : 'transform 0.6s ease-out, box-shadow 0.4s ease-out',
           willChange: 'transform',
         }}
       >
-        <img
-          src="/dashboard.png"
-          alt="TradeJournal Dashboard"
-          className="w-full block"
-          draggable={false}
-        />
+        <img src={src} alt={alt} className="w-full block" draggable={false} />
       </div>
     </div>
+  )
+}
+
+function DashboardPreviewCard() {
+  return (
+    <TiltImage
+      src="/dashboard.png"
+      alt="TradeJournal Dashboard"
+      restRx={6}
+      restRy={-2}
+      wrapperClassName="max-w-5xl mx-auto"
+      fadeBottom
+    />
   )
 }
 
@@ -564,20 +571,7 @@ export default function Landing() {
                 </ul>
               </div>
 
-              <div
-                className="rounded-2xl overflow-hidden shadow-2xl"
-                style={{
-                  border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)',
-                  boxShadow: '0 30px 60px rgba(0,0,0,0.6), 0 0 0 1px color-mix(in srgb, #9aea62 10%, transparent)',
-                }}
-              >
-                <img
-                  src="/analytics.png"
-                  alt="TradeJournal Analytics"
-                  className="w-full block"
-                  draggable={false}
-                />
-              </div>
+              <TiltImage src="/analytics.png" alt="TradeJournal Analytics" restRx={2} restRy={3} />
             </div>
           </div>
         </section>
@@ -586,19 +580,8 @@ export default function Landing() {
         <section id="psychology" className="py-24">
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              <div
-                className="rounded-2xl overflow-hidden shadow-2xl order-2 lg:order-1"
-                style={{
-                  border: '1px solid color-mix(in srgb, #9aea62 15%, transparent)',
-                  boxShadow: '0 30px 60px rgba(0,0,0,0.6), 0 0 0 1px color-mix(in srgb, #9aea62 10%, transparent)',
-                }}
-              >
-                <img
-                  src="/psychology.png"
-                  alt="TradeJournal Psychology"
-                  className="w-full block"
-                  draggable={false}
-                />
+              <div className="order-2 lg:order-1">
+                <TiltImage src="/psychology.png" alt="TradeJournal Psychology" restRx={2} restRy={-3} />
               </div>
 
               <div className="order-1 lg:order-2">
@@ -664,13 +647,16 @@ export default function Landing() {
                       style={{ background: 'linear-gradient(to right, color-mix(in srgb, #9aea62 20%, transparent), transparent)' }}
                     />
                   )}
-                  <div
-                    className="bg-gray-900 rounded-2xl p-6 relative z-10 transition-all duration-200"
-                    style={{ border: '1px solid color-mix(in srgb, #9aea62 12%, transparent)' }}
-                  >
-                    <div className="text-4xl font-bold mb-3" style={{ color: 'color-mix(in srgb, #9aea62 20%, transparent)' }}>{step.step}</div>
-                    <h3 className="text-sm font-semibold text-white mb-2">{step.title}</h3>
-                    <p className="text-sm text-gray-400 leading-relaxed">{step.description}</p>
+                  <div className="relative z-10">
+                    <NeonGradientCard
+                      borderSize={1.5}
+                      borderRadius={20}
+                      neonColors={{ firstColor: '#9aea62', secondColor: '#00d4ff' }}
+                    >
+                      <div className="text-4xl font-bold mb-3" style={{ color: 'color-mix(in srgb, #9aea62 30%, transparent)' }}>{step.step}</div>
+                      <h3 className="text-sm font-semibold text-white mb-2">{step.title}</h3>
+                      <p className="text-sm leading-relaxed" style={{ color: '#8b9db5' }}>{step.description}</p>
+                    </NeonGradientCard>
                   </div>
                 </motion.div>
               ))}
