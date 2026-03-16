@@ -720,11 +720,11 @@ export default function TradeDetailPage() {
                 <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Screenshots</div>
                 <div className="flex flex-wrap gap-3">
                   <button
-                    onClick={() => setLightbox(`/uploads/${trade.screenshot_path}`)}
+                    onClick={() => setLightbox(trade.screenshot_path)}
                     className="relative group rounded-lg overflow-hidden border border-gray-700 hover:border-indigo-500 transition-colors"
                   >
                     <img
-                      src={`/uploads/${trade.screenshot_path}`}
+                      src={trade.screenshot_path}
                       alt="Trade screenshot"
                       className="w-48 h-32 object-cover"
                       onError={e => { e.target.parentElement.style.display = 'none' }}

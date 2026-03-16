@@ -237,7 +237,11 @@ function SetupEditorPanel({ setup, onSave, onClose, isSaving }) {
     if (!file) return
     const form = new FormData()
     form.append('screenshot', file)
-    const res = await fetch('/api/upload', { method: 'POST', body: form })
+    // Auth header — get current Supabase session token
+    const { supabase } = await import('../lib/supabase.js')
+    const { data: { session } } = await supabase.auth.getSession()
+    const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+    const res = await fetch('/api/upload', { method: 'POST', headers, body: form })
     const { path } = await res.json()
     setScreenshot(path)
   }
@@ -331,7 +335,7 @@ function SetupEditorPanel({ setup, onSave, onClose, isSaving }) {
               <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Reference Screenshot / Diagram</label>
               {screenshot ? (
                 <div className="relative group inline-block">
-                  <img src={screenshot.startsWith('/uploads') ? screenshot : `/uploads/${screenshot}`}
+                  <img src={screenshot}
                     alt="setup diagram" className="max-w-full max-h-48 rounded-lg border border-gray-700 object-contain" />
                   <button onClick={() => setScreenshot(null)}
                     className="absolute top-1 right-1 bg-gray-900/80 text-gray-400 hover:text-red-400 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
@@ -574,7 +578,7 @@ function SetupDetailPanel({ setupId, allSetups, onClose, onEdit }) {
               <div>
                 <h3 className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Reference Diagram</h3>
                 <img
-                  src={detail.screenshot_path.startsWith('/uploads') ? detail.screenshot_path : `/uploads/${detail.screenshot_path}`}
+                  src={detail.screenshot_path}
                   alt="setup diagram"
                   className="max-w-full rounded-xl border border-gray-700 object-contain max-h-72"
                 />

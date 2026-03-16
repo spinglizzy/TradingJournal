@@ -1,56 +1,66 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabase.js'
 
 const AuthContext = createContext(null)
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api'
+// Shape the Supabase user into the same { id, email, name } format the app expects
+function formatUser(supabaseUser) {
+  if (!supabaseUser) return null
+  return {
+    id:    supabaseUser.id,
+    email: supabaseUser.email,
+    name:  supabaseUser.user_metadata?.name || null,
+  }
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const [user,    setUser]    = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const getToken = () => localStorage.getItem('tj_token')
-  const setToken = (t) => t ? localStorage.setItem('tj_token', t) : localStorage.removeItem('tj_token')
-
-  // Verify token on mount
   useEffect(() => {
-    const token = getToken()
-    if (!token) { setLoading(false); return }
-    fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.user) { setUser(data.user) } else { setToken(null) } })
-      .catch(() => setToken(null))
-      .finally(() => setLoading(false))
+    // Restore session from storage on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(formatUser(session?.user ?? null))
+      setLoading(false)
+    })
+
+    // Listen for sign-in / sign-out / token refresh
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(formatUser(session?.user ?? null))
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const login = useCallback(async (email, password) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Login failed')
-    setToken(data.token)
-    setUser(data.user)
-    return data.user
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw new Error(error.message)
+    return formatUser(data.user)
   }, [])
 
   const register = useCallback(async (email, password, name) => {
-    const res = await fetch(`${API_BASE}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name }),
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name: name || null } },
     })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Registration failed')
-    setToken(data.token)
-    setUser(data.user)
-    return data.user
+    if (error) throw new Error(error.message)
+    // Supabase may require email confirmation depending on project settings.
+    // If email confirmation is disabled, data.session is available immediately.
+    return formatUser(data.user)
   }, [])
 
-  const logout = useCallback(() => {
-    setToken(null)
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut()
     setUser(null)
+  }, [])
+
+  // Kept for backward compat — returns the current access token synchronously
+  // from the cached session (fast, no network call)
+  const getToken = useCallback(() => {
+    // supabase.auth stores the session in localStorage; we return null here
+    // because api/client.js now fetches the token itself via getSession()
+    return null
   }, [])
 
   return (

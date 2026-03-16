@@ -30,9 +30,12 @@ function Divider() {
 
 // ── Upload helper ─────────────────────────────────────────────────────────────
 async function uploadImage(file) {
+  const { supabase } = await import('../../lib/supabase.js')
+  const { data: { session } } = await supabase.auth.getSession()
+  const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   const form = new FormData()
   form.append('screenshot', file)
-  const res = await fetch('/api/upload', { method: 'POST', body: form })
+  const res = await fetch('/api/upload', { method: 'POST', headers, body: form })
   if (!res.ok) throw new Error('Upload failed')
   const { path } = await res.json()
   return path
