@@ -355,7 +355,7 @@ export default function TradeFormPage() {
       <div className="mb-6">
         <button
           type="button"
-          onClick={() => flushSync(() => navigate('/trades'))}
+          onClick={() => flushSync(() => navigate(-1))}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-white transition-colors mb-3"
         >
           <ArrowLeft className="w-4 h-4" />
