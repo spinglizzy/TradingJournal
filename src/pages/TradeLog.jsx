@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { flushSync } from 'react-dom'
 import { Download, Plus, AlertTriangle, ClipboardList } from 'lucide-react'
 import { tradesApi } from '../api/trades.js'
 import { strategiesApi } from '../api/strategies.js'
@@ -96,7 +97,7 @@ export default function TradeLog() {
             Export CSV
           </button>
           <button
-            onClick={() => navigate('/trades/new')}
+            onClick={() => flushSync(() => navigate('/trades/new'))}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -139,7 +140,7 @@ export default function TradeLog() {
           </p>
           {!Object.values(filters).some(Boolean) && (
             <button
-              onClick={() => navigate('/trades/new')}
+              onClick={() => flushSync(() => navigate('/trades/new'))}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -152,8 +153,8 @@ export default function TradeLog() {
           trades={trades}
           sort={sort}
           onSort={handleSort}
-          onView={(id) => navigate(`/trades/${id}/edit`)}
-          onEdit={(id) => navigate(`/trades/${id}/edit`)}
+          onView={(id) => flushSync(() => navigate(`/trades/${id}/edit`))}
+          onEdit={(id) => flushSync(() => navigate(`/trades/${id}/edit`))}
           onDelete={(id) => setDeleteId(id)}
         />
       )}
