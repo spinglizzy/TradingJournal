@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import { useFlushNavigate } from '../hooks/useFlushNavigate.js'
 import { Search, Plus, ChevronDown, Settings, X, Menu } from 'lucide-react'
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { journalApi } from '../api/journal.js'
@@ -80,7 +81,7 @@ function fmt$(n) {
 
 // ── LinkedTradeCard ───────────────────────────────────────────────────────────
 function LinkedTradeCard({ trade, onRemove }) {
-  const navigate = useNavigate()
+  const navigate = useFlushNavigate()
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-gray-800/60 border border-gray-700 rounded-lg">
       <button
@@ -442,7 +443,7 @@ function NewEntryMenu({ onSelect, onClose }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Journal() {
   const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
+  const navigate = useFlushNavigate()
 
   // Data
   const [entries,     setEntries]     = useState([])

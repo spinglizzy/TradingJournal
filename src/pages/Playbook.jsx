@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useFlushNavigate } from '../hooks/useFlushNavigate.js'
 import { Pencil, Trash2, ChevronUp, ChevronDown, X, Plus, Image } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { playbookApi } from '../api/playbook.js'
@@ -408,7 +408,7 @@ function SetupEditorPanel({ setup, onSave, onClose, isSaving }) {
 // ── Setup detail view ─────────────────────────────────────────────────────────
 
 function SetupDetailPanel({ setupId, allSetups, onClose, onEdit }) {
-  const navigate = useNavigate()
+  const navigate = useFlushNavigate()
   const [detail,  setDetail]  = useState(null)
   const [trades,  setTrades]  = useState([])
   const [tab,     setTab]     = useState('overview')
@@ -1009,7 +1009,7 @@ function ExecuteModal({ plan, onExecute, onClose }) {
 // ── Pipeline section ──────────────────────────────────────────────────────────
 
 function PipelineSection({ setups }) {
-  const navigate = useNavigate()
+  const navigate = useFlushNavigate()
   const [plans,     setPlans]     = useState([])
   const [loading,   setLoading]   = useState(true)
   const [showForm,  setShowForm]  = useState(false)
@@ -1048,7 +1048,7 @@ function PipelineSection({ setups }) {
     const { trade_id } = await playbookApi.executePlanned(execPlan.id, data)
     setExecPlan(null)
     load()
-    navigate(`/trades/${trade_id}`)
+    window.location.assign(`/trades/${trade_id}`)
   }
 
   const STATUS_CLS = {

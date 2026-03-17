@@ -7,11 +7,11 @@ import {
 import { statsApi } from '../../../api/stats.js'
 import { useDashboard } from '../../../contexts/DashboardContext.jsx'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useFlushNavigate } from '../../../hooks/useFlushNavigate.js'
 
 export default function CalendarHeatmapWidget({ config }) {
   const { apiParams } = useDashboard()
-  const navigate = useNavigate()
+  const navigate = useFlushNavigate()
   const [viewDate, setViewDate]   = useState(new Date())
   const [allData, setAllData]     = useState([])
   const [loading, setLoading]     = useState(true)

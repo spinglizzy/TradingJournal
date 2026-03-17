@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { tradesApi } from '../../../api/trades.js'
 import { useDashboard } from '../../../contexts/DashboardContext.jsx'
+import { useFlushNavigate } from '../../../hooks/useFlushNavigate.js'
 
 export default function RecentTradesWidget({ config }) {
   const { apiParams } = useDashboard()
-  const navigate = useNavigate()
+  const navigate = useFlushNavigate()
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
 

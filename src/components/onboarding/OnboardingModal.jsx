@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { accountsApi } from '../../api/accounts.js'
+import { useFlushNavigate } from '../../hooks/useFlushNavigate.js'
 
 const CURRENCIES = ['USD', 'AUD', 'GBP', 'EUR', 'CAD', 'JPY', 'NZD', 'CHF', 'SGD', 'HKD']
 
@@ -15,7 +15,7 @@ export function isOnboarded() {
 }
 
 export default function OnboardingModal({ isOpen, onClose }) {
-  const navigate = useNavigate()
+  const navigate = useFlushNavigate()
   const [step, setStep]     = useState(0)
   const [saving, setSaving] = useState(false)
   const [form, setForm]     = useState({

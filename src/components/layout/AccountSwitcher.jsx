@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Plus, Settings, Layers } from 'lucide-react'
 import { useAccount } from '../../contexts/AccountContext.jsx'
+import { useFlushNavigate } from '../../hooks/useFlushNavigate.js'
 
 const CURRENCY_SYMBOL = { USD: '$', AUD: 'A$', GBP: '£', EUR: '€', CAD: 'C$', JPY: '¥', NZD: 'NZ$' }
 
@@ -9,7 +9,7 @@ export default function AccountSwitcher() {
   const { accounts, selectedAccountId, selectedAccount, selectAccount } = useAccount()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
-  const navigate = useNavigate()
+  const navigate = useFlushNavigate()
 
   useEffect(() => {
     if (!open) return

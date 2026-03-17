@@ -214,6 +214,7 @@ export default function TradeFormPage() {
 
   // Live P&L preview
   useEffect(() => {
+    if (submitting) return
     if (entryMode === 'direct_pnl') {
       if (!watchedDirectPnl && watchedDirectPnl !== 0) { setPreviewPnl(null); return }
       const fees = Number(watchedValues[4] || 0)
@@ -232,7 +233,7 @@ export default function TradeFormPage() {
       if (risk > 0) r = pnl / risk
     }
     setPreviewPnl({ pnl, pct, r, fees: Number(fees || 0) })
-  }, [watchedValues, watchedDirectPnl, entryMode])
+  }, [watchedValues, watchedDirectPnl, entryMode, submitting])
 
   useEffect(() => {
     strategiesApi.list().then(setStrategies)

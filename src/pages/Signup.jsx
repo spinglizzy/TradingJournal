@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { Particles } from '../components/ui/Particles.jsx'
@@ -7,7 +7,6 @@ import { PulseJournalLogo } from '../components/ui/PulseJournalLogo.jsx'
 
 export default function Signup() {
   const { register } = useAuth()
-  const navigate = useNavigate()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,7 +21,7 @@ export default function Signup() {
     setLoading(true)
     try {
       await register(email, password, name)
-      navigate('/dashboard')
+      window.location.replace('/dashboard')
     } catch (err) {
       setError(err.message)
     } finally {
