@@ -1,5 +1,6 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import TopNav from './TopNav.jsx'
 import { StarsBackground } from '../ui/StarsBackground.jsx'
 import { AccountProvider } from '../../contexts/AccountContext.jsx'
@@ -44,7 +45,7 @@ function LayoutInner() {
       return
     }
     if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
-      navigate('/trades/new')
+      flushSync(() => navigate('/trades/new'))
       return
     }
     if (e.key === 'g' && !e.ctrlKey && !e.metaKey) {
@@ -57,7 +58,7 @@ function LayoutInner() {
       const map = { h: '/', t: '/trades', a: '/analytics', j: '/journal', p: '/playbook', g: '/goals' }
       if (map[e.key]) {
         e.preventDefault()
-        navigate(map[e.key])
+        flushSync(() => navigate(map[e.key]))
         keyBuffer.current = []
         clearTimeout(keyTimer.current)
       }

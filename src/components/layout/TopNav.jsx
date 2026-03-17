@@ -1,5 +1,6 @@
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { flushSync } from 'react-dom'
 import { ChevronDown, Settings, LogOut, User } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext.jsx'
@@ -49,7 +50,7 @@ export default function TopNav() {
 
   const handleLogout = () => {
     logout()
-    navigate('/')
+    flushSync(() => navigate('/'))
   }
 
   const navItemCls = ({ isActive }) =>
@@ -87,7 +88,7 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <Link to="/dashboard" className="flex items-center px-2 py-0.5 mr-1 select-none">
+        <Link to="/dashboard" unstable_flushSync className="flex items-center px-2 py-0.5 mr-1 select-none">
           <PulseJournalLogo size="sm" />
         </Link>
 
@@ -102,6 +103,7 @@ export default function TopNav() {
               key={link.to}
               to={link.to}
               end={link.end}
+              unstable_flushSync
               className={navItemCls}
               style={{ position: 'relative' }}
             >
@@ -156,6 +158,7 @@ export default function TopNav() {
                 <NavLink
                   key={link.to}
                   to={link.to}
+                  unstable_flushSync
                   onClick={() => setShowMore(false)}
                   className={({ isActive }) =>
                     `block px-4 py-2 text-sm transition-colors ${
@@ -176,6 +179,7 @@ export default function TopNav() {
         {/* Log Trade CTA */}
         <NavLink
           to="/trades/new"
+          unstable_flushSync
           className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap select-none"
           style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
         >
@@ -230,6 +234,7 @@ export default function TopNav() {
             <div className="py-1">
               <NavLink
                 to="/settings"
+                unstable_flushSync
                 onClick={() => setShowUser(false)}
                 className="flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-white transition-colors"
               >
@@ -264,13 +269,14 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <Link to="/dashboard" className="flex items-center flex-1">
+        <Link to="/dashboard" unstable_flushSync className="flex items-center flex-1">
           <PulseJournalLogo size="xs" />
         </Link>
 
         {/* Log Trade (mobile) */}
         <NavLink
           to="/trades/new"
+          unstable_flushSync
           className="px-3 py-1 rounded-full text-xs font-semibold"
           style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
         >
@@ -308,6 +314,7 @@ export default function TopNav() {
                 key={link.to}
                 to={link.to}
                 end={link.end}
+                unstable_flushSync
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
                   `block px-5 py-2.5 text-sm transition-colors ${
@@ -326,6 +333,7 @@ export default function TopNav() {
               </div>
               <NavLink
                 to="/settings"
+                unstable_flushSync
                 onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-3 px-5 py-2.5 text-sm text-[#666] hover:text-white transition-colors"
               >

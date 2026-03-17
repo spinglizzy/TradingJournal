@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { flushSync } from 'react-dom'
 import { ArrowLeft, Calculator, Lightbulb, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { tradesApi } from '../api/trades.js'
@@ -331,7 +332,7 @@ export default function TradeFormPage() {
         setEmotions([]); setMistakes([]); setRulesFollowed([]); setRulesBroken([])
         setConfidence(null); setEmotionIntensity(null)
       }
-      navigate('/trades')
+      flushSync(() => navigate('/trades'))
     } catch (err) {
       setSubmitError(err?.response?.data?.error || err.message || 'Failed to save trade')
     } finally {
@@ -352,7 +353,7 @@ export default function TradeFormPage() {
       <div className="mb-6">
         <button
           type="button"
-          onClick={() => navigate('/trades')}
+          onClick={() => flushSync(() => navigate('/trades'))}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-white transition-colors mb-3"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -666,9 +667,10 @@ export default function TradeFormPage() {
           </div>
         )}
         <div className="flex gap-3 justify-end">
-          <button type="button" onClick={() => navigate(-1)}
+          <button type="button" onClick={() => flushSync(() => navigate(-1))}
             className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
             Cancel
+
           </button>
           <button type="submit" disabled={submitting}
             className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors">

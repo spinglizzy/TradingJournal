@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { flushSync } from 'react-dom'
 import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Trash2, ZoomIn, Plus, X } from 'lucide-react'
 import { format, parseISO, differenceInCalendarDays } from 'date-fns'
 import { tradesApi } from '../api/trades.js'
@@ -501,7 +502,7 @@ export default function TradeDetailPage() {
 
   async function handleDelete() {
     await tradesApi.delete(id)
-    navigate('/trades')
+    flushSync(() => navigate('/trades'))
   }
 
   if (loading) return <LoadingSpinner className="h-64" />
@@ -528,7 +529,7 @@ export default function TradeDetailPage() {
     <div className="space-y-5 max-w-5xl">
       {/* ── Navigation bar ── */}
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/trades')}
+        <button onClick={() => flushSync(() => navigate('/trades'))}
           className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Back to Trade Log
@@ -536,14 +537,14 @@ export default function TradeDetailPage() {
         <div className="flex items-center gap-2">
           <button
             disabled={!neighbors.prev}
-            onClick={() => navigate(`/trades/${neighbors.prev}`)}
+            onClick={() => flushSync(() => navigate(`/trades/${neighbors.prev}`))}
             className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-300"
           >
             ← Prev
           </button>
           <button
             disabled={!neighbors.next}
-            onClick={() => navigate(`/trades/${neighbors.next}`)}
+            onClick={() => flushSync(() => navigate(`/trades/${neighbors.next}`))}
             className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-300"
           >
             Next →
@@ -616,7 +617,7 @@ export default function TradeDetailPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate(`/trades/${id}/edit`)}
+                onClick={() => flushSync(() => navigate(`/trades/${id}/edit`))}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -745,7 +746,7 @@ export default function TradeDetailPage() {
         title="Linked Journal Entries"
         action={
           <button
-            onClick={() => navigate(`/journal?trade_id=${id}`)}
+            onClick={() => flushSync(() => navigate(`/journal?trade_id=${id}`))}
             className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
           >
             <Plus className="w-4 h-4" />
@@ -760,7 +761,7 @@ export default function TradeDetailPage() {
             {linked.map(entry => (
               <button
                 key={entry.id}
-                onClick={() => navigate(`/journal?entry=${entry.id}`)}
+                onClick={() => flushSync(() => navigate(`/journal?entry=${entry.id}`))}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 transition-colors text-left"
               >
                 {entry.mood && (
