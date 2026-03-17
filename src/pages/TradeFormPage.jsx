@@ -337,7 +337,7 @@ export default function TradeFormPage() {
       setSubmitting(false)
     }
     if (success) {
-      flushSync(() => navigate('/trades'))
+      window.location.replace('/trades')
     }
   }
 
