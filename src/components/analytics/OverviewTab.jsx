@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import {
-  ComposedChart, Area, Line, BarChart, Bar, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ComposedChart, Area, BarChart, Bar, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine
 } from 'recharts'
 import { format, parseISO } from 'date-fns'
@@ -35,7 +35,7 @@ function buildPnlHistogram(values) {
   return buckets
 }
 
-function EquityDrawdownChart({ data, chartRef }) {
+function EquityChart({ data, chartRef }) {
   if (!data.length) return (
     <div className="h-56 flex items-center justify-center text-gray-600 text-sm">No closed trades</div>
   )
@@ -49,46 +49,33 @@ function EquityDrawdownChart({ data, chartRef }) {
   return (
     <div ref={chartRef}>
       <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart data={formatted} margin={{ top: 4, right: 50, bottom: 0, left: 0 }}>
+        <ComposedChart data={formatted} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id="equityGradOv" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor={pnlColor} stopOpacity={0.25} />
               <stop offset="95%" stopColor={pnlColor} stopOpacity={0} />
             </linearGradient>
-            <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-            </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
           <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
-          <YAxis yAxisId="pnl" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false}
+          <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false}
             tickFormatter={v => `$${v >= 1000 ? `${(v/1000).toFixed(1)}k` : v >= 0 ? v : `-${Math.abs(v)}`}`} width={55} />
-          <YAxis yAxisId="dd" orientation="right" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false}
-            tickFormatter={v => `${v.toFixed(0)}%`} width={45} />
           <Tooltip
             content={({ active, payload, label }) => {
               if (!active || !payload?.length) return null
               return (
-                <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm shadow-xl space-y-1">
+                <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm shadow-xl">
                   <div className="text-gray-400 text-xs mb-1">{label}</div>
-                  {payload.map((p, i) => (
-                    <div key={i} className="flex justify-between gap-4">
-                      <span className="text-gray-400 text-xs">{p.name}</span>
-                      <span className="font-mono text-xs font-medium" style={{ color: p.color }}>
-                        {p.name === 'Drawdown' ? `${p.value?.toFixed(1)}%` : `$${fmt(p.value)}`}
-                      </span>
-                    </div>
-                  ))}
+                  <div className="font-mono text-xs font-medium" style={{ color: pnlColor }}>
+                    ${fmt(payload[0]?.value)}
+                  </div>
                 </div>
               )
             }}
           />
-          <Area yAxisId="pnl" type="monotone" dataKey="cumulative" name="Equity"
+          <Area type="monotone" dataKey="cumulative" name="Equity"
             stroke={pnlColor} strokeWidth={2} fill="url(#equityGradOv)" dot={false} />
-          <Area yAxisId="dd" type="monotone" dataKey="drawdown" name="Drawdown"
-            stroke="#ef4444" strokeWidth={1.5} fill="url(#ddGrad)" dot={false} strokeDasharray="3 3" />
-          <ReferenceLine yAxisId="pnl" y={0} stroke="#374151" strokeWidth={1} />
+          <ReferenceLine y={0} stroke="#374151" strokeWidth={1} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -274,9 +261,9 @@ export default function OverviewTab({ dateRange }) {
         ))}
       </div>
 
-      {/* Equity curve + drawdown */}
+      {/* Equity curve */}
       <Section
-        title="Equity Curve & Drawdown"
+        title="Equity Curve"
         actions={
           <ExportButtons
             onPNG={() => downloadChartPNG(equityRef, 'equity-curve.png')}
@@ -284,7 +271,7 @@ export default function OverviewTab({ dateRange }) {
           />
         }
       >
-        <EquityDrawdownChart data={drawdown} chartRef={equityRef} />
+        <EquityChart data={drawdown} chartRef={equityRef} />
       </Section>
 
       {/* Distribution charts */}

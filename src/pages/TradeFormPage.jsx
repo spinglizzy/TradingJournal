@@ -1,15 +1,147 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { flushSync } from 'react-dom'
-import { ArrowLeft, Calculator, Lightbulb, X } from 'lucide-react'
+import { ArrowLeft, Calculator, Lightbulb, X, ImagePlus, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { tradesApi } from '../api/trades.js'
 import { strategiesApi } from '../api/strategies.js'
 import { tagsApi } from '../api/tags.js'
 import { useAccount } from '../contexts/AccountContext.jsx'
+import { supabase } from '../lib/supabase.js'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import PositionCalculator from '../components/calculator/PositionCalculator.jsx'
+
+// ── Screenshot panel ──────────────────────────────────────────────────────────
+function ScreenshotPanel({ screenshots, onChange }) {
+  const fileInputRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+  const [lightbox, setLightbox] = useState(null) // url string
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const formData = new FormData()
+      formData.append('screenshot', file)
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        body: formData,
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      const { path } = await res.json()
+      onChange([...screenshots, { url: path, caption: '' }])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function updateCaption(idx, caption) {
+    const next = screenshots.map((s, i) => i === idx ? { ...s, caption } : s)
+    onChange(next)
+  }
+
+  function remove(idx) {
+    onChange(screenshots.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4 h-fit">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-300">Screenshots</h2>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-400 hover:text-white hover:bg-indigo-600 border border-indigo-500/40 hover:border-indigo-600 rounded-lg transition-all disabled:opacity-50"
+        >
+          {uploading ? (
+            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          ) : (
+            <ImagePlus className="w-3.5 h-3.5" />
+          )}
+          {uploading ? 'Uploading…' : 'Add Screenshot'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+
+      {screenshots.length === 0 ? (
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className="border-2 border-dashed border-gray-700 hover:border-gray-600 rounded-lg p-8 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+        >
+          <ImagePlus className="w-8 h-8 text-gray-700 group-hover:text-gray-500 transition-colors" />
+          <p className="text-xs text-gray-600 group-hover:text-gray-500 transition-colors">Click to upload a chart screenshot</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {screenshots.map((s, idx) => (
+            <div key={idx} className="space-y-2">
+              <div className="relative group rounded-lg overflow-hidden border border-gray-700">
+                <img
+                  src={s.url}
+                  alt={s.caption || `Screenshot ${idx + 1}`}
+                  className="w-full object-cover cursor-zoom-in max-h-64"
+                  onClick={() => setLightbox(s.url)}
+                />
+                <button
+                  type="button"
+                  onClick={() => remove(idx)}
+                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-gray-900/80 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <input
+                type="text"
+                value={s.caption}
+                onChange={e => updateCaption(idx, e.target.value)}
+                placeholder="Add a caption…"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="w-full py-2 border border-dashed border-gray-700 hover:border-gray-600 rounded-lg text-xs text-gray-600 hover:text-gray-400 transition-colors disabled:opacity-50"
+          >
+            + Add another screenshot
+          </button>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button className="absolute top-4 right-4 text-gray-400 hover:text-white p-2">
+            <X className="w-6 h-6" />
+          </button>
+          <img src={lightbox} alt="Screenshot" className="max-w-full max-h-full rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Field({ label, error, children, optional, headerAction }) {
   return (
@@ -173,6 +305,7 @@ export default function TradeFormPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
   const [previewPnl, setPreviewPnl] = useState(null)
+  const [screenshots, setScreenshots] = useState([]) // [{url, caption}]
 
   // Entry mode: 'entry_exit' or 'direct_pnl', persisted to localStorage
   const [entryMode, setEntryMode] = useState(
@@ -263,6 +396,15 @@ export default function TradeFormPage() {
       })
       setSelectedTags(trade.tags.map(t => t.id))
       setSelectedAccountIdForm(trade.account_id ?? '')
+      // Load screenshots — stored as JSON array or legacy single URL string
+      if (trade.screenshot_path) {
+        try {
+          const parsed = JSON.parse(trade.screenshot_path)
+          setScreenshots(Array.isArray(parsed) ? parsed : [{ url: trade.screenshot_path, caption: '' }])
+        } catch {
+          setScreenshots([{ url: trade.screenshot_path, caption: '' }])
+        }
+      }
       setConfidence(trade.confidence ?? null)
       setEmotionIntensity(trade.emotion_intensity ?? null)
       try { setEmotions(JSON.parse(trade.emotions || '[]')) } catch { setEmotions([]) }
@@ -296,6 +438,7 @@ export default function TradeFormPage() {
           stop_loss:         null,
           direct_pnl:        Number(data.direct_pnl),
           entry_mode:        'direct_pnl',
+          screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
           tags:              selectedTags,
           account_id:        selectedAccountIdForm || null,
           confidence:        confidence,
@@ -316,6 +459,7 @@ export default function TradeFormPage() {
           strategy_id:       data.strategy_id || null,
           entry_mode:        'entry_exit',
           direct_pnl:        null,
+          screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
           tags:              selectedTags,
           account_id:        selectedAccountIdForm || null,
           confidence:        confidence,
@@ -351,7 +495,7 @@ export default function TradeFormPage() {
   if (loading) return <LoadingSpinner className="h-64" />
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-5xl">
       <div className="mb-6">
         <button
           type="button"
@@ -365,6 +509,7 @@ export default function TradeFormPage() {
         <p className="text-sm text-gray-500 mt-1">{isEdit ? 'Update trade details' : 'Record a new trade'}</p>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Core fields */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
@@ -680,6 +825,11 @@ export default function TradeFormPage() {
           </button>
         </div>
       </form>
+
+      {/* Right column — screenshots */}
+      <ScreenshotPanel screenshots={screenshots} onChange={setScreenshots} />
+
+      </div>
     </div>
   )
 }

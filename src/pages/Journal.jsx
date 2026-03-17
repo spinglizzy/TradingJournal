@@ -581,8 +581,16 @@ export default function Journal() {
   }
 
   function handleDayClick(dateStr) {
-    setSelDate(prev => prev === dateStr ? null : dateStr)
-    setView('list')
+    const dayEntries = entries.filter(e => e.date === dateStr)
+    if (dayEntries.length === 1) {
+      // Single entry — open it directly
+      setSelDate(dateStr)
+      openEntry(dayEntries[0])
+    } else {
+      // Multiple entries or none — show filtered list
+      setSelDate(prev => prev === dateStr ? null : dateStr)
+      setView('list')
+    }
   }
 
   // ── Filtered entries for list view ──
