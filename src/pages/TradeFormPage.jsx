@@ -276,6 +276,7 @@ export default function TradeFormPage() {
   async function onSubmit(data) {
     setSubmitting(true)
     setSubmitError(null)
+    let success = false
     try {
       let payload
       if (entryMode === 'direct_pnl') {
@@ -328,16 +329,15 @@ export default function TradeFormPage() {
         await tradesApi.update(id, payload)
       } else {
         await tradesApi.create(payload)
-        reset()
-        setSelectedTags([])
-        setEmotions([]); setMistakes([]); setRulesFollowed([]); setRulesBroken([])
-        setConfidence(null); setEmotionIntensity(null)
       }
-      flushSync(() => navigate('/trades'))
+      success = true
     } catch (err) {
       setSubmitError(err?.response?.data?.error || err.message || 'Failed to save trade')
     } finally {
       setSubmitting(false)
+    }
+    if (success) {
+      flushSync(() => navigate('/trades'))
     }
   }
 
