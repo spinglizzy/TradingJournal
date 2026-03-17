@@ -215,9 +215,10 @@ export default function TradeFormPage() {
   // Live P&L preview
   useEffect(() => {
     if (entryMode === 'direct_pnl') {
-      const val = Number(watchedDirectPnl)
       if (!watchedDirectPnl && watchedDirectPnl !== 0) { setPreviewPnl(null); return }
-      setPreviewPnl({ pnl: val, pct: null, r: null })
+      const fees = Number(watchedValues[4] || 0)
+      const pnl = Number(watchedDirectPnl) - fees
+      setPreviewPnl({ pnl, pct: null, r: null, fees })
       return
     }
     const [direction, entry, exit, size, fees, stop] = watchedValues
@@ -483,7 +484,7 @@ export default function TradeFormPage() {
             ${previewPnl.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
             <div>
               <div className="text-xs text-gray-500 mb-0.5">
-                {entryMode === 'direct_pnl' ? 'P&L' : 'Net P&L (after fees)'}
+                {previewPnl.fees > 0 ? 'Net P&L (after fees)' : 'P&L'}
               </div>
               <div className={`text-xl font-bold font-mono ${previewPnl.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {previewPnl.pnl >= 0 ? '+' : ''}${previewPnl.pnl.toFixed(2)}
