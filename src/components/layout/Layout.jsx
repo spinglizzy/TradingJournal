@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import TopNav from './TopNav.jsx'
 import { StarsBackground } from '../ui/StarsBackground.jsx'
@@ -20,6 +20,7 @@ export default function Layout() {
 
 function LayoutInner() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [showShortcuts,  setShowShortcuts]  = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const keyBuffer = useRef([])
@@ -82,7 +83,7 @@ function LayoutInner() {
 
       {/* ── Layer 10: page content ── */}
       <main className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12" style={{ zIndex: 10 }}>
-        <Outlet />
+        <Outlet key={location.pathname} />
       </main>
 
       {/* ── Modals (z-50 via their own styles) ── */}
