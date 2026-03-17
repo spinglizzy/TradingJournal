@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import Layout from './components/layout/Layout.jsx'
@@ -19,32 +19,35 @@ import ImportExport from './pages/ImportExport.jsx'
 import Settings from './pages/Settings.jsx'
 import Calculator from './pages/Calculator.jsx'
 
+const router = createBrowserRouter([
+  { path: '/',       element: <Landing /> },
+  { path: '/login',  element: <Login /> },
+  { path: '/signup', element: <Signup /> },
+  {
+    element: <ProtectedRoute><Layout /></ProtectedRoute>,
+    children: [
+      { path: '/dashboard',          element: <Dashboard /> },
+      { path: '/trades',             element: <TradeLog /> },
+      { path: '/trades/new',         element: <TradeFormPage /> },
+      { path: '/trades/:id',         element: <TradeDetailPage /> },
+      { path: '/trades/:id/edit',    element: <TradeFormPage /> },
+      { path: '/analytics',          element: <Analytics /> },
+      { path: '/journal',            element: <Journal /> },
+      { path: '/psychology',         element: <Psychology /> },
+      { path: '/playbook',           element: <Playbook /> },
+      { path: '/goals',              element: <Goals /> },
+      { path: '/accounts',           element: <Accounts /> },
+      { path: '/import-export',      element: <ImportExport /> },
+      { path: '/settings',           element: <Settings /> },
+      { path: '/calculator',         element: <Calculator /> },
+    ],
+  },
+])
+
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route path="dashboard"        element={<Dashboard />} />
-            <Route path="trades"           element={<TradeLog />} />
-            <Route path="trades/new"       element={<TradeFormPage />} />
-            <Route path="trades/:id"       element={<TradeDetailPage />} />
-            <Route path="trades/:id/edit"  element={<TradeFormPage />} />
-            <Route path="analytics"        element={<Analytics />} />
-            <Route path="journal"          element={<Journal />} />
-            <Route path="psychology"       element={<Psychology />} />
-            <Route path="playbook"         element={<Playbook />} />
-            <Route path="goals"            element={<Goals />} />
-            <Route path="accounts"         element={<Accounts />} />
-            <Route path="import-export"    element={<ImportExport />} />
-            <Route path="settings"         element={<Settings />} />
-            <Route path="calculator"       element={<Calculator />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </AuthProvider>
   )
 }
