@@ -229,7 +229,7 @@ export default function TradeFormPage() {
       const risk = Math.abs(Number(entry) - Number(stop)) * Number(size)
       if (risk > 0) r = pnl / risk
     }
-    setPreviewPnl({ pnl, pct, r })
+    setPreviewPnl({ pnl, pct, r, fees: Number(fees || 0) })
   }, [watchedValues, watchedDirectPnl, entryMode])
 
   useEffect(() => {
@@ -326,6 +326,10 @@ export default function TradeFormPage() {
         await tradesApi.update(id, payload)
       } else {
         await tradesApi.create(payload)
+        reset()
+        setSelectedTags([])
+        setEmotions([]); setMistakes([]); setRulesFollowed([]); setRulesBroken([])
+        setConfidence(null); setEmotionIntensity(null)
       }
       navigate('/trades')
     } catch (err) {
@@ -346,16 +350,14 @@ export default function TradeFormPage() {
   return (
     <div className="max-w-2xl">
       <div className="mb-6">
-        {isEdit && (
-          <button
-            type="button"
-            onClick={() => navigate('/trades')}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-white transition-colors mb-3"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Trades
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => navigate('/trades')}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-white transition-colors mb-3"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Trades
+        </button>
         <h1 className="text-2xl font-bold text-white">{isEdit ? 'Edit Trade' : 'Log Trade'}</h1>
         <p className="text-sm text-gray-500 mt-1">{isEdit ? 'Update trade details' : 'Record a new trade'}</p>
       </div>
@@ -480,11 +482,14 @@ export default function TradeFormPage() {
             ${previewPnl.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
             <div>
               <div className="text-xs text-gray-500 mb-0.5">
-                {entryMode === 'direct_pnl' ? 'P&L' : 'Estimated P&L'}
+                {entryMode === 'direct_pnl' ? 'P&L' : 'Net P&L (after fees)'}
               </div>
               <div className={`text-xl font-bold font-mono ${previewPnl.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {previewPnl.pnl >= 0 ? '+' : ''}${previewPnl.pnl.toFixed(2)}
               </div>
+              {previewPnl.fees > 0 && (
+                <div className="text-xs text-gray-500 mt-0.5 font-mono">-${previewPnl.fees.toFixed(2)} fees</div>
+              )}
             </div>
             {previewPnl.pct != null && (
               <div>
