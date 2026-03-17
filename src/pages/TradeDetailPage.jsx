@@ -475,7 +475,7 @@ export default function TradeDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [lightbox,   setLightbox]   = useState(null)
 
-  const load = useCallback(() => {
+  const load = useCallback((signal) => {
     setLoading(true)
     Promise.all([
       tradesApi.get(id),
@@ -483,14 +483,21 @@ export default function TradeDetailPage() {
       tradesApi.journal(id),
       tradesApi.neighbors(id),
     ]).then(([t, execs, journal, nb]) => {
+      if (signal.cancelled) return
       setTrade(t)
       setExecutions(execs)
       setLinked(journal)
       setNeighbors(nb)
-    }).finally(() => setLoading(false))
+    }).finally(() => {
+      if (!signal.cancelled) setLoading(false)
+    })
   }, [id])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const signal = { cancelled: false }
+    load(signal)
+    return () => { signal.cancelled = true }
+  }, [load])
 
   async function handleDelete() {
     await tradesApi.delete(id)
