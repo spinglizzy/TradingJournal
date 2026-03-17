@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext.jsx'
 import { motion } from 'framer-motion'
 import { AnimatedGroup } from '../components/ui/AnimatedGroup.jsx'
 import { StarsBackground } from '../components/ui/StarsBackground.jsx'
@@ -360,6 +361,10 @@ function DashboardPreviewCard() {
 }
 
 export default function Landing() {
+  const { user, loading } = useAuth()
+  if (loading) return null
+  if (user) return <Navigate to="/dashboard" replace />
+
   return (
     <div className="min-h-screen text-white overflow-x-hidden" style={{ backgroundColor: '#030712' }}>
       {/* Stars */}
