@@ -6,15 +6,16 @@ import { Particles } from '../components/ui/Particles.jsx'
 import { PulseJournalLogo } from '../components/ui/PulseJournalLogo.jsx'
 
 export default function Login() {
-  const { login, user, loading } = useAuth()
+  const { login, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
-  if (loading) return null
-  if (user) return <Navigate to="/dashboard" replace />
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  if (authLoading) return null
+  if (user) return <Navigate to="/dashboard" replace />
 
   const handleSubmit = async (e) => {
     e.preventDefault()
