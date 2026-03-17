@@ -155,7 +155,7 @@ router.put('/:id', async (req, res) => {
       status = merged.exit_price != null ? 'closed' : 'open'
     }
 
-    const NOW = `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
+    const NOW = `NOW()`
     await pool.query(`
       UPDATE trades SET
         date=$1, ticker=$2, direction=$3, entry_price=$4, exit_price=$5, stop_loss=$6,
