@@ -346,11 +346,6 @@ function EntryEditorPanel({
 const missedInputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
   text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
 
-function fmt$(n) {
-  if (n == null) return '—'
-  const prefix = n >= 0 ? '+$' : '-$'
-  return prefix + Math.abs(n).toFixed(2)
-}
 function pnlCls(v) { return v == null ? 'text-gray-400' : v >= 0 ? 'text-emerald-400' : 'text-red-400' }
 
 function MissedForm({ trade, setups, onSave, onCancel }) {
