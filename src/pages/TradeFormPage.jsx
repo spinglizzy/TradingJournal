@@ -619,9 +619,9 @@ export default function TradeFormPage() {
 
         {/* Position Calculator Modal */}
         {showCalc && entryMode === 'entry_exit' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20 overflow-y-auto">
             <div className="absolute inset-0 bg-black/60" onClick={() => setShowCalc(false)} />
-            <div className="relative bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="relative bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-white">Position Size Calculator</h3>
                 <button
