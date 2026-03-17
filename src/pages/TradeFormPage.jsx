@@ -170,6 +170,7 @@ export default function TradeFormPage() {
   const [selectedAccountIdForm, setSelectedAccountIdForm] = useState(selectedAccountId ?? '')
   const [loading, setLoading]       = useState(isEdit)
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
   const [previewPnl, setPreviewPnl] = useState(null)
 
   // Entry mode: 'entry_exit' or 'direct_pnl', persisted to localStorage
@@ -272,6 +273,7 @@ export default function TradeFormPage() {
 
   async function onSubmit(data) {
     setSubmitting(true)
+    setSubmitError(null)
     try {
       let payload
       if (entryMode === 'direct_pnl') {
@@ -326,6 +328,8 @@ export default function TradeFormPage() {
         await tradesApi.create(payload)
       }
       navigate('/trades')
+    } catch (err) {
+      setSubmitError(err?.response?.data?.error || err.message || 'Failed to save trade')
     } finally {
       setSubmitting(false)
     }
@@ -651,6 +655,11 @@ export default function TradeFormPage() {
         )}
 
         {/* Actions */}
+        {submitError && (
+          <div className="px-4 py-3 bg-red-900/20 border border-red-800/40 rounded-lg text-sm text-red-400">
+            {submitError}
+          </div>
+        )}
         <div className="flex gap-3 justify-end">
           <button type="button" onClick={() => navigate(-1)}
             className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
