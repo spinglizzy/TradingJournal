@@ -238,7 +238,9 @@ export default function TradeFormPage() {
 
   useEffect(() => {
     if (!isEdit) return
+    let cancelled = false
     tradesApi.get(id).then(trade => {
+      if (cancelled) return
       const mode = trade.entry_mode || 'entry_exit'
       setEntryMode(mode)
       reset({
@@ -257,7 +259,6 @@ export default function TradeFormPage() {
       })
       setSelectedTags(trade.tags.map(t => t.id))
       setSelectedAccountIdForm(trade.account_id ?? '')
-      // Restore psychology fields
       setConfidence(trade.confidence ?? null)
       setEmotionIntensity(trade.emotion_intensity ?? null)
       try { setEmotions(JSON.parse(trade.emotions || '[]')) } catch { setEmotions([]) }
@@ -266,6 +267,7 @@ export default function TradeFormPage() {
       try { setRulesBroken(JSON.parse(trade.rules_broken || '[]')) } catch { setRulesBroken([]) }
       setLoading(false)
     })
+    return () => { cancelled = true }
   }, [id, isEdit, reset])
 
   async function onSubmit(data) {
