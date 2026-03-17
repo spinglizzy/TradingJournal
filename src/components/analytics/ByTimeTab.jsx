@@ -6,7 +6,7 @@ import {
 import { statsApi } from '../../api/stats.js'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
-import { Section, ExportButtons, fmt, fmtPnl, downloadCSV, downloadChartPNG } from './shared.jsx'
+import { Section, fmt, fmtPnl } from './shared.jsx'
 
 const CHART_MARGIN = { top: 4, right: 4, bottom: 0, left: 0 }
 const GRID_PROPS   = { strokeDasharray: '3 3', stroke: '#1f2937', vertical: false }
@@ -130,40 +130,16 @@ export default function ByTimeTab({ dateRange }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Section
-          title="Performance by Hour of Day"
-          actions={
-            <ExportButtons
-              onPNG={() => downloadChartPNG(hourRef, 'by-hour.png')}
-              onCSV={() => downloadCSV(hour, 'by-hour.csv')}
-            />
-          }
-        >
+        <Section title="Performance by Hour of Day">
           <PnlBarChart data={hour} xKey="hour" xLabel="label" chartRef={hourRef} />
         </Section>
 
-        <Section
-          title="Performance by Day of Week"
-          actions={
-            <ExportButtons
-              onPNG={() => downloadChartPNG(weekdayRef, 'by-weekday.png')}
-              onCSV={() => downloadCSV(weekday, 'by-weekday.csv')}
-            />
-          }
-        >
+        <Section title="Performance by Day of Week">
           <PnlBarChart data={weekday} xKey="dow" xLabel="day" chartRef={weekdayRef} />
         </Section>
       </div>
 
-      <Section
-        title="Performance by Month"
-        actions={
-          <ExportButtons
-            onPNG={() => downloadChartPNG(monthRef, 'by-month.png')}
-            onCSV={() => downloadCSV(monthly, 'by-month.csv')}
-          />
-        }
-      >
+      <Section title="Performance by Month">
         <PnlBarChart data={monthChartData} xKey="month" xLabel="month" chartRef={monthRef} />
       </Section>
 

@@ -96,7 +96,7 @@ function ScreenshotPanel({ screenshots, onChange }) {
                 <img
                   src={s.url}
                   alt={s.caption || `Screenshot ${idx + 1}`}
-                  className="w-full object-cover cursor-zoom-in max-h-64"
+                  className="w-full object-contain cursor-zoom-in max-h-[520px] bg-gray-950"
                   onClick={() => setLightbox(s.url)}
                 />
                 <button
@@ -509,7 +509,7 @@ export default function TradeFormPage() {
         <p className="text-sm text-gray-500 mt-1">{isEdit ? 'Update trade details' : 'Record a new trade'}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_480px] gap-6 items-start">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Core fields */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">

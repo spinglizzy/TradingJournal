@@ -4,12 +4,12 @@ import {
   addMonths, subMonths,
 } from 'date-fns'
 
-// Entry type config
+// Entry type config — kept for backwards compatibility with stored data
 export const ENTRY_TYPES = {
-  daily:         { label: 'Daily',         color: 'bg-blue-400',    dot: 'bg-blue-400',    text: 'text-blue-400'    },
-  pre_session:   { label: 'Pre-Session',   color: 'bg-amber-400',   dot: 'bg-amber-400',   text: 'text-amber-400'   },
-  post_session:  { label: 'Post-Session',  color: 'bg-purple-400',  dot: 'bg-purple-400',  text: 'text-purple-400'  },
-  weekly_review: { label: 'Weekly Review', color: 'bg-indigo-400',  dot: 'bg-indigo-400',  text: 'text-indigo-400'  },
+  daily:         { label: 'Journal Entry', color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
+  pre_session:   { label: 'Journal Entry', color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
+  post_session:  { label: 'Journal Entry', color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
+  weekly_review: { label: 'Journal Entry', color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
 }
 
 export default function JournalCalendar({
@@ -115,16 +115,9 @@ export default function JournalCalendar({
                   {format(day, 'd')}
                 </span>
 
-                {/* Entry type dots */}
+                {/* Entry dot */}
                 {hasEntries && (
-                  <div className="flex flex-wrap justify-center gap-0.5 max-w-full">
-                    {entryTypes.slice(0, 4).map((type, i) => (
-                      <span
-                        key={i}
-                        className={`w-1.5 h-1.5 rounded-full ${ENTRY_TYPES[type]?.dot || 'bg-gray-400'}`}
-                      />
-                    ))}
-                  </div>
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                 )}
 
                 {/* Trade P&L indicator */}
@@ -148,12 +141,10 @@ export default function JournalCalendar({
 
       {/* Legend */}
       <div className="px-4 pb-3 flex flex-wrap gap-3">
-        {Object.entries(ENTRY_TYPES).map(([key, cfg]) => (
-          <div key={key} className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-            {cfg.label}
-          </div>
-        ))}
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-2 h-2 rounded-full bg-indigo-400" />
+          Journal entry
+        </div>
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
           <span className="w-2 h-2 rounded-full bg-orange-500/70" />
           Traded, no journal

@@ -9,9 +9,8 @@ import { statsApi } from '../../api/stats.js'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 import {
-  MetricCard, Section, WinRateBar, ExportButtons,
-  fmt, fmtPnl, fmtPct, fmtR, fmtDuration,
-  downloadCSV, downloadChartPNG
+  MetricCard, Section, WinRateBar,
+  fmt, fmtPnl, fmtPct, fmtR, fmtDuration
 } from './shared.jsx'
 
 function buildPnlHistogram(values) {
@@ -262,39 +261,22 @@ export default function OverviewTab({ dateRange }) {
       </div>
 
       {/* Equity curve */}
-      <Section
-        title="Equity Curve"
-        actions={
-          <ExportButtons
-            onPNG={() => downloadChartPNG(equityRef, 'equity-curve.png')}
-            onCSV={() => downloadCSV(drawdown, 'equity-curve.csv')}
-          />
-        }
-      >
+      <Section title="Equity Curve">
         <EquityChart data={drawdown} chartRef={equityRef} />
       </Section>
 
       {/* Distribution charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Section
-          title="P&L Distribution"
-          actions={<ExportButtons onPNG={() => downloadChartPNG(pnlRef, 'pnl-dist.png')} />}
-        >
+        <Section title="P&L Distribution">
           <PnlHistogramChart data={pnlDist} chartRef={pnlRef} />
         </Section>
-        <Section
-          title="R-Multiple Distribution"
-          actions={<ExportButtons onPNG={() => downloadChartPNG(rrRef, 'rr-dist.png')} />}
-        >
+        <Section title="R-Multiple Distribution">
           <RRDistChart data={rr} chartRef={rrRef} />
         </Section>
       </div>
 
       {/* Monthly table */}
-      <Section
-        title="Monthly Performance"
-        actions={<ExportButtons onCSV={() => downloadCSV(monthly, 'monthly.csv')} />}
-      >
+      <Section title="Monthly Performance">
         <MonthlyTable data={monthly} />
       </Section>
     </div>

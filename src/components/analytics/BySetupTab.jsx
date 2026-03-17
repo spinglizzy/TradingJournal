@@ -5,7 +5,7 @@ import {
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
-import { Section, WinRateBar, ExportButtons, fmt, fmtPnl, fmtR, downloadCSV, downloadChartPNG } from './shared.jsx'
+import { Section, WinRateBar, fmt, fmtPnl, fmtR } from './shared.jsx'
 
 const COLUMNS = [
   { key: 'setup',         label: 'Setup' },
@@ -99,10 +99,6 @@ export default function BySetupTab({ dateRange }) {
             >
               {metricOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            <ExportButtons
-              onPNG={() => downloadChartPNG(chartRef, 'by-setup.png')}
-              onCSV={() => downloadCSV(data, 'by-setup.csv')}
-            />
           </div>
         }
       >

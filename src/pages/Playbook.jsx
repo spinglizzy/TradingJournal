@@ -1510,10 +1510,9 @@ export default function Playbook() {
   function closeEditor() { setIsEditorOpen(false); setEditingSetup(null) }
 
   const TABS = [
-    { id: 'setups',   label: 'Setups'        },
-    { id: 'compare',  label: 'Compare'       },
-    { id: 'pipeline', label: 'Pipeline'      },
-    { id: 'missed',   label: 'Missed Trades' },
+    { id: 'setups',   label: 'Setups'   },
+    { id: 'compare',  label: 'Compare'  },
+    { id: 'pipeline', label: 'Pipeline' },
   ]
 
   // Determine layout for setups tab
@@ -1642,10 +1641,7 @@ export default function Playbook() {
       {/* ── Pipeline tab ── */}
       {tab === 'pipeline' && <PipelineSection setups={setups} />}
 
-      {/* ── Missed tab ── */}
-      {tab === 'missed' && <MissedSection setups={setups} />}
-
-      {/* Delete confirm */}
+{/* Delete confirm */}
       <ConfirmDialog
         isOpen={!!deleteId}
         title="Delete Setup"

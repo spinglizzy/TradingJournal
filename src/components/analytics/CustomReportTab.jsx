@@ -6,7 +6,7 @@ import {
 import { Save, Trash2, Play } from 'lucide-react'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
-import { Section, ExportButtons, fmt, fmtPnl, fmtR, downloadCSV, downloadChartPNG } from './shared.jsx'
+import { Section, fmt, fmtPnl, fmtR } from './shared.jsx'
 
 const X_OPTIONS = [
   { value: 'day_of_week', label: 'Day of Week' },
@@ -228,10 +228,6 @@ export default function CustomReportTab({ dateRange }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <ExportButtons
-              onPNG={data?.length ? () => downloadChartPNG(chartRef, `custom-${xField}-${yMetric}.png`) : null}
-              onCSV={data?.length ? () => downloadCSV(data, `custom-${xField}-${yMetric}.csv`) : null}
-            />
             <button
               onClick={() => setSavingPreset(v => !v)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-300 bg-indigo-600/10 border border-indigo-500/30 rounded-lg hover:bg-indigo-600/20 transition-colors"

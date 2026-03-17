@@ -5,7 +5,7 @@ import {
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
-import { Section, WinRateBar, ExportButtons, fmt, fmtPnl, fmtR, downloadCSV, downloadChartPNG } from './shared.jsx'
+import { Section, WinRateBar, fmt, fmtPnl, fmtR } from './shared.jsx'
 
 function TopList({ items, title, color, Icon }) {
   return (
@@ -66,15 +66,7 @@ export default function ByInstrumentTab({ dateRange }) {
       </div>
 
       {/* Bar chart */}
-      <Section
-        title="P&L by Ticker"
-        actions={
-          <ExportButtons
-            onPNG={() => downloadChartPNG(chartRef, 'by-ticker.png')}
-            onCSV={() => downloadCSV(data, 'by-ticker.csv')}
-          />
-        }
-      >
+      <Section title="P&L by Ticker">
         {!chartData.length
           ? <div className="h-48 flex items-center justify-center text-gray-600 text-sm">No data</div>
           : (

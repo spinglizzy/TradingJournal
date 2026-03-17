@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useFlushNavigate } from '../hooks/useFlushNavigate.js'
-import { Search, Plus, ChevronDown, Settings, X, Menu } from 'lucide-react'
-import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
+import { Search, Plus, X, Pencil, Trash2 } from 'lucide-react'
+import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { journalApi } from '../api/journal.js'
 import { statsApi } from '../api/stats.js'
 import { tradesApi } from '../api/trades.js'
+import { playbookApi } from '../api/playbook.js'
+import { strategiesApi } from '../api/strategies.js'
 import JournalCalendar, { ENTRY_TYPES } from '../components/journal/JournalCalendar.jsx'
 import JournalList from '../components/journal/JournalList.jsx'
 import TipTapEditor from '../components/journal/TipTapEditor.jsx'
@@ -162,57 +164,13 @@ function EntryEditorPanel({
   isSaving,
 }) {
   const isNew = !entry
-  const [date,       setDate]       = useState(entry?.date       ?? initialDate ?? todayStr())
-  const [entryType,  setEntryType]  = useState(entry?.entry_type ?? initialType ?? 'daily')
-  const [title,      setTitle]      = useState(entry?.title      ?? '')
-  const [content,    setContent]    = useState(entry?.content    ?? '')
-  const [mood,       setMood]       = useState(entry?.mood       ?? null)
-  const [tags,       setTags]       = useState(entry?.tags       ?? [])
+  const [date,         setDate]         = useState(entry?.date       ?? initialDate ?? todayStr())
+  const [title,        setTitle]        = useState(entry?.title      ?? '')
+  const [content,      setContent]      = useState(entry?.content    ?? '')
+  const [mood,         setMood]         = useState(entry?.mood       ?? null)
+  const [tags,         setTags]         = useState(entry?.tags       ?? [])
   const [linkedTrades, setLinkedTrades] = useState(entry?.linked_trades ?? [])
   const [tradePickerOpen, setTradePickerOpen] = useState(false)
-  const [templateEditorOpen, setTemplateEditorOpen] = useState(false)
-  const [loadingTemplate, setLoadingTemplate] = useState(false)
-  const contentInitialized = useRef(false)
-
-  // Initialize content from template when creating a new entry
-  useEffect(() => {
-    if (!isNew || contentInitialized.current) return
-    contentInitialized.current = true
-
-    if (entryType === 'weekly_review') {
-      // Auto-fetch week stats
-      const d = parseISO(date)
-      const from = format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
-      const to   = format(endOfWeek(d,   { weekStartsOn: 1 }), 'yyyy-MM-dd')
-      setLoadingTemplate(true)
-      journalApi.weeklyStats(from, to)
-        .then(stats => setContent(generateWeeklyContent(stats, from, to)))
-        .catch(() => setContent(DEFAULT_TEMPLATES.post_session))
-        .finally(() => setLoadingTemplate(false))
-    } else {
-      const templates = getTemplates()
-      setContent(templates[entryType] || '')
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // When entry type changes on new entry, reload template
-  function handleTypeChange(newType) {
-    setEntryType(newType)
-    if (!isNew) return
-    if (newType === 'weekly_review') {
-      const d = parseISO(date)
-      const from = format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
-      const to   = format(endOfWeek(d,   { weekStartsOn: 1 }), 'yyyy-MM-dd')
-      setLoadingTemplate(true)
-      journalApi.weeklyStats(from, to)
-        .then(stats => setContent(generateWeeklyContent(stats, from, to)))
-        .catch(() => setContent(''))
-        .finally(() => setLoadingTemplate(false))
-    } else {
-      const templates = getTemplates()
-      setContent(templates[newType] || '')
-    }
-  }
 
   function handleTradesConfirm(ids) {
     // Load full trade info for display
@@ -228,7 +186,7 @@ function EntryEditorPanel({
   function handleSave() {
     onSave({
       date,
-      entry_type: entryType,
+      entry_type: entry?.entry_type ?? 'daily',
       title: title.trim(),
       content,
       mood: mood || null,
@@ -248,18 +206,6 @@ function EntryEditorPanel({
             {isNew ? 'New Entry' : 'Edit Entry'}
           </h2>
           <div className="flex items-center gap-2">
-            {/* Template editor (not for weekly_review or daily) */}
-            {entryType !== 'weekly_review' && (
-              <button
-                type="button"
-                onClick={() => setTemplateEditorOpen(true)}
-                title="Edit template for this entry type"
-                className="text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-800"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                Template
-              </button>
-            )}
             <button
               type="button"
               onClick={onClose}
@@ -272,29 +218,15 @@ function EntryEditorPanel({
 
         {/* Scrollable form body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {/* Entry type + Date row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Type</label>
-              <select
-                value={entryType}
-                onChange={e => handleTypeChange(e.target.value)}
-                className={inputCls}
-              >
-                {Object.entries(ENTRY_TYPES).map(([key, cfg]) => (
-                  <option key={key} value={key}>{cfg.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Date</label>
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className={inputCls}
-              />
-            </div>
+          {/* Date */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className={inputCls}
+            />
           </div>
 
           {/* Title */}
@@ -304,7 +236,7 @@ function EntryEditorPanel({
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder={`${ENTRY_TYPES[entryType]?.label ?? 'Journal'} — ${date}`}
+              placeholder={`Journal Entry — ${date}`}
               className={inputCls}
             />
           </div>
@@ -340,18 +272,12 @@ function EntryEditorPanel({
           {/* Rich text editor */}
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Content</label>
-            {loadingTemplate ? (
-              <div className="flex items-center justify-center h-40 bg-gray-900/50 border border-gray-700 rounded-xl">
-                <LoadingSpinner />
-              </div>
-            ) : (
-              <TipTapEditor
-                content={content}
-                onChange={setContent}
-                placeholder={`Write your ${ENTRY_TYPES[entryType]?.label?.toLowerCase() ?? 'journal entry'}…`}
-                minHeight={300}
-              />
-            )}
+            <TipTapEditor
+              content={content}
+              onChange={setContent}
+              placeholder="Write your journal entry…"
+              minHeight={300}
+            />
           </div>
 
           {/* Linked trades */}
@@ -411,31 +337,254 @@ function EntryEditorPanel({
         onConfirm={handleTradesConfirm}
       />
 
-      {/* Template editor */}
-      {templateEditorOpen && (
-        <TemplateEditorModal
-          type={entryType}
-          onClose={() => setTemplateEditorOpen(false)}
-        />
-      )}
     </>
   )
 }
 
-// ── New entry type picker ─────────────────────────────────────────────────────
-function NewEntryMenu({ onSelect, onClose }) {
+// ── Missed trades (moved from Playbook) ──────────────────────────────────────
+
+const missedInputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
+  text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
+
+function fmt$(n) {
+  if (n == null) return '—'
+  const prefix = n >= 0 ? '+$' : '-$'
+  return prefix + Math.abs(n).toFixed(2)
+}
+function pnlCls(v) { return v == null ? 'text-gray-400' : v >= 0 ? 'text-emerald-400' : 'text-red-400' }
+
+function MissedForm({ trade, setups, onSave, onCancel }) {
+  const today = new Date().toISOString().split('T')[0]
+  const [date,    setDate]    = useState(trade?.date                  ?? today)
+  const [ticker,  setTicker]  = useState(trade?.ticker                ?? '')
+  const [setupId, setSetupId] = useState(trade?.strategy_id           ?? '')
+  const [dir,     setDir]     = useState(trade?.direction              ?? 'long')
+  const [entry,   setEntry]   = useState(trade?.entry_would_have_been  ?? '')
+  const [exit,    setExit]    = useState(trade?.exit_would_have_been   ?? '')
+  const [size,    setSize]    = useState(trade?.position_size          ?? 100)
+  const [simPnl,  setSimPnl]  = useState(trade?.simulated_pnl         ?? '')
+  const [reason,  setReason]  = useState(trade?.reason_missed          ?? '')
+  const [notes,   setNotes]   = useState(trade?.notes                  ?? '')
+
+  useEffect(() => {
+    if (!entry || !exit || !size) return
+    const mult = dir === 'long' ? 1 : -1
+    setSimPnl((mult * (Number(exit) - Number(entry)) * Number(size)).toFixed(2))
+  }, [entry, exit, size, dir])
+
   return (
-    <div className="absolute right-0 top-full mt-2 w-52 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-30 overflow-hidden">
-      {Object.entries(ENTRY_TYPES).map(([key, cfg]) => (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Date *</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={missedInputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Ticker *</label>
+          <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} placeholder="AAPL" className={`${missedInputCls} uppercase`} />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Setup</label>
+          <select value={setupId} onChange={e => setSetupId(e.target.value)} className={missedInputCls}>
+            <option value="">None</option>
+            {setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Direction</label>
+          <select value={dir} onChange={e => setDir(e.target.value)} className={missedInputCls}>
+            <option value="long">Long</option>
+            <option value="short">Short</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Would-have Entry</label>
+          <input type="number" step="0.01" value={entry} onChange={e => setEntry(e.target.value)} className={missedInputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Would-have Exit</label>
+          <input type="number" step="0.01" value={exit} onChange={e => setExit(e.target.value)} className={missedInputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Size</label>
+          <input type="number" step="1" value={size} onChange={e => setSize(e.target.value)} className={missedInputCls} />
+        </div>
+      </div>
+      {simPnl !== '' && (
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-mono font-bold ${
+          Number(simPnl) >= 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'
+        }`}>
+          Simulated P&L: {fmt$(Number(simPnl))}
+        </div>
+      )}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Reason Missed</label>
+        <input value={reason} onChange={e => setReason(e.target.value)}
+          placeholder="e.g. Was distracted, Didn't take the setup, Fear of loss" className={missedInputCls} />
+      </div>
+      <div>
+        <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Notes</label>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`${missedInputCls} resize-none`} />
+      </div>
+      <div className="flex justify-end gap-2">
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
         <button
-          key={key}
-          onClick={() => { onSelect(key); onClose() }}
-          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-700 transition-colors text-left"
-        >
-          <span className={`w-2 h-2 rounded-full ${cfg.dot} shrink-0`} />
-          <span className="text-sm text-gray-200">{cfg.label}</span>
+          onClick={() => onSave({ date, ticker, strategy_id: setupId || null, direction: dir,
+            entry_would_have_been: entry || null, exit_would_have_been: exit || null,
+            position_size: Number(size), simulated_pnl: simPnl !== '' ? Number(simPnl) : null,
+            reason_missed: reason, notes })}
+          disabled={!ticker.trim() || !date}
+          className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-lg transition-colors">
+          {trade ? 'Save' : 'Log Missed Trade'}
         </button>
-      ))}
+      </div>
+    </div>
+  )
+}
+
+function MissedSection() {
+  const [missed,   setMissed]   = useState([])
+  const [summary,  setSummary]  = useState(null)
+  const [setups,   setSetups]   = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+  const [deleteId, setDeleteId] = useState(null)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    Promise.all([playbookApi.missed(), playbookApi.missedSummary(), strategiesApi.list()])
+      .then(([m, s, st]) => { setMissed(m); setSummary(s); setSetups(st) })
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function handleSave(data) {
+    if (editItem) await playbookApi.updateMissed(editItem.id, data)
+    else await playbookApi.createMissed(data)
+    setShowForm(false); setEditItem(null); load()
+  }
+
+  async function handleDelete() {
+    await playbookApi.deleteMissed(deleteId)
+    setDeleteId(null); load()
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Summary */}
+      {summary && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={`bg-gray-900 border rounded-xl p-4 card-glow ${(summary.total_missed ?? 0) >= 0 ? 'border-emerald-500/30' : 'border-red-500/30'}`}>
+            <div className="text-xs text-gray-500 mb-1">P&L Left on Table</div>
+            <div className={`text-2xl font-bold font-mono ${pnlCls(summary.total_missed)}`}>{fmt$(summary.total_missed)}</div>
+            <div className="text-xs text-gray-600 mt-0.5">{summary.count} missed trade{summary.count !== 1 ? 's' : ''}</div>
+          </div>
+          {summary.by_setup?.length > 0 && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
+              <div className="text-xs text-gray-500 mb-2">By Setup</div>
+              <div className="space-y-1.5">
+                {summary.by_setup.slice(0, 4).map(s => (
+                  <div key={s.setup_name} className="flex justify-between text-xs">
+                    <span className="text-gray-400">{s.setup_name}</span>
+                    <span className={`font-mono font-semibold ${pnlCls(s.total_pnl)}`}>{fmt$(s.total_pnl)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {summary.by_month?.length > 0 && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
+              <div className="text-xs text-gray-500 mb-2">Recent Months</div>
+              <div className="space-y-1.5">
+                {summary.by_month.slice(-4).map(m => (
+                  <div key={m.month} className="flex justify-between text-xs">
+                    <span className="text-gray-400">{m.month}</span>
+                    <span className={`font-mono font-semibold ${pnlCls(m.total_pnl)}`}>{fmt$(m.total_pnl)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-300">Missed Trades Log</h3>
+        <button onClick={() => { setEditItem(null); setShowForm(true) }}
+          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+          <Plus className="w-4 h-4" />
+          Log Missed Trade
+        </button>
+      </div>
+
+      {(showForm || editItem) && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
+          <h3 className="text-sm font-medium text-white mb-4">{editItem ? 'Edit' : 'Log Missed Trade'}</h3>
+          <MissedForm trade={editItem} setups={setups} onSave={handleSave}
+            onCancel={() => { setShowForm(false); setEditItem(null) }} />
+        </div>
+      )}
+
+      {loading ? <LoadingSpinner className="h-40" /> : missed.length === 0 ? (
+        <div className="py-16 text-center text-gray-600 text-sm border border-dashed border-gray-800 rounded-xl">
+          No missed trades logged yet
+        </div>
+      ) : (
+        <div className="overflow-x-auto bg-gray-900 border border-gray-800 rounded-xl card-glow">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-800">
+                {['Date','Ticker','Dir','Setup','Entry','Exit','Sim P&L','Reason',''].map(h => (
+                  <th key={h} className="text-left text-xs font-medium text-gray-500 uppercase tracking-wide px-3 py-3">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800/60">
+              {missed.map(t => (
+                <tr key={t.id} className="hover:bg-gray-800/30 transition-colors">
+                  <td className="px-3 py-2.5 text-xs font-mono text-gray-500">{t.date}</td>
+                  <td className="px-3 py-2.5 font-semibold text-white">{t.ticker}</td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-xs font-medium ${t.direction === 'long' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {t.direction?.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-gray-400">{t.strategy_name || '—'}</td>
+                  <td className="px-3 py-2.5 text-xs font-mono text-gray-400">{t.entry_would_have_been ? `$${t.entry_would_have_been}` : '—'}</td>
+                  <td className="px-3 py-2.5 text-xs font-mono text-gray-400">{t.exit_would_have_been ? `$${t.exit_would_have_been}` : '—'}</td>
+                  <td className={`px-3 py-2.5 text-xs font-mono font-semibold ${pnlCls(t.simulated_pnl)}`}>{fmt$(t.simulated_pnl)}</td>
+                  <td className="px-3 py-2.5 text-xs text-gray-500 max-w-xs truncate">{t.reason_missed || '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={() => { setEditItem(t); setShowForm(false) }}
+                        className="p-1 text-gray-500 hover:text-white hover:bg-gray-700 rounded transition-colors">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setDeleteId(t.id)}
+                        className="p-1 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <ConfirmDialog
+        isOpen={!!deleteId}
+        title="Delete Missed Trade"
+        message="This entry will be permanently deleted."
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   )
 }
@@ -468,13 +617,8 @@ export default function Journal() {
   const [selDate,  setSelDate]  = useState(null)        // selected calendar day
 
   // Filters (list view)
-  const [search,     setSearch]     = useState('')
-  const [filterType, setFilterType] = useState('')
-  const [filterTag,  setFilterTag]  = useState('')
-
-  // New entry menu
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef(null)
+  const [search,    setSearch]   = useState('')
+  const [filterTag, setFilterTag] = useState('')
 
   // ── Load entries + tags (on mount and after mutations) ──
   const loadEntries = useCallback(() => {
@@ -536,8 +680,8 @@ export default function Journal() {
   }, [])
 
   // ── Handlers ──
-  function openNewEntry(type, date = todayStr()) {
-    setNewEntryType(type)
+  function openNewEntry(date = todayStr()) {
+    setNewEntryType('daily')
     setNewEntryDate(date)
     setEditingEntry(null)
     setIsEditorOpen(true)
@@ -596,7 +740,6 @@ export default function Journal() {
   // ── Filtered entries for list view ──
   const filteredEntries = entries.filter(e => {
     if (selDate && e.date !== selDate) return false
-    if (filterType && e.entry_type !== filterType) return false
     if (filterTag && !(Array.isArray(e.tags) ? e.tags : []).includes(filterTag)) return false
     if (search) {
       const q = search.toLowerCase()
@@ -619,48 +762,37 @@ export default function Journal() {
         <div className="flex items-center gap-2">
           {/* View tabs */}
           <div className="flex rounded-lg bg-gray-900 border border-gray-800 p-0.5">
-            <button
-              onClick={() => setView('calendar')}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                view === 'calendar' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              Calendar
-            </button>
-            <button
-              onClick={() => setView('list')}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                view === 'list' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              List
-            </button>
+            {['calendar','list','missed'].map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors capitalize ${
+                  view === v ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {v === 'missed' ? 'Missed Trades' : v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
           </div>
 
-          {/* New Entry dropdown */}
-          <div className="relative" ref={menuRef}>
+          {/* New Entry button — hidden on missed tab */}
+          {view !== 'missed' && (
             <button
-              onClick={() => setMenuOpen(p => !p)}
+              onClick={() => openNewEntry(selDate || todayStr())}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
               New Entry
-              <ChevronDown className="w-4 h-4 ml-0.5" />
             </button>
-            {menuOpen && (
-              <NewEntryMenu
-                onSelect={type => openNewEntry(type, selDate || todayStr())}
-                onClose={() => setMenuOpen(false)}
-              />
-            )}
-          </div>
+          )}
         </div>
       </div>
 
+      {/* Missed Trades view */}
+      {view === 'missed' && <MissedSection />}
+
       {/* Main content */}
-      {loading ? (
+      {view !== 'missed' && loading ? (
         <LoadingSpinner className="h-64" />
-      ) : (
+      ) : view !== 'missed' && (
         <div className={`grid gap-5 ${isEditorOpen ? 'grid-cols-1 lg:grid-cols-5' : 'grid-cols-1'}`}>
 
           {/* Left: Calendar or List */}
@@ -683,16 +815,12 @@ export default function Journal() {
                       <h3 className="text-sm font-medium text-gray-300">
                         {format(parseISO(selDate), 'EEEE, MMMM d, yyyy')}
                       </h3>
-                      <div className="flex gap-1">
-                        {Object.keys(ENTRY_TYPES).map(type => (
-                          <button
-                            key={type}
-                            onClick={() => openNewEntry(type, selDate)}
-                            title={`New ${ENTRY_TYPES[type].label}`}
-                            className={`w-2 h-2 rounded-full ${ENTRY_TYPES[type].dot} hover:opacity-70 transition-opacity`}
-                          />
-                        ))}
-                      </div>
+                      <button
+                        onClick={() => openNewEntry(selDate)}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                      >
+                        + New Entry
+                      </button>
                     </div>
                     <JournalList
                       entries={filteredEntries}
@@ -718,16 +846,6 @@ export default function Journal() {
                       className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors"
                     />
                   </div>
-                  <select
-                    value={filterType}
-                    onChange={e => setFilterType(e.target.value)}
-                    className="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="">All types</option>
-                    {Object.entries(ENTRY_TYPES).map(([k, v]) => (
-                      <option key={k} value={k}>{v.label}</option>
-                    ))}
-                  </select>
                   {allTags.length > 0 && (
                     <select
                       value={filterTag}
@@ -738,9 +856,9 @@ export default function Journal() {
                       {allTags.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   )}
-                  {(search || filterType || filterTag || selDate) && (
+                  {(search || filterTag || selDate) && (
                     <button
-                      onClick={() => { setSearch(''); setFilterType(''); setFilterTag(''); setSelDate(null) }}
+                      onClick={() => { setSearch(''); setFilterTag(''); setSelDate(null) }}
                       className="px-3 py-2 text-xs text-gray-500 hover:text-gray-300 border border-gray-800 rounded-lg transition-colors"
                     >
                       Clear

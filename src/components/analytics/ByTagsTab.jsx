@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
-import { Section, WinRateBar, ExportButtons, fmt, fmtPnl, fmtR, downloadCSV, downloadChartPNG } from './shared.jsx'
+import { Section, WinRateBar, fmt, fmtPnl, fmtR } from './shared.jsx'
 
 function TagBadge({ name, color }) {
   return (
@@ -39,15 +39,7 @@ export default function ByTagsTab({ dateRange }) {
   return (
     <div className="space-y-6">
       {/* Bar chart */}
-      <Section
-        title="P&L by Tag"
-        actions={
-          <ExportButtons
-            onPNG={() => downloadChartPNG(chartRef, 'by-tag.png')}
-            onCSV={() => downloadCSV(data, 'by-tag.csv')}
-          />
-        }
-      >
+      <Section title="P&L by Tag">
         {!withWr.length
           ? <div className="h-48 flex items-center justify-center text-gray-600 text-sm">No tagged trades</div>
           : (

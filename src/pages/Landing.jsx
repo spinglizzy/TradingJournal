@@ -552,7 +552,7 @@ export default function Landing() {
                     'Win rate by time, ticker & setup',
                     'Profit factor and R-multiple analysis',
                     'Custom report builder with saved presets',
-                    'CSV export for any date range',
+                    'Deep dive into your best and worst setups',
                   ].map(item => (
                     <li key={item} className="flex items-center gap-3 text-sm text-gray-300">
                       <div
