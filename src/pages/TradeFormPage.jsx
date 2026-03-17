@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { Calculator, Lightbulb, X } from 'lucide-react'
+import { ArrowLeft, Calculator, Lightbulb, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { tradesApi } from '../api/trades.js'
 import { strategiesApi } from '../api/strategies.js'
@@ -340,6 +340,16 @@ export default function TradeFormPage() {
   return (
     <div className="max-w-2xl">
       <div className="mb-6">
+        {isEdit && (
+          <button
+            type="button"
+            onClick={() => navigate('/trades')}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-white transition-colors mb-3"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Trades
+          </button>
+        )}
         <h1 className="text-2xl font-bold text-white">{isEdit ? 'Edit Trade' : 'Log Trade'}</h1>
         <p className="text-sm text-gray-500 mt-1">{isEdit ? 'Update trade details' : 'Record a new trade'}</p>
       </div>
