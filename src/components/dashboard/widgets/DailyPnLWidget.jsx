@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { statsApi } from '../../../api/stats.js'
 import { useDashboard } from '../../../contexts/DashboardContext.jsx'
 import { useTheme } from '../../../contexts/ThemeContext.jsx'
+import { useFlushNavigate } from '../../../hooks/useFlushNavigate.js'
 
 function CustomTooltip({ active, payload, label, profitColor, lossColor }) {
   if (!active || !payload?.length) return null
@@ -14,6 +15,7 @@ function CustomTooltip({ active, payload, label, profitColor, lossColor }) {
       <div className="font-mono font-semibold" style={{ color: val >= 0 ? profitColor : lossColor }}>
         {val >= 0 ? '+' : ''}${Math.abs(val).toFixed(2)}
       </div>
+      <div className="text-gray-500 mt-0.5">Click to view trades</div>
     </div>
   )
 }
@@ -21,6 +23,7 @@ function CustomTooltip({ active, payload, label, profitColor, lossColor }) {
 export default function DailyPnLWidget({ config }) {
   const { apiParams } = useDashboard()
   const { activeTheme } = useTheme()
+  const navigate = useFlushNavigate()
   const profitColor = activeTheme.profitHex
   const lossColor   = activeTheme.lossHex
   const [data, setData] = useState([])
@@ -38,6 +41,7 @@ export default function DailyPnLWidget({ config }) {
 
   const formatted = data.map(d => ({
     ...d,
+    dateIso: d.date,
     date: format(parseISO(d.date), 'MMM d'),
   }))
 
@@ -54,7 +58,12 @@ export default function DailyPnLWidget({ config }) {
         />
         <Tooltip content={<CustomTooltip profitColor={profitColor} lossColor={lossColor} />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
         <ReferenceLine y={0} stroke="#374151" />
-        <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+        <Bar
+          dataKey="pnl"
+          radius={[3, 3, 0, 0]}
+          cursor="pointer"
+          onClick={(entry) => navigate(`/trades?date=${entry.dateIso}`)}
+        >
           {formatted.map((entry, i) => (
             <Cell key={i} fill={entry.pnl >= 0 ? profitColor : lossColor} opacity={0.85} />
           ))}

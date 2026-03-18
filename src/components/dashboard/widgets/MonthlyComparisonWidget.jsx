@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, endOfMonth } from 'date-fns'
 import { statsApi } from '../../../api/stats.js'
 import { useDashboard } from '../../../contexts/DashboardContext.jsx'
 import { useTheme } from '../../../contexts/ThemeContext.jsx'
+import { useFlushNavigate } from '../../../hooks/useFlushNavigate.js'
 
 function CustomTooltip({ active, payload, label, profitColor, lossColor }) {
   if (!active || !payload?.length) return null
@@ -16,6 +17,7 @@ function CustomTooltip({ active, payload, label, profitColor, lossColor }) {
         {val >= 0 ? '+' : ''}${Math.abs(val).toFixed(2)}
       </div>
       <div className="text-gray-500 mt-1">{entry.wins}W / {entry.losses}L ({entry.trades} trades)</div>
+      <div className="text-gray-600 mt-0.5">Click to view trades</div>
     </div>
   )
 }
@@ -23,6 +25,7 @@ function CustomTooltip({ active, payload, label, profitColor, lossColor }) {
 export default function MonthlyComparisonWidget({ config }) {
   const { apiParams } = useDashboard()
   const { activeTheme } = useTheme()
+  const navigate = useFlushNavigate()
   const profitColor = activeTheme.profitHex
   const lossColor   = activeTheme.lossHex
   const accentColor = activeTheme.accent
@@ -48,6 +51,12 @@ export default function MonthlyComparisonWidget({ config }) {
 
   const avg = data.reduce((s, d) => s + d.pnl, 0) / (data.length || 1)
 
+  function handleBarClick(entry) {
+    const monthStart = `${entry.month}-01`
+    const monthEnd   = format(endOfMonth(parseISO(monthStart)), 'yyyy-MM-dd')
+    navigate(`/trades?from=${monthStart}&to=${monthEnd}`)
+  }
+
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }} barCategoryGap="25%">
@@ -68,7 +77,7 @@ export default function MonthlyComparisonWidget({ config }) {
           label={{ value: 'avg', fill: activeTheme.accentLight, fontSize: 10, position: 'insideTopRight' }}
         />
         <ReferenceLine y={0} stroke="#374151" />
-        <Bar dataKey="pnl" name="Monthly P&L" radius={[4, 4, 0, 0]}>
+        <Bar dataKey="pnl" name="Monthly P&L" radius={[4, 4, 0, 0]} cursor="pointer" onClick={handleBarClick}>
           {data.map((entry, i) => (
             <Cell key={i} fill={entry.pnl >= 0 ? profitColor : lossColor} opacity={0.85} />
           ))}

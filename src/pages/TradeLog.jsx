@@ -25,8 +25,10 @@ export default function TradeLog() {
   const [deleteId, setDeleteId]     = useState(null)
 
   const dateParam = searchParams.get('date') ?? ''
+  const fromParam = searchParams.get('from') ?? ''
+  const toParam   = searchParams.get('to')   ?? ''
   const [filters, setFilters] = useState({
-    start_date: dateParam, end_date: dateParam, ticker: '', direction: '',
+    start_date: dateParam || fromParam, end_date: dateParam || toParam, ticker: '', direction: '',
     strategy_id: '', status: '', tag: '', search: '',
   })
   const [sort, setSort]   = useState({ sort_by: 'date', sort_dir: 'desc' })
