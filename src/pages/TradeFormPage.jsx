@@ -78,25 +78,27 @@ function ScreenshotPanel({ screenshots, onChange }) {
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 h-full flex flex-col gap-4">
-      <div className="flex items-center justify-between flex-shrink-0">
-        <h2 className="text-sm font-semibold text-gray-300">Screenshots</h2>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-400 hover:text-white hover:bg-indigo-600 border border-indigo-500/40 hover:border-indigo-600 rounded-lg transition-all disabled:opacity-50"
-        >
-          {uploading ? (
-            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-          ) : (
-            <ImagePlus className="w-3.5 h-3.5" />
-          )}
-          {uploading ? 'Uploading…' : 'Add Screenshot'}
-        </button>
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-300">Screenshots <span className="text-gray-600 font-normal">(max 2)</span></h2>
+        {screenshots.length < 2 && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-400 hover:text-white hover:bg-indigo-600 border border-indigo-500/40 hover:border-indigo-600 rounded-lg transition-all disabled:opacity-50"
+          >
+            {uploading ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+            ) : (
+              <ImagePlus className="w-3.5 h-3.5" />
+            )}
+            {uploading ? 'Uploading…' : 'Add Screenshot'}
+          </button>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -109,13 +111,13 @@ function ScreenshotPanel({ screenshots, onChange }) {
       {screenshots.length === 0 ? (
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="flex-1 border-2 border-dashed border-gray-700 hover:border-gray-600 rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+          className="min-h-[120px] border-2 border-dashed border-gray-700 hover:border-gray-600 rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
         >
           <ImagePlus className="w-8 h-8 text-gray-700 group-hover:text-gray-500 transition-colors" />
           <p className="text-xs text-gray-600 group-hover:text-gray-500 transition-colors">Click to upload a chart screenshot</p>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
+        <div className="space-y-4">
           {screenshots.map((s, idx) => (
             <div key={idx} className="space-y-2">
               <div className="relative group rounded-lg overflow-hidden border border-gray-700">
@@ -142,14 +144,16 @@ function ScreenshotPanel({ screenshots, onChange }) {
               />
             </div>
           ))}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="w-full py-2 border border-dashed border-gray-700 hover:border-gray-600 rounded-lg text-xs text-gray-600 hover:text-gray-400 transition-colors disabled:opacity-50"
-          >
-            + Add another screenshot
-          </button>
+          {screenshots.length < 2 && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full py-2 border border-dashed border-gray-700 hover:border-gray-600 rounded-lg text-xs text-gray-600 hover:text-gray-400 transition-colors disabled:opacity-50"
+            >
+              + Add another screenshot
+            </button>
+          )}
         </div>
       )}
 
@@ -525,7 +529,7 @@ export default function TradeFormPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,_640px)_1fr] gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,_640px)_1fr] gap-6 items-start">
       <div className="space-y-6">
         {/* Core fields */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
