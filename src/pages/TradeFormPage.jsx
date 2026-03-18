@@ -12,6 +12,32 @@ import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import PositionCalculator from '../components/calculator/PositionCalculator.jsx'
 
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function Lightbox({ src, onClose }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={onClose}>
+      <img
+        src={src}
+        alt="Screenshot"
+        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+      <button
+        className="absolute top-4 right-4 p-2 rounded-full bg-gray-900/80 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+        onClick={onClose}
+      >
+        <X className="w-6 h-6" />
+      </button>
+    </div>
+  )
+}
+
 // ── Screenshot panel ──────────────────────────────────────────────────────────
 function ScreenshotPanel({ screenshots, onChange }) {
   const fileInputRef = useRef(null)
@@ -127,18 +153,7 @@ function ScreenshotPanel({ screenshots, onChange }) {
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setLightbox(null)}
-        >
-          <button className="absolute top-4 right-4 text-gray-400 hover:text-white p-2">
-            <X className="w-6 h-6" />
-          </button>
-          <img src={lightbox} alt="Screenshot" className="max-w-full max-h-full rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
-        </div>
-      )}
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   )
 }

@@ -94,11 +94,18 @@ function Lightbox({ src, onClose }) {
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90" onClick={onClose}>
-      <img src={src} className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl" alt="screenshot" />
-      <button className="absolute top-4 right-4 text-gray-400 hover:text-white"
-        onClick={onClose}>
-        <X className="w-8 h-8" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={onClose}>
+      <img
+        src={src}
+        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+        alt="screenshot"
+        onClick={e => e.stopPropagation()}
+      />
+      <button
+        className="absolute top-4 right-4 p-2 rounded-full bg-gray-900/80 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+        onClick={onClose}
+      >
+        <X className="w-6 h-6" />
       </button>
     </div>
   )
@@ -716,27 +723,43 @@ export default function TradeDetailPage() {
                 {trade.notes}
               </div>
             )}
-            {trade.screenshot_path && (
-              <div>
-                <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Screenshots</div>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={() => setLightbox(trade.screenshot_path)}
-                    className="relative group rounded-lg overflow-hidden border border-gray-700 hover:border-indigo-500 transition-colors"
-                  >
-                    <img
-                      src={trade.screenshot_path}
-                      alt="Trade screenshot"
-                      className="w-48 h-32 object-cover"
-                      onError={e => { e.target.parentElement.style.display = 'none' }}
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <ZoomIn className="w-5 h-5 text-white" />
-                    </div>
-                  </button>
+            {trade.screenshot_path && (() => {
+              let shots = []
+              try {
+                const parsed = JSON.parse(trade.screenshot_path)
+                shots = Array.isArray(parsed) ? parsed : [{ url: trade.screenshot_path, caption: '' }]
+              } catch {
+                shots = [{ url: trade.screenshot_path, caption: '' }]
+              }
+              return (
+                <div>
+                  <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Screenshots</div>
+                  <div className="space-y-3">
+                    {shots.map((s, i) => (
+                      <div key={i} className="space-y-1">
+                        <button
+                          onClick={() => setLightbox(s.url)}
+                          className="relative group w-full rounded-lg overflow-hidden border border-gray-700 hover:border-indigo-500 transition-colors block"
+                        >
+                          <img
+                            src={s.url}
+                            alt={s.caption || `Screenshot ${i + 1}`}
+                            className="w-full max-h-72 object-contain bg-gray-950 cursor-zoom-in"
+                            onError={e => { e.target.closest('button').style.display = 'none' }}
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <ZoomIn className="w-6 h-6 text-white drop-shadow-lg" />
+                          </div>
+                        </button>
+                        {s.caption && (
+                          <p className="text-xs text-gray-500 px-1">{s.caption}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
         </Section>
       )}
