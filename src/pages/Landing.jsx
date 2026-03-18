@@ -427,6 +427,7 @@ export default function Landing() {
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
                   >
                     Start
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                   </Link>
                   <a
                     href="#features"
