@@ -534,40 +534,6 @@ export default function TradeFormPage() {
         <p className="text-sm text-gray-500 mt-1">{isEdit ? 'Update trade details' : 'Record a new trade'}</p>
       </div>
 
-      {/* P&L Preview — shown near top when P&L is calculated */}
-      {previewPnl && (
-        <div className={`mb-6 rounded-xl border px-5 py-4 flex items-center gap-6
-          ${previewPnl.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
-          <div>
-            <div className="text-xs text-gray-500 mb-0.5">
-              {previewPnl.fees > 0 ? 'Net P&L (after fees)' : 'P&L'}
-            </div>
-            <div className={`text-xl font-bold font-mono ${previewPnl.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {previewPnl.pnl >= 0 ? '+' : ''}${previewPnl.pnl.toFixed(2)}
-            </div>
-            {previewPnl.fees > 0 && (
-              <div className="text-xs text-gray-500 mt-0.5 font-mono">-${previewPnl.fees.toFixed(2)} fees</div>
-            )}
-          </div>
-          {previewPnl.pct != null && (
-            <div>
-              <div className="text-xs text-gray-500 mb-0.5">Return %</div>
-              <div className={`text-sm font-mono ${previewPnl.pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {previewPnl.pct >= 0 ? '+' : ''}{previewPnl.pct.toFixed(2)}%
-              </div>
-            </div>
-          )}
-          {previewPnl.r != null && (
-            <div>
-              <div className="text-xs text-gray-500 mb-0.5">R Multiple</div>
-              <div className={`text-sm font-mono ${previewPnl.r >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {previewPnl.r.toFixed(2)}R
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       <form onSubmit={handleSubmit(onSubmit)}>
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,_640px)_1fr] gap-6 items-start">
       <div className="space-y-6">
@@ -683,6 +649,40 @@ export default function TradeFormPage() {
             </div>
           )}
         </div>
+
+        {/* P&L Preview */}
+        {previewPnl && (
+          <div className={`rounded-xl border px-5 py-4 flex items-center gap-6
+            ${previewPnl.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+            <div>
+              <div className="text-xs text-gray-500 mb-0.5">
+                {previewPnl.fees > 0 ? 'Net P&L (after fees)' : 'P&L'}
+              </div>
+              <div className={`text-xl font-bold font-mono ${previewPnl.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {previewPnl.pnl >= 0 ? '+' : ''}${previewPnl.pnl.toFixed(2)}
+              </div>
+              {previewPnl.fees > 0 && (
+                <div className="text-xs text-gray-500 mt-0.5 font-mono">-${previewPnl.fees.toFixed(2)} fees</div>
+              )}
+            </div>
+            {previewPnl.pct != null && (
+              <div>
+                <div className="text-xs text-gray-500 mb-0.5">Return %</div>
+                <div className={`text-sm font-mono ${previewPnl.pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {previewPnl.pct >= 0 ? '+' : ''}{previewPnl.pct.toFixed(2)}%
+                </div>
+              </div>
+            )}
+            {previewPnl.r != null && (
+              <div>
+                <div className="text-xs text-gray-500 mb-0.5">R Multiple</div>
+                <div className={`text-sm font-mono ${previewPnl.r >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {previewPnl.r.toFixed(2)}R
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Optional fields */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
