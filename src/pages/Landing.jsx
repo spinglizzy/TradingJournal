@@ -657,7 +657,7 @@ export default function Landing() {
                 style={{ backgroundColor: 'color-mix(in srgb, #9aea62 8%, transparent)', border: '1px solid color-mix(in srgb, #9aea62 20%, transparent)', color: '#9aea62' }}
               >
                 <Shield className="w-3.5 h-3.5" />
-                Free to use · Your data stays yours
+                Your data stays yours
               </div>
 
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-5">
