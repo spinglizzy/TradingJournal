@@ -136,12 +136,17 @@ function ScreenshotPanel({ screenshots, onChange }) {
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <input
-                type="text"
+              <textarea
                 value={s.caption}
-                onChange={e => updateCaption(idx, e.target.value)}
+                onChange={e => {
+                  updateCaption(idx, e.target.value)
+                  e.target.style.height = 'auto'
+                  e.target.style.height = e.target.scrollHeight + 'px'
+                }}
+                onKeyDown={e => { if (e.key === 'Enter') e.stopPropagation() }}
                 placeholder="Add a caption…"
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                rows={3}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors resize-none overflow-hidden"
               />
             </div>
           ))}
