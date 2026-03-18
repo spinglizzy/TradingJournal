@@ -185,12 +185,6 @@ const FEATURES = [
   },
 ]
 
-const STATS = [
-  { value: '15+', label: 'Dashboard Widgets' },
-  { value: '6', label: 'Analytics Tabs' },
-  { value: '100%', label: 'Your Data' },
-  { value: '0', label: 'Hidden Fees' },
-]
 
 const HOW_IT_WORKS = [
   {
@@ -460,23 +454,6 @@ export default function Landing() {
             >
               <DashboardPreviewCard />
             </AnimatedGroup>
-          </div>
-        </section>
-
-        {/* Stats bar */}
-        <section
-          className="py-8"
-          style={{ borderTop: '1px solid color-mix(in srgb, #9aea62 10%, transparent)', borderBottom: '1px solid color-mix(in srgb, #9aea62 10%, transparent)', backgroundColor: 'color-mix(in srgb, #9aea62 3%, transparent)' }}
-        >
-          <div className="mx-auto max-w-4xl px-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-              {STATS.map(s => (
-                <div key={s.label}>
-                  <div className="text-3xl font-bold mb-1" style={{ color: '#9aea62' }}>{s.value}</div>
-                  <div className="text-sm text-gray-500">{s.label}</div>
-                </div>
-              ))}
-            </div>
           </div>
         </section>
 
