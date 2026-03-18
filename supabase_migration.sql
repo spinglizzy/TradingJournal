@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS trades (
   rules_broken      TEXT,
   entry_mode        TEXT NOT NULL DEFAULT 'entry_exit',
   direct_pnl        DOUBLE PRECISION,
+  confluences       TEXT[] DEFAULT '{}',
   account_id        INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
   user_id           UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
@@ -272,6 +273,7 @@ CREATE INDEX IF NOT EXISTS idx_journal_type         ON journal_entries(entry_typ
 CREATE INDEX IF NOT EXISTS idx_acct_tx_account      ON account_transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_goals_active         ON goals(active);
 CREATE INDEX IF NOT EXISTS idx_achievements_key     ON achievements(key);
+CREATE INDEX IF NOT EXISTS idx_trades_confluences   ON trades USING GIN(confluences);
 
 -- =============================================================================
 -- ROW LEVEL SECURITY
@@ -415,6 +417,13 @@ CREATE POLICY "screenshots_delete" ON storage.objects
 
 CREATE POLICY "screenshots_read" ON storage.objects
   FOR SELECT USING (bucket_id = 'screenshots');
+
+-- =============================================================================
+-- ADDITIVE MIGRATIONS — run these if upgrading an existing database
+-- (safe to run multiple times; CREATE TABLE above already includes the column)
+-- =============================================================================
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS confluences TEXT[] DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS idx_trades_confluences ON trades USING GIN(confluences);
 
 -- =============================================================================
 -- SAMPLE SEED DATA

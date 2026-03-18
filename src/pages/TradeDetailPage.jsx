@@ -599,6 +599,16 @@ export default function TradeDetailPage() {
               </div>
             )}
 
+            {/* Confluences */}
+            {Array.isArray(trade.confluences) && trade.confluences.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-gray-600 font-medium">Confluences:</span>
+                {trade.confluences.map(c => (
+                  <span key={c} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">{c}</span>
+                ))}
+              </div>
+            )}
+
             {/* Confidence */}
             {trade.confidence != null && (
               <div className="flex items-center gap-2">

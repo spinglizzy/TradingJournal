@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { flushSync, createPortal } from 'react-dom'
-import { ArrowLeft, Calculator, Lightbulb, X, ImagePlus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Calculator, GitMerge, Lightbulb, X, ImagePlus, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { tradesApi } from '../api/trades.js'
 import { strategiesApi } from '../api/strategies.js'
@@ -314,6 +314,67 @@ function RuleInput({ value, onChange, placeholder, colorClass }) {
   )
 }
 
+// ── Confluence input (free-type + autocomplete from history) ──────────────────
+function ConfluenceInput({ value, onChange, suggestions = [] }) {
+  const [input, setInput] = useState('')
+  const inputRef = useRef(null)
+
+  function add(item) {
+    const trimmed = item.trim()
+    if (trimmed && !value.includes(trimmed)) onChange([...value, trimmed])
+    setInput('')
+  }
+
+  function remove(item) {
+    onChange(value.filter(v => v !== item))
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Enter' && input.trim()) { e.preventDefault(); add(input) }
+    if (e.key === 'Backspace' && !input && value.length > 0) remove(value[value.length - 1])
+  }
+
+  const filtered = input.length > 0
+    ? suggestions.filter(s => !value.includes(s) && s.toLowerCase().includes(input.toLowerCase()))
+    : []
+
+  return (
+    <div>
+      <div
+        className="min-h-[40px] bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 flex flex-wrap gap-1.5 cursor-text focus-within:border-indigo-500 transition-colors"
+        onClick={() => inputRef.current?.focus()}
+      >
+        {value.map(item => (
+          <span key={item} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+            {item}
+            <button type="button" onClick={e => { e.stopPropagation(); remove(item) }}
+              className="opacity-60 hover:opacity-100 leading-none ml-0.5">×</button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={onKeyDown}
+          onBlur={() => { if (input.trim()) add(input) }}
+          placeholder={value.length === 0 ? 'e.g. Above VWAP, Earnings Catalyst, Inside Day…' : ''}
+          className="flex-1 min-w-[120px] bg-transparent text-sm text-white placeholder-gray-600 outline-none"
+        />
+      </div>
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {filtered.map(s => (
+            <button key={s} type="button" onClick={() => add(s)}
+              className="px-2 py-0.5 rounded text-xs text-gray-500 border border-gray-700 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main form ─────────────────────────────────────────────────────────────────
 export default function TradeFormPage() {
   const { id } = useParams()
@@ -350,6 +411,9 @@ export default function TradeFormPage() {
   const [mistakes,         setMistakes]         = useState([])
   const [rulesFollowed,    setRulesFollowed]    = useState([])
   const [rulesBroken,      setRulesBroken]      = useState([])
+
+  const [confluences,           setConfluences]           = useState([])
+  const [confluenceSuggestions, setConfluenceSuggestions] = useState([])
 
   const [showCalc, setShowCalc] = useState(false)
 
@@ -396,6 +460,7 @@ export default function TradeFormPage() {
   useEffect(() => {
     strategiesApi.list().then(setStrategies)
     tagsApi.list().then(setTags)
+    tradesApi.confluences().then(setConfluenceSuggestions).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -436,6 +501,7 @@ export default function TradeFormPage() {
       try { setMistakes(JSON.parse(trade.mistakes || '[]')) } catch { setMistakes([]) }
       try { setRulesFollowed(JSON.parse(trade.rules_followed || '[]')) } catch { setRulesFollowed([]) }
       try { setRulesBroken(JSON.parse(trade.rules_broken || '[]')) } catch { setRulesBroken([]) }
+      setConfluences(Array.isArray(trade.confluences) ? trade.confluences : [])
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -464,6 +530,7 @@ export default function TradeFormPage() {
           direct_pnl:        Number(data.direct_pnl),
           entry_mode:        'direct_pnl',
           screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
+          confluences:       confluences,
           tags:              selectedTags,
           account_id:        selectedAccountIdForm || null,
           confidence:        confidence,
@@ -485,6 +552,7 @@ export default function TradeFormPage() {
           entry_mode:        'entry_exit',
           direct_pnl:        null,
           screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
+          confluences:       confluences,
           tags:              selectedTags,
           account_id:        selectedAccountIdForm || null,
           confidence:        confidence,
@@ -732,6 +800,20 @@ export default function TradeFormPage() {
               className={`${inputCls} resize-none`}
             />
           </Field>
+        </div>
+
+        {/* Confluences section */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <GitMerge className="w-4 h-4 text-cyan-400" />
+            <h2 className="text-sm font-semibold text-gray-300">Confluences <span className="text-gray-600 font-normal">(optional)</span></h2>
+          </div>
+          <p className="text-xs text-gray-600">Factors that aligned to support this trade — type and press Enter to add.</p>
+          <ConfluenceInput
+            value={confluences}
+            onChange={setConfluences}
+            suggestions={confluenceSuggestions}
+          />
         </div>
 
         {/* Psychology section */}

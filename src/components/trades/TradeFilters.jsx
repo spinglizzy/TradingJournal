@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 
-export default function TradeFilters({ filters, onChange, strategies, tags }) {
+export default function TradeFilters({ filters, onChange, strategies, tags, confluenceSuggestions = [] }) {
   const [open, setOpen] = useState(false)
 
   function set(key, val) {
@@ -9,7 +9,7 @@ export default function TradeFilters({ filters, onChange, strategies, tags }) {
   }
 
   function reset() {
-    onChange({ start_date: '', end_date: '', ticker: '', direction: '', strategy_id: '', status: '', tag: '', search: '' })
+    onChange({ start_date: '', end_date: '', ticker: '', direction: '', strategy_id: '', status: '', tag: '', confluence: '', search: '' })
   }
 
   const activeCount = Object.values(filters).filter(Boolean).length
@@ -94,6 +94,16 @@ export default function TradeFilters({ filters, onChange, strategies, tags }) {
               {tags.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
           </div>
+          {confluenceSuggestions.length > 0 && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1.5">Confluence</label>
+              <select value={filters.confluence} onChange={e => set('confluence', e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <option value="">All</option>
+                {confluenceSuggestions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
         </div>
       )}
     </div>

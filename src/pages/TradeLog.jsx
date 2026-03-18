@@ -16,11 +16,12 @@ export default function TradeLog() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { selectedAccountId } = useAccount()
-  const [trades, setTrades]         = useState([])
-  const [total, setTotal]           = useState(0)
-  const [strategies, setStrategies] = useState([])
-  const [tags, setTags]             = useState([])
-  const [loading, setLoading]       = useState(true)
+  const [trades, setTrades]                     = useState([])
+  const [total, setTotal]                       = useState(0)
+  const [strategies, setStrategies]             = useState([])
+  const [tags, setTags]                         = useState([])
+  const [confluenceSuggestions, setConfluenceSuggestions] = useState([])
+  const [loading, setLoading]                   = useState(true)
   const [error, setError]           = useState(null)
   const [deleteId, setDeleteId]     = useState(null)
 
@@ -29,7 +30,7 @@ export default function TradeLog() {
   const toParam   = searchParams.get('to')   ?? ''
   const [filters, setFilters] = useState({
     start_date: dateParam || fromParam, end_date: dateParam || toParam, ticker: '', direction: '',
-    strategy_id: '', status: '', tag: '', search: '',
+    strategy_id: '', status: '', tag: '', confluence: '', search: '',
   })
   const [sort, setSort]   = useState({ sort_by: 'date', sort_dir: 'desc' })
   const [page, setPage]   = useState(1)
@@ -52,6 +53,7 @@ export default function TradeLog() {
   useEffect(() => {
     strategiesApi.list().then(setStrategies)
     tagsApi.list().then(setTags)
+    tradesApi.confluences().then(setConfluenceSuggestions).catch(() => {})
   }, [])
 
   function handleFilterChange(newFilters) {
@@ -113,6 +115,7 @@ export default function TradeLog() {
         onChange={handleFilterChange}
         strategies={strategies}
         tags={tags}
+        confluenceSuggestions={confluenceSuggestions}
       />
 
       {loading ? (
