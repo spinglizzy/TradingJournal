@@ -247,8 +247,8 @@ export default function OverviewTab({ dateRange }) {
     { label: 'Largest Loss',   value: fmtPnl(summary.worst_pnl), color: 'red',   sub: summary.worst_trade ? `${summary.worst_trade.ticker} on ${summary.worst_trade.date}` : null },
     { label: 'Max Drawdown',   value: maxDrawdown ? `${fmt(maxDrawdown, 1)}%` : '—', color: 'red' },
     { label: 'Avg Hold Time',  value: fmtDuration(avgHoldTime) },
-    { label: 'Best Streak',    value: streaks.longest_win > 0 ? `${streaks.longest_win}W` : '—', color: 'green' },
-    { label: 'Worst Streak',   value: streaks.longest_loss > 0 ? `${streaks.longest_loss}L` : '—', color: 'red' },
+    { label: 'Best Streak',    value: streaks.longest_win > 0 ? `${streaks.longest_win} Win${streaks.longest_win === 1 ? '' : 's'}` : '—', color: 'green' },
+    { label: 'Worst Streak',   value: streaks.longest_loss > 0 ? `${streaks.longest_loss} Loss${streaks.longest_loss === 1 ? '' : 'es'}` : '—', color: 'red' },
   ]
 
   return (

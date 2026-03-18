@@ -88,8 +88,8 @@ function ComparisonPanel({ onClose }) {
     { key: 'avg_loss',       label: 'Avg Loser',       fmt: fmtPnl,                       color: () => 'text-red-400' },
     { key: 'best_pnl',       label: 'Best Trade',      fmt: fmtPnl,                       color: () => 'text-emerald-400' },
     { key: 'worst_pnl',      label: 'Worst Trade',     fmt: fmtPnl,                       color: () => 'text-red-400' },
-    { key: 'longest_win',    label: 'Best Streak',     fmt: v => v > 0 ? `${v}W` : '—',   color: () => 'text-emerald-400' },
-    { key: 'longest_loss',   label: 'Worst Streak',    fmt: v => v > 0 ? `${v}L` : '—',   color: () => 'text-red-400' },
+    { key: 'longest_win',    label: 'Best Streak',     fmt: v => v > 0 ? `${v} Win${v === 1 ? '' : 's'}` : '—',   color: () => 'text-emerald-400' },
+    { key: 'longest_loss',   label: 'Worst Streak',    fmt: v => v > 0 ? `${v} Loss${v === 1 ? '' : 'es'}` : '—', color: () => 'text-red-400' },
   ]
 
   return (
