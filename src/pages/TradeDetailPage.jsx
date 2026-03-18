@@ -575,6 +575,15 @@ export default function TradeDetailPage() {
               {trade.setup && (
                 <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">{trade.setup}</span>
               )}
+              {trade.bias && (
+                <span className={`text-xs px-2 py-0.5 rounded border font-medium ${
+                  trade.bias === 'bullish' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                  trade.bias === 'bearish' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                  'bg-gray-700/50 text-gray-400 border-gray-600/40'
+                }`}>
+                  {trade.bias.charAt(0).toUpperCase() + trade.bias.slice(1)}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-4 text-sm text-gray-400 flex-wrap">

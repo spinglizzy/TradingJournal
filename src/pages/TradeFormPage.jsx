@@ -430,6 +430,7 @@ export default function TradeFormPage() {
       stop_loss:   navState?.stop_loss   ?? '',
       fees: 0,
       direct_pnl: '',
+      bias: '',
     }
   })
 
@@ -486,6 +487,7 @@ export default function TradeFormPage() {
         timeframe:      trade.timeframe ?? '',
         notes:          trade.notes ?? '',
         direct_pnl:     trade.direct_pnl ?? '',
+        bias:           trade.bias ?? '',
       })
       setSelectedTags(trade.tags.map(t => t.id))
       setSelectedAccountIdForm(trade.account_id ?? '')
@@ -533,6 +535,7 @@ export default function TradeFormPage() {
           stop_loss:         null,
           direct_pnl:        Number(data.direct_pnl),
           entry_mode:        'direct_pnl',
+          bias:              data.bias || null,
           screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
           confluences:       confluences,
           pd_arrays:         pdArrays,
@@ -775,12 +778,22 @@ export default function TradeFormPage() {
             </Field>
           )}
 
-          <Field label="Strategy" optional>
-            <select {...register('strategy_id')} className={inputCls}>
-              <option value="">None</option>
-              {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Strategy" optional>
+              <select {...register('strategy_id')} className={inputCls}>
+                <option value="">None</option>
+                {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Bias" optional>
+              <select {...register('bias')} className={inputCls}>
+                <option value="">None</option>
+                <option value="bullish">Bullish</option>
+                <option value="bearish">Bearish</option>
+                <option value="neutral">Neutral</option>
+              </select>
+            </Field>
+          </div>
 
           <div>
             <label className="block text-xs text-gray-400 mb-2 font-medium">Tags <span className="text-gray-600 font-normal">(optional)</span></label>

@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS trades (
   direct_pnl        DOUBLE PRECISION,
   confluences       TEXT[] DEFAULT '{}',
   pd_arrays         TEXT[] DEFAULT '{}',
+  bias              TEXT CHECK(bias IN ('bullish','bearish','neutral')),
   account_id        INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
   user_id           UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
@@ -425,6 +426,7 @@ CREATE POLICY "screenshots_read" ON storage.objects
 -- =============================================================================
 ALTER TABLE trades ADD COLUMN IF NOT EXISTS confluences TEXT[] DEFAULT '{}';
 ALTER TABLE trades ADD COLUMN IF NOT EXISTS pd_arrays   TEXT[] DEFAULT '{}';
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS bias        TEXT CHECK(bias IN ('bullish','bearish','neutral'));
 CREATE INDEX IF NOT EXISTS idx_trades_confluences ON trades USING GIN(confluences);
 CREATE INDEX IF NOT EXISTS idx_trades_pd_arrays   ON trades USING GIN(pd_arrays);
 
