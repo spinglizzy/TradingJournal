@@ -314,10 +314,6 @@ function TiltImage({ src, alt, restRx = 6, restRy = -2, wrapperClassName = '', f
 
   return (
     <div className={`relative ${wrapperClassName}`} style={{ perspective: '1200px' }}>
-      <div
-        className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-3/4 h-10 rounded-full blur-3xl pointer-events-none"
-        style={{ background: 'color-mix(in srgb, #9aea62 15%, transparent)' }}
-      />
       {fadeBottom && (
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-gray-950 to-transparent z-10 pointer-events-none rounded-b-2xl" />
       )}
