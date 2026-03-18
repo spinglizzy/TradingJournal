@@ -524,8 +524,9 @@ export default function TradeFormPage() {
         <p className="text-sm text-gray-500 mt-1">{isEdit ? 'Update trade details' : 'Record a new trade'}</p>
       </div>
 
+      <form onSubmit={handleSubmit(onSubmit)}>
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,_640px)_1fr] gap-6 items-stretch">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <div className="space-y-6">
         {/* Core fields */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
           <div className="flex items-center justify-between">
@@ -822,17 +823,23 @@ export default function TradeFormPage() {
           </div>
         )}
 
+      </div>
+
+      {/* Right column — screenshots */}
+      <ScreenshotPanel screenshots={screenshots} onChange={setScreenshots} />
+
+      </div>
+
         {/* Actions */}
         {submitError && (
-          <div className="px-4 py-3 bg-red-900/20 border border-red-800/40 rounded-lg text-sm text-red-400">
+          <div className="px-4 py-3 bg-red-900/20 border border-red-800/40 rounded-lg text-sm text-red-400 mt-6">
             {submitError}
           </div>
         )}
-        <div className="flex gap-3 justify-end">
+        <div className="flex gap-3 justify-end mt-6">
           <button type="button" onClick={() => flushSync(() => navigate(-1))}
             className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
             Cancel
-
           </button>
           <button type="submit" disabled={submitting}
             className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors">
@@ -840,11 +847,6 @@ export default function TradeFormPage() {
           </button>
         </div>
       </form>
-
-      {/* Right column — screenshots */}
-      <ScreenshotPanel screenshots={screenshots} onChange={setScreenshots} />
-
-      </div>
     </div>
   )
 }
