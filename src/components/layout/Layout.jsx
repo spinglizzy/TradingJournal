@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import TopNav from './TopNav.jsx'
@@ -21,6 +21,8 @@ export default function Layout() {
 
 function LayoutInner() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isDashboard = location.pathname === '/dashboard' || location.pathname === '/'
   const [showShortcuts,  setShowShortcuts]  = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const keyBuffer = useRef([])
@@ -82,7 +84,7 @@ function LayoutInner() {
       <TopNav />
 
       {/* ── Layer 10: page content ── */}
-      <main className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12" style={{ zIndex: 10 }}>
+      <main className={`relative mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 ${isDashboard ? 'max-w-none' : 'max-w-screen-2xl'}`} style={{ zIndex: 10 }}>
         <Outlet />
       </main>
 
