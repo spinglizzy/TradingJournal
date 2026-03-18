@@ -680,7 +680,7 @@ export default function Landing() {
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7fd64a'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#9aea62'}
               >
-                Get Started Free
+                Get Started
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </motion.div>
