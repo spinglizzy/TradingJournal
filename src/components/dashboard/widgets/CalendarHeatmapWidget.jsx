@@ -51,6 +51,7 @@ export default function CalendarHeatmapWidget({ config }) {
   const days       = eachDayOfInterval({ start: calStart, end: calEnd })
 
   const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+  const numWeeks   = Math.ceil(days.length / 7)
 
   function pnlBg(pnl, inMonth) {
     if (!inMonth) return 'rgba(17,24,39,0.3)'
@@ -117,13 +118,13 @@ export default function CalendarHeatmapWidget({ config }) {
 
       {/* Calendar grid */}
       {loading ? (
-        <div className="flex-1 grid grid-cols-7 gap-1">
-          {Array.from({ length: 35 }).map((_, i) => (
-            <div key={i} className="aspect-square bg-gray-800/30 rounded animate-pulse" />
+        <div className="flex-1 grid grid-cols-7 gap-1" style={{ gridTemplateRows: `repeat(${numWeeks}, 1fr)` }}>
+          {Array.from({ length: numWeeks * 7 }).map((_, i) => (
+            <div key={i} className="bg-gray-800/30 rounded animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="flex-1 grid grid-cols-7 gap-1">
+        <div className="flex-1 grid grid-cols-7 gap-1" style={{ gridTemplateRows: `repeat(${numWeeks}, 1fr)` }}>
           {days.map((day) => {
             const dateStr  = format(day, 'yyyy-MM-dd')
             const entry    = dataMap[dateStr]
@@ -135,8 +136,8 @@ export default function CalendarHeatmapWidget({ config }) {
               <div
                 key={dateStr}
                 className={`
-                  relative aspect-square rounded cursor-pointer transition-colors text-center
-                  flex flex-col items-center justify-center gap-0
+                  relative rounded cursor-pointer transition-colors
+                  flex flex-col items-center justify-center gap-0 min-h-0
                   ${todayDay ? 'ring-1 ring-indigo-400' : ''}
                   ${!inMonth ? 'cursor-default' : ''}
                 `}
