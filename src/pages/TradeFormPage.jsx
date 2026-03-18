@@ -78,8 +78,8 @@ function ScreenshotPanel({ screenshots, onChange }) {
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4 h-fit">
-      <div className="flex items-center justify-between">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 h-full flex flex-col gap-4">
+      <div className="flex items-center justify-between flex-shrink-0">
         <h2 className="text-sm font-semibold text-gray-300">Screenshots</h2>
         <button
           type="button"
@@ -109,13 +109,13 @@ function ScreenshotPanel({ screenshots, onChange }) {
       {screenshots.length === 0 ? (
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-gray-700 hover:border-gray-600 rounded-lg p-8 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+          className="flex-1 border-2 border-dashed border-gray-700 hover:border-gray-600 rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
         >
           <ImagePlus className="w-8 h-8 text-gray-700 group-hover:text-gray-500 transition-colors" />
           <p className="text-xs text-gray-600 group-hover:text-gray-500 transition-colors">Click to upload a chart screenshot</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
           {screenshots.map((s, idx) => (
             <div key={idx} className="space-y-2">
               <div className="relative group rounded-lg overflow-hidden border border-gray-700">
@@ -510,7 +510,7 @@ export default function TradeFormPage() {
   if (loading) return <LoadingSpinner className="h-64" />
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <div className="mb-6">
         <button
           type="button"
@@ -524,7 +524,7 @@ export default function TradeFormPage() {
         <p className="text-sm text-gray-500 mt-1">{isEdit ? 'Update trade details' : 'Record a new trade'}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_480px] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,_640px)_1fr] gap-6 items-stretch">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Core fields */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
