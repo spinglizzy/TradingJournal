@@ -21,11 +21,11 @@ function Lightbox({ src, onClose }) {
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
       <img
         src={src}
         alt="Screenshot"
-        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+        className="max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] object-contain rounded-lg shadow-2xl"
         onClick={e => e.stopPropagation()}
       />
       <button
@@ -122,7 +122,7 @@ function ScreenshotPanel({ screenshots, onChange }) {
                 <img
                   src={s.url}
                   alt={s.caption || `Screenshot ${idx + 1}`}
-                  className="w-full object-contain cursor-zoom-in max-h-[520px] bg-gray-950"
+                  className="w-full object-contain cursor-zoom-in max-h-[700px] bg-gray-950"
                   onClick={() => setLightbox(s.url)}
                 />
                 <button

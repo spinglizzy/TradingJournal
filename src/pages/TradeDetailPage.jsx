@@ -94,10 +94,10 @@ function Lightbox({ src, onClose }) {
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
       <img
         src={src}
-        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+        className="max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] object-contain rounded-lg shadow-2xl"
         alt="screenshot"
         onClick={e => e.stopPropagation()}
       />
@@ -744,7 +744,7 @@ export default function TradeDetailPage() {
                           <img
                             src={s.url}
                             alt={s.caption || `Screenshot ${i + 1}`}
-                            className="w-full max-h-72 object-contain bg-gray-950 cursor-zoom-in"
+                            className="w-full max-h-[520px] object-contain bg-gray-950 cursor-zoom-in"
                             onError={e => { e.target.closest('button').style.display = 'none' }}
                           />
                           <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
