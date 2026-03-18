@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
   try {
     const {
       start_date, end_date, ticker, direction, strategy_id,
-      status, tag, confluence, search, account_id,
+      status, tag, confluence, pd_array, search, account_id,
       sort_by = 'date', sort_dir = 'desc',
       page = 1, limit = 50,
     } = req.query
@@ -40,6 +40,9 @@ router.get('/', async (req, res) => {
     }
     if (confluence) {
       w.push(`$${p.push(confluence)} = ANY(t.confluences)`)
+    }
+    if (pd_array) {
+      w.push(`$${p.push(pd_array)} = ANY(t.pd_arrays)`)
     }
 
     const allowedSort = ['date', 'ticker', 'direction', 'pnl', 'pnl_percent', 'r_multiple', 'position_size']
@@ -88,6 +91,19 @@ router.get('/confluences', async (req, res) => {
   }
 })
 
+// ── Get all distinct PD array values for this user (autocomplete) ─────────────
+router.get('/pd-arrays', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT unnest(pd_arrays) AS c FROM trades WHERE user_id = $1 AND pd_arrays IS NOT NULL ORDER BY c`,
+      [req.userId]
+    )
+    res.json(result.rows.map(r => r.c))
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
+  }
+})
+
 // ── Get single trade ─────────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
@@ -120,7 +136,7 @@ router.post('/', async (req, res) => {
       notes: null, screenshot_path: null, account_id: null, confidence: null,
       emotions: null, mistakes: null, setup: null, emotion_intensity: null,
       rules_followed: null, rules_broken: null, entry_mode: 'entry_exit', direct_pnl: null,
-      confluences: [],
+      confluences: [], pd_arrays: [],
       ...fields, status, pnl, pnl_percent, r_multiple,
     }
 
@@ -129,15 +145,15 @@ router.post('/', async (req, res) => {
         position_size, fees, strategy_id, timeframe, notes, screenshot_path, account_id,
         status, pnl, pnl_percent, r_multiple,
         confidence, emotions, mistakes, setup, emotion_intensity, rules_followed, rules_broken,
-        entry_mode, direct_pnl, confluences, user_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+        entry_mode, direct_pnl, confluences, pd_arrays, user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
       RETURNING id
     `, [
       f.date, f.ticker, f.direction, f.entry_price, f.exit_price, f.stop_loss,
       f.position_size, f.fees, f.strategy_id, f.timeframe, f.notes, f.screenshot_path, f.account_id,
       f.status, f.pnl, f.pnl_percent, f.r_multiple,
       f.confidence, f.emotions, f.mistakes, f.setup, f.emotion_intensity, f.rules_followed, f.rules_broken,
-      f.entry_mode, f.direct_pnl, f.confluences,
+      f.entry_mode, f.direct_pnl, f.confluences, f.pd_arrays,
       req.userId,
     ])
 
@@ -180,16 +196,16 @@ router.put('/:id', async (req, res) => {
         screenshot_path=$12, account_id=$13, status=$14, pnl=$15, pnl_percent=$16,
         r_multiple=$17, confidence=$18, emotions=$19, mistakes=$20, setup=$21,
         emotion_intensity=$22, rules_followed=$23, rules_broken=$24,
-        entry_mode=$25, direct_pnl=$26, confluences=$27,
+        entry_mode=$25, direct_pnl=$26, confluences=$27, pd_arrays=$28,
         updated_at=${NOW}
-      WHERE id=$28 AND user_id=$29
+      WHERE id=$29 AND user_id=$30
     `, [
       merged.date, merged.ticker, merged.direction, merged.entry_price, merged.exit_price, merged.stop_loss,
       merged.position_size, merged.fees, merged.strategy_id, merged.timeframe, merged.notes,
       merged.screenshot_path, merged.account_id, status, pnl, pnl_percent,
       r_multiple, merged.confidence, merged.emotions, merged.mistakes, merged.setup,
       merged.emotion_intensity, merged.rules_followed, merged.rules_broken,
-      merged.entry_mode, merged.direct_pnl, merged.confluences ?? [],
+      merged.entry_mode, merged.direct_pnl, merged.confluences ?? [], merged.pd_arrays ?? [],
       req.params.id, req.userId,
     ])
 

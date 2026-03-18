@@ -14,6 +14,7 @@ export const tradesApi = {
   update:       (id, body)    => api.put(`/trades/${id}`, body),
   delete:       (id)          => api.delete(`/trades/${id}`),
   confluences:  ()            => api.get('/trades/confluences'),
+  pdArrays:     ()            => api.get('/trades/pd-arrays'),
   journal:      (id)          => api.get(`/trades/${id}/journal`),
   neighbors:    (id)          => api.get(`/trades/${id}/neighbors`),
   executions:   (id)          => api.get(`/trades/${id}/executions`),

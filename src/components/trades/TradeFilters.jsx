@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 
-export default function TradeFilters({ filters, onChange, strategies, tags, confluenceSuggestions = [] }) {
+export default function TradeFilters({ filters, onChange, strategies, tags, confluenceSuggestions = [], pdArraySuggestions = [] }) {
   const [open, setOpen] = useState(false)
 
   function set(key, val) {
@@ -9,7 +9,7 @@ export default function TradeFilters({ filters, onChange, strategies, tags, conf
   }
 
   function reset() {
-    onChange({ start_date: '', end_date: '', ticker: '', direction: '', strategy_id: '', status: '', tag: '', confluence: '', search: '' })
+    onChange({ start_date: '', end_date: '', ticker: '', direction: '', strategy_id: '', status: '', tag: '', confluence: '', pd_array: '', search: '' })
   }
 
   const activeCount = Object.values(filters).filter(Boolean).length
@@ -101,6 +101,16 @@ export default function TradeFilters({ filters, onChange, strategies, tags, conf
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
                 <option value="">All</option>
                 {confluenceSuggestions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+          {pdArraySuggestions.length > 0 && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1.5">PD Array</label>
+              <select value={filters.pd_array} onChange={e => set('pd_array', e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <option value="">All</option>
+                {pdArraySuggestions.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           )}

@@ -21,6 +21,7 @@ export default function TradeLog() {
   const [strategies, setStrategies]             = useState([])
   const [tags, setTags]                         = useState([])
   const [confluenceSuggestions, setConfluenceSuggestions] = useState([])
+  const [pdArraySuggestions,    setPdArraySuggestions]    = useState([])
   const [loading, setLoading]                   = useState(true)
   const [error, setError]           = useState(null)
   const [deleteId, setDeleteId]     = useState(null)
@@ -30,7 +31,7 @@ export default function TradeLog() {
   const toParam   = searchParams.get('to')   ?? ''
   const [filters, setFilters] = useState({
     start_date: dateParam || fromParam, end_date: dateParam || toParam, ticker: '', direction: '',
-    strategy_id: '', status: '', tag: '', confluence: '', search: '',
+    strategy_id: '', status: '', tag: '', confluence: '', pd_array: '', search: '',
   })
   const [sort, setSort]   = useState({ sort_by: 'date', sort_dir: 'desc' })
   const [page, setPage]   = useState(1)
@@ -54,6 +55,7 @@ export default function TradeLog() {
     strategiesApi.list().then(setStrategies)
     tagsApi.list().then(setTags)
     tradesApi.confluences().then(setConfluenceSuggestions).catch(() => {})
+    tradesApi.pdArrays().then(setPdArraySuggestions).catch(() => {})
   }, [])
 
   function handleFilterChange(newFilters) {
@@ -116,6 +118,7 @@ export default function TradeLog() {
         strategies={strategies}
         tags={tags}
         confluenceSuggestions={confluenceSuggestions}
+        pdArraySuggestions={pdArraySuggestions}
       />
 
       {loading ? (

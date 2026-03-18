@@ -414,6 +414,8 @@ export default function TradeFormPage() {
 
   const [confluences,           setConfluences]           = useState([])
   const [confluenceSuggestions, setConfluenceSuggestions] = useState([])
+  const [pdArrays,              setPdArrays]              = useState([])
+  const [pdArraySuggestions,    setPdArraySuggestions]    = useState([])
 
   const [showCalc, setShowCalc] = useState(false)
 
@@ -461,6 +463,7 @@ export default function TradeFormPage() {
     strategiesApi.list().then(setStrategies)
     tagsApi.list().then(setTags)
     tradesApi.confluences().then(setConfluenceSuggestions).catch(() => {})
+    tradesApi.pdArrays().then(setPdArraySuggestions).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -502,6 +505,7 @@ export default function TradeFormPage() {
       try { setRulesFollowed(JSON.parse(trade.rules_followed || '[]')) } catch { setRulesFollowed([]) }
       try { setRulesBroken(JSON.parse(trade.rules_broken || '[]')) } catch { setRulesBroken([]) }
       setConfluences(Array.isArray(trade.confluences) ? trade.confluences : [])
+      setPdArrays(Array.isArray(trade.pd_arrays) ? trade.pd_arrays : [])
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -531,6 +535,7 @@ export default function TradeFormPage() {
           entry_mode:        'direct_pnl',
           screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
           confluences:       confluences,
+          pd_arrays:         pdArrays,
           tags:              selectedTags,
           account_id:        selectedAccountIdForm || null,
           confidence:        confidence,
@@ -553,6 +558,7 @@ export default function TradeFormPage() {
           direct_pnl:        null,
           screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
           confluences:       confluences,
+          pd_arrays:         pdArrays,
           tags:              selectedTags,
           account_id:        selectedAccountIdForm || null,
           confidence:        confidence,
@@ -813,6 +819,20 @@ export default function TradeFormPage() {
             value={confluences}
             onChange={setConfluences}
             suggestions={confluenceSuggestions}
+          />
+        </div>
+
+        {/* PD Arrays section */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <GitMerge className="w-4 h-4 text-amber-400" />
+            <h2 className="text-sm font-semibold text-gray-300">PD Arrays <span className="text-gray-600 font-normal">(optional)</span></h2>
+          </div>
+          <p className="text-xs text-gray-600">Price Delivery Arrays relevant to this trade — type and press Enter to add.</p>
+          <ConfluenceInput
+            value={pdArrays}
+            onChange={setPdArrays}
+            suggestions={pdArraySuggestions}
           />
         </div>
 
