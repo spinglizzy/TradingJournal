@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { flushSync } from 'react-dom'
+import { flushSync, createPortal } from 'react-dom'
 import { ArrowLeft, Calculator, Lightbulb, X, ImagePlus, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { tradesApi } from '../api/trades.js'
@@ -20,7 +20,7 @@ function Lightbox({ src, onClose }) {
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
       <img
         src={src}
@@ -34,7 +34,8 @@ function Lightbox({ src, onClose }) {
       >
         <X className="w-6 h-6" />
       </button>
-    </div>
+    </div>,
+    document.body
   )
 }
 

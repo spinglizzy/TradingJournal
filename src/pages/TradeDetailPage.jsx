@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { flushSync } from 'react-dom'
+import { flushSync, createPortal } from 'react-dom'
 import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Trash2, ZoomIn, Plus, X } from 'lucide-react'
 import { format, parseISO, differenceInCalendarDays } from 'date-fns'
 import { tradesApi } from '../api/trades.js'
@@ -93,7 +93,7 @@ function Lightbox({ src, onClose }) {
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
       <img
         src={src}
@@ -107,7 +107,8 @@ function Lightbox({ src, onClose }) {
       >
         <X className="w-6 h-6" />
       </button>
-    </div>
+    </div>,
+    document.body
   )
 }
 
