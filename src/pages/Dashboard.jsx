@@ -60,7 +60,7 @@ function DashboardInner() {
   const existingTypes = layout.map(w => w.type)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-64">
       {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
