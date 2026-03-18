@@ -9,7 +9,7 @@ export default function TradeFilters({ filters, onChange, strategies, tags, conf
   }
 
   function reset() {
-    onChange({ start_date: '', end_date: '', ticker: '', direction: '', strategy_id: '', status: '', tag: '', confluence: '', pd_array: '', bias: '', search: '' })
+    onChange({ start_date: '', end_date: '', ticker: '', direction: '', strategy_id: '', status: '', tag: '', confluence: '', pd_array: '', bias: '', smt_divergence: '', search: '' })
   }
 
   const activeCount = Object.values(filters).filter(Boolean).length
@@ -67,6 +67,15 @@ export default function TradeFilters({ filters, onChange, strategies, tags, conf
               <option value="">All</option>
               <option value="long">Long</option>
               <option value="short">Short</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5">SMT Divergence</label>
+            <select value={filters.smt_divergence} onChange={e => set('smt_divergence', e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              <option value="">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
             </select>
           </div>
           <div>

@@ -431,6 +431,7 @@ export default function TradeFormPage() {
       fees: 0,
       direct_pnl: '',
       bias: '',
+      smt_divergence: '',
     }
   })
 
@@ -488,6 +489,7 @@ export default function TradeFormPage() {
         notes:          trade.notes ?? '',
         direct_pnl:     trade.direct_pnl ?? '',
         bias:           trade.bias ?? '',
+        smt_divergence: trade.smt_divergence != null ? String(trade.smt_divergence) : '',
       })
       setSelectedTags(trade.tags.map(t => t.id))
       setSelectedAccountIdForm(trade.account_id ?? '')
@@ -536,6 +538,7 @@ export default function TradeFormPage() {
           direct_pnl:        Number(data.direct_pnl),
           entry_mode:        'direct_pnl',
           bias:              data.bias || null,
+          smt_divergence:    data.smt_divergence !== '' ? data.smt_divergence === 'true' : null,
           screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
           confluences:       confluences,
           pd_arrays:         pdArrays,
@@ -559,6 +562,7 @@ export default function TradeFormPage() {
           strategy_id:       data.strategy_id || null,
           entry_mode:        'entry_exit',
           direct_pnl:        null,
+          smt_divergence:    data.smt_divergence !== '' ? data.smt_divergence === 'true' : null,
           screenshot_path:   screenshots.length ? JSON.stringify(screenshots) : null,
           confluences:       confluences,
           pd_arrays:         pdArrays,
@@ -791,6 +795,16 @@ export default function TradeFormPage() {
                 <option value="bullish">Bullish</option>
                 <option value="bearish">Bearish</option>
                 <option value="neutral">Neutral</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="SMT Divergence" optional>
+              <select {...register('smt_divergence')} className={inputCls}>
+                <option value="">Not recorded</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
               </select>
             </Field>
           </div>

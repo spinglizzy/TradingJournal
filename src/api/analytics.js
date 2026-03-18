@@ -18,5 +18,6 @@ export const analyticsApi = {
   pnlDist:    (range = {}) => api.get(`/analytics/pnl-dist${qs(range)}`),
   drawdown:   (range = {}) => api.get(`/analytics/drawdown${qs(range)}`),
   holdTime:   (range = {}) => api.get(`/analytics/hold-time${qs(range)}`),
+  bySmt:      (range = {}) => api.get(`/analytics/by-smt${qs(range)}`),
   custom:     (params = {}) => api.get(`/analytics/custom${qs(params)}`),
 }

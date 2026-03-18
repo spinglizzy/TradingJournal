@@ -7,6 +7,78 @@ import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 import { Section, WinRateBar, fmt, fmtPnl, fmtR } from './shared.jsx'
 
+function SmtComparisonPanel({ dateRange }) {
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    analyticsApi.bySmt(dateRange).then(setData).finally(() => setLoading(false))
+  }, [dateRange])
+
+  if (loading) return <LoadingSpinner className="h-24" />
+  if (!data.length) return (
+    <div className="py-8 text-center text-gray-600 text-sm">
+      No trades with SMT Divergence recorded yet. Add Yes/No on trade entry.
+    </div>
+  )
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {data.map(row => (
+        <div key={row.label} className={`rounded-xl border p-4 ${
+          row.smt_divergence
+            ? 'border-violet-500/30 bg-violet-500/5'
+            : 'border-gray-700 bg-gray-800/40'
+        }`}>
+          <div className={`text-sm font-semibold mb-3 ${row.smt_divergence ? 'text-violet-400' : 'text-gray-400'}`}>
+            {row.label}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-xs text-gray-500 mb-0.5">Trades</div>
+              <div className="font-mono font-semibold text-white">{row.trades}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-0.5">Win Rate</div>
+              <div className={`font-mono font-semibold ${row.win_rate >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmt(row.win_rate, 1)}%
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-0.5">Total P&L</div>
+              <div className={`font-mono font-semibold ${row.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtPnl(row.pnl)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-0.5">Avg P&L</div>
+              <div className={`font-mono font-semibold ${(row.avg_pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtPnl(row.avg_pnl)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-0.5">Avg R</div>
+              <div className={`font-mono font-semibold ${(row.avg_r ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtR(row.avg_r)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-0.5">Profit Factor</div>
+              <div className={`font-mono font-semibold ${(row.profit_factor ?? 0) >= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {row.profit_factor != null ? fmt(row.profit_factor) : '—'}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3">
+            <WinRateBar wins={Number(row.wins)} total={Number(row.trades)} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const COLUMNS = [
   { key: 'setup',         label: 'Setup' },
   { key: 'trades',        label: 'Trades' },
@@ -141,6 +213,11 @@ export default function BySetupTab({ dateRange }) {
             </div>
           )
         }
+      </Section>
+
+      {/* SMT Divergence comparison */}
+      <Section title="SMT Divergence — Performance Comparison">
+        <SmtComparisonPanel dateRange={dateRange} />
       </Section>
 
       {/* Table */}

@@ -584,6 +584,15 @@ export default function TradeDetailPage() {
                   {trade.bias.charAt(0).toUpperCase() + trade.bias.slice(1)}
                 </span>
               )}
+              {trade.smt_divergence != null && (
+                <span className={`text-xs px-2 py-0.5 rounded border font-medium ${
+                  trade.smt_divergence
+                    ? 'bg-violet-500/10 text-violet-400 border-violet-500/20'
+                    : 'bg-gray-700/50 text-gray-500 border-gray-600/40'
+                }`}>
+                  SMT: {trade.smt_divergence ? 'Yes' : 'No'}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-4 text-sm text-gray-400 flex-wrap">

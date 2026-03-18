@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
   try {
     const {
       start_date, end_date, ticker, direction, strategy_id,
-      status, tag, confluence, pd_array, bias, search, account_id,
+      status, tag, confluence, pd_array, bias, smt_divergence, search, account_id,
       sort_by = 'date', sort_dir = 'desc',
       page = 1, limit = 50,
     } = req.query
@@ -46,6 +46,9 @@ router.get('/', async (req, res) => {
     }
     if (bias) {
       w.push(`t.bias = $${p.push(bias)}`)
+    }
+    if (smt_divergence !== undefined && smt_divergence !== '') {
+      w.push(`t.smt_divergence = $${p.push(smt_divergence === 'true')}`)
     }
 
     const allowedSort = ['date', 'ticker', 'direction', 'pnl', 'pnl_percent', 'r_multiple', 'position_size']
@@ -139,7 +142,7 @@ router.post('/', async (req, res) => {
       notes: null, screenshot_path: null, account_id: null, confidence: null,
       emotions: null, mistakes: null, setup: null, emotion_intensity: null,
       rules_followed: null, rules_broken: null, entry_mode: 'entry_exit', direct_pnl: null,
-      confluences: [], pd_arrays: [], bias: null,
+      confluences: [], pd_arrays: [], bias: null, smt_divergence: null,
       ...fields, status, pnl, pnl_percent, r_multiple,
     }
 
@@ -148,15 +151,15 @@ router.post('/', async (req, res) => {
         position_size, fees, strategy_id, timeframe, notes, screenshot_path, account_id,
         status, pnl, pnl_percent, r_multiple,
         confidence, emotions, mistakes, setup, emotion_intensity, rules_followed, rules_broken,
-        entry_mode, direct_pnl, confluences, pd_arrays, bias, user_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
+        entry_mode, direct_pnl, confluences, pd_arrays, bias, smt_divergence, user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
       RETURNING id
     `, [
       f.date, f.ticker, f.direction, f.entry_price, f.exit_price, f.stop_loss,
       f.position_size, f.fees, f.strategy_id, f.timeframe, f.notes, f.screenshot_path, f.account_id,
       f.status, f.pnl, f.pnl_percent, f.r_multiple,
       f.confidence, f.emotions, f.mistakes, f.setup, f.emotion_intensity, f.rules_followed, f.rules_broken,
-      f.entry_mode, f.direct_pnl, f.confluences, f.pd_arrays, f.bias,
+      f.entry_mode, f.direct_pnl, f.confluences, f.pd_arrays, f.bias, f.smt_divergence,
       req.userId,
     ])
 
@@ -199,16 +202,17 @@ router.put('/:id', async (req, res) => {
         screenshot_path=$12, account_id=$13, status=$14, pnl=$15, pnl_percent=$16,
         r_multiple=$17, confidence=$18, emotions=$19, mistakes=$20, setup=$21,
         emotion_intensity=$22, rules_followed=$23, rules_broken=$24,
-        entry_mode=$25, direct_pnl=$26, confluences=$27, pd_arrays=$28, bias=$29,
+        entry_mode=$25, direct_pnl=$26, confluences=$27, pd_arrays=$28, bias=$29, smt_divergence=$30,
         updated_at=${NOW}
-      WHERE id=$30 AND user_id=$31
+      WHERE id=$31 AND user_id=$32
     `, [
       merged.date, merged.ticker, merged.direction, merged.entry_price, merged.exit_price, merged.stop_loss,
       merged.position_size, merged.fees, merged.strategy_id, merged.timeframe, merged.notes,
       merged.screenshot_path, merged.account_id, status, pnl, pnl_percent,
       r_multiple, merged.confidence, merged.emotions, merged.mistakes, merged.setup,
       merged.emotion_intensity, merged.rules_followed, merged.rules_broken,
-      merged.entry_mode, merged.direct_pnl, merged.confluences ?? [], merged.pd_arrays ?? [], merged.bias ?? null,
+      merged.entry_mode, merged.direct_pnl, merged.confluences ?? [], merged.pd_arrays ?? [],
+      merged.bias ?? null, merged.smt_divergence ?? null,
       req.params.id, req.userId,
     ])
 
