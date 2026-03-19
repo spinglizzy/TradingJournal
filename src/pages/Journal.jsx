@@ -729,15 +729,8 @@ export default function Journal() {
   }
 
   function handleDayClick(dateStr) {
-    const dayEntries = entries.filter(e => e.date === dateStr)
-    if (dayEntries.length === 1) {
-      // Single entry — open it in the editor, but also show the day panel
-      setSelDate(dateStr)
-      openEntry(dayEntries[0])
-    } else {
-      // Multiple entries or none — toggle day panel
-      setSelDate(prev => prev === dateStr ? null : dateStr)
-    }
+    // Always toggle the day panel; editor only opens when user clicks an entry in the list
+    setSelDate(prev => prev === dateStr ? null : dateStr)
   }
 
   // ── Filtered entries for list view ──
