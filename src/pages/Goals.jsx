@@ -570,7 +570,6 @@ function GoalCalendar({ data }) {
 
 const TABS = [
   { id: 'goals',        label: 'Goals' },
-  { id: 'calendar',     label: 'History' },
   { id: 'achievements', label: 'Achievements' },
   { id: 'streaks',      label: 'Streaks' },
 ]
@@ -781,11 +780,6 @@ export default function Goals() {
                 </>
               )}
             </div>
-          )}
-
-          {/* ── CALENDAR TAB ── */}
-          {tab === 'calendar' && (
-            <GoalCalendar data={progress} />
           )}
 
           {/* ── ACHIEVEMENTS TAB ── */}

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { importExportApi } from '../api/importexport.js'
 import { useAccount } from '../contexts/AccountContext.jsx'
 import { BROKER_TEMPLATES, JOURNAL_FIELDS } from '../components/import/BrokerTemplates.js'
-import { Upload, Download, ChevronRight, Check, AlertCircle, RefreshCw, FileText, Database } from 'lucide-react'
+import { Upload, ChevronRight, Check, AlertCircle, RefreshCw } from 'lucide-react'
 
 const TEMPLATE_STORAGE_KEY = 'import_custom_templates'
 const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
@@ -488,87 +488,8 @@ function ReviewStep({ data, onBack, onDone }) {
   )
 }
 
-// ── Export Panel ──────────────────────────────────────────────────────────────
-function ExportPanel() {
-  const { accounts, selectedAccountId } = useAccount()
-  const [csvParams, setCsvParams] = useState({ account_id: selectedAccountId ?? '', from: '', to: '', status: '' })
-
-  function downloadCsv() {
-    const url = importExportApi.exportCsvUrl(csvParams)
-    window.open(url, '_blank')
-  }
-
-  function downloadJson() {
-    window.open(importExportApi.exportJsonUrl(), '_blank')
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* CSV Export */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow">
-        <div className="flex items-center gap-2 mb-4">
-          <FileText className="w-4 h-4 text-indigo-400" />
-          <h3 className="text-sm font-semibold text-white">Export Trades as CSV</h3>
-        </div>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Account</label>
-            <select className={inputCls} value={csvParams.account_id}
-              onChange={e => setCsvParams(p => ({ ...p, account_id: e.target.value }))}>
-              <option value="">All Accounts</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Status</label>
-            <select className={inputCls} value={csvParams.status}
-              onChange={e => setCsvParams(p => ({ ...p, status: e.target.value }))}>
-              <option value="">All (open + closed)</option>
-              <option value="closed">Closed only</option>
-              <option value="open">Open only</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">From Date</label>
-            <input type="date" className={inputCls} value={csvParams.from}
-              onChange={e => setCsvParams(p => ({ ...p, from: e.target.value }))} />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">To Date</label>
-            <input type="date" className={inputCls} value={csvParams.to}
-              onChange={e => setCsvParams(p => ({ ...p, to: e.target.value }))} />
-          </div>
-        </div>
-        <button onClick={downloadCsv}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">
-          <Download className="w-4 h-4" />
-          Download CSV
-        </button>
-      </div>
-
-      {/* JSON Backup */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-glow">
-        <div className="flex items-center gap-2 mb-2">
-          <Database className="w-4 h-4 text-purple-400" />
-          <h3 className="text-sm font-semibold text-white">Full Database Backup (JSON)</h3>
-        </div>
-        <p className="text-xs text-gray-500 mb-4">
-          Export everything — trades, journal entries, strategies, goals, accounts — as a single JSON file.
-          Use this for backups or migrating to a new device.
-        </p>
-        <button onClick={downloadJson}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors">
-          <Download className="w-4 h-4" />
-          Download JSON Backup
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ImportExport() {
-  const [activeTab, setActiveTab] = useState('import')
   const [step, setStep] = useState(1)
   const [importData, setImportData] = useState({})
 
@@ -580,63 +501,35 @@ export default function ImportExport() {
   return (
     <div className="max-w-4xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Import / Export</h1>
-        <p className="text-sm text-gray-500 mt-1">Import trades from CSV files or export your data</p>
+        <h1 className="text-2xl font-bold text-white">Import</h1>
+        <p className="text-sm text-gray-500 mt-1">Import trades from CSV files</p>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 mb-6 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setActiveTab('import')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'import' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          <Upload className="w-4 h-4" />
-          Import CSV
-        </button>
-        <button
-          onClick={() => setActiveTab('export')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'export' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          <Download className="w-4 h-4" />
-          Export
-        </button>
-      </div>
-
-      {activeTab === 'import' && (
-        <>
-          <StepBar step={step} />
-          {step === 1 && (
-            <UploadStep onNext={parsed => { setImportData(d => ({ ...d, ...parsed })); setStep(2) }} />
-          )}
-          {step === 2 && (
-            <MappingStep
-              data={importData}
-              onNext={d => { setImportData(prev => ({ ...prev, ...d })); setStep(3) }}
-              onBack={() => setStep(1)}
-            />
-          )}
-          {step === 3 && (
-            <DefaultsStep
-              data={importData}
-              onNext={d => { setImportData(prev => ({ ...prev, ...d })); setStep(4) }}
-              onBack={() => setStep(2)}
-            />
-          )}
-          {step === 4 && (
-            <ReviewStep
-              data={importData}
-              onBack={() => setStep(3)}
-              onDone={resetImport}
-            />
-          )}
-        </>
+      <StepBar step={step} />
+      {step === 1 && (
+        <UploadStep onNext={parsed => { setImportData(d => ({ ...d, ...parsed })); setStep(2) }} />
       )}
-
-      {activeTab === 'export' && <ExportPanel />}
+      {step === 2 && (
+        <MappingStep
+          data={importData}
+          onNext={d => { setImportData(prev => ({ ...prev, ...d })); setStep(3) }}
+          onBack={() => setStep(1)}
+        />
+      )}
+      {step === 3 && (
+        <DefaultsStep
+          data={importData}
+          onNext={d => { setImportData(prev => ({ ...prev, ...d })); setStep(4) }}
+          onBack={() => setStep(2)}
+        />
+      )}
+      {step === 4 && (
+        <ReviewStep
+          data={importData}
+          onBack={() => setStep(3)}
+          onDone={resetImport}
+        />
+      )}
     </div>
   )
 }
