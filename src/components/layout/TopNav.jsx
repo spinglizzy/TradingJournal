@@ -1,4 +1,4 @@
-import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { flushSync } from 'react-dom'
 import { ChevronDown, Settings, LogOut, User } from 'lucide-react'
@@ -53,10 +53,12 @@ export default function TopNav() {
     flushSync(() => navigate('/'))
   }
 
-  const navItemCls = ({ isActive }) =>
-    `px-3 py-1.5 rounded-full text-sm transition-all whitespace-nowrap select-none ${
-      isActive ? 'text-white font-medium bg-white/[0.07]' : 'text-[#666] hover:text-white'
+  const navItemCls = (to, end) => {
+    const active = isLinkActive(to, end)
+    return `px-3 py-1.5 rounded-full text-sm transition-all whitespace-nowrap select-none ${
+      active ? 'text-white font-medium bg-white/[0.07]' : 'text-[#666] hover:text-white'
     }`
+  }
 
   // User initials — first + last name, fallback to email first char
   const initials = user
@@ -99,12 +101,11 @@ export default function TopNav() {
         {mainLinks.map(link => {
           const active = isLinkActive(link.to, link.end)
           return (
-            <NavLink
+            <button
               key={link.to}
-              to={link.to}
-              end={link.end}
-              unstable_flushSync
-              className={navItemCls}
+              type="button"
+              onClick={() => window.location.replace(link.to)}
+              className={navItemCls(link.to, link.end)}
               style={{ position: 'relative' }}
             >
               {link.label}
@@ -137,7 +138,7 @@ export default function TopNav() {
                   </div>
                 </motion.div>
               )}
-            </NavLink>
+            </button>
           )
         })}
 
@@ -155,19 +156,16 @@ export default function TopNav() {
           {showMore && (
             <div className="absolute top-full mt-2 right-0 py-1.5 min-w-[168px]" style={dropdownStyle}>
               {moreLinks.map(link => (
-                <NavLink
+                <button
                   key={link.to}
-                  to={link.to}
-                  unstable_flushSync
-                  onClick={() => setShowMore(false)}
-                  className={({ isActive }) =>
-                    `block px-4 py-2 text-sm transition-colors ${
-                      isActive ? 'text-white' : 'text-[#666] hover:text-white'
-                    }`
-                  }
+                  type="button"
+                  onClick={() => { window.location.replace(link.to); setShowMore(false) }}
+                  className={`block w-full text-left px-4 py-2 text-sm transition-colors ${
+                    isLinkActive(link.to) ? 'text-white' : 'text-[#666] hover:text-white'
+                  }`}
                 >
                   {link.label}
-                </NavLink>
+                </button>
               ))}
             </div>
           )}
@@ -177,14 +175,14 @@ export default function TopNav() {
         <div className="w-px h-4 bg-white/10 mx-1 flex-shrink-0" />
 
         {/* Log Trade CTA */}
-        <NavLink
-          to="/trades/new"
-          unstable_flushSync
+        <button
+          type="button"
+          onClick={() => window.location.replace('/trades/new')}
           className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap select-none"
           style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
         >
           + Log Trade
-        </NavLink>
+        </button>
 
       </nav>
 
@@ -232,15 +230,14 @@ export default function TopNav() {
 
             {/* Menu items */}
             <div className="py-1">
-              <NavLink
-                to="/settings"
-                unstable_flushSync
-                onClick={() => setShowUser(false)}
-                className="flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-white transition-colors"
+              <button
+                type="button"
+                onClick={() => { window.location.replace('/settings'); setShowUser(false) }}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-white transition-colors"
               >
                 <Settings className="w-4 h-4 flex-shrink-0" />
                 Settings
-              </NavLink>
+              </button>
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-red-400 transition-colors"
@@ -274,14 +271,14 @@ export default function TopNav() {
         </button>
 
         {/* Log Trade (mobile) */}
-        <NavLink
-          to="/trades/new"
-          unstable_flushSync
+        <button
+          type="button"
+          onClick={() => window.location.replace('/trades/new')}
           className="px-3 py-1 rounded-full text-xs font-semibold"
           style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
         >
           + Log
-        </NavLink>
+        </button>
 
         {/* Hamburger */}
         <button
@@ -310,20 +307,16 @@ export default function TopNav() {
             }}
           >
             {[...mainLinks, ...moreLinks].map(link => (
-              <NavLink
+              <button
                 key={link.to}
-                to={link.to}
-                end={link.end}
-                unstable_flushSync
-                onClick={() => setMobileOpen(false)}
-                className={({ isActive }) =>
-                  `block px-5 py-2.5 text-sm transition-colors ${
-                    isActive ? 'text-white font-medium' : 'text-[#666] hover:text-white'
-                  }`
-                }
+                type="button"
+                onClick={() => { window.location.replace(link.to); setMobileOpen(false) }}
+                className={`block w-full text-left px-5 py-2.5 text-sm transition-colors ${
+                  isLinkActive(link.to, link.end) ? 'text-white font-medium' : 'text-[#666] hover:text-white'
+                }`}
               >
                 {link.label}
-              </NavLink>
+              </button>
             ))}
 
             {/* Mobile user section */}
@@ -331,15 +324,14 @@ export default function TopNav() {
               <div className="px-5 py-2">
                 <p className="text-xs text-[#444]">{user?.email}</p>
               </div>
-              <NavLink
-                to="/settings"
-                unstable_flushSync
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-5 py-2.5 text-sm text-[#666] hover:text-white transition-colors"
+              <button
+                type="button"
+                onClick={() => { window.location.replace('/settings'); setMobileOpen(false) }}
+                className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-[#666] hover:text-white transition-colors"
               >
                 <Settings className="w-4 h-4" />
                 Settings
-              </NavLink>
+              </button>
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-[#666] hover:text-red-400 transition-colors"
