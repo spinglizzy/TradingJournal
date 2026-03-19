@@ -627,10 +627,10 @@ export default function TradeDetailPage() {
               </div>
             )}
 
-            {/* PD Arrays */}
+            {/* Contested Factors */}
             {Array.isArray(trade.pd_arrays) && trade.pd_arrays.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-gray-600 font-medium">PD Arrays:</span>
+                <span className="text-xs text-gray-600 font-medium">Contested Factors:</span>
                 {trade.pd_arrays.map(c => (
                   <span key={c} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20">{c}</span>
                 ))}

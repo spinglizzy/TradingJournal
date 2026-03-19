@@ -849,11 +849,11 @@ export default function TradeFormPage() {
           />
         </div>
 
-        {/* PD Arrays section */}
+        {/* Contested Factors section */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
           <div className="flex items-center gap-2">
             <GitMerge className="w-4 h-4 text-amber-400" />
-            <h2 className="text-sm font-semibold text-gray-300">PD Arrays <span className="text-gray-600 font-normal">(optional)</span></h2>
+            <h2 className="text-sm font-semibold text-gray-300">Contested Factors <span className="text-gray-600 font-normal">(optional)</span></h2>
           </div>
           <p className="text-xs text-gray-600">Price Delivery Arrays relevant to this trade — type and press Enter to add.</p>
           <ConfluenceInput
