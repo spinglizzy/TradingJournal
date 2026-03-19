@@ -595,6 +595,7 @@ export default function Journal() {
   const [tradeDays,   setTradeDays]   = useState([])   // { date, pnl, trades }
   const [allTags,     setAllTags]     = useState([])
   const [loading,     setLoading]     = useState(true)
+  const [dayTrades,   setDayTrades]   = useState([])   // trades on selected calendar day
 
   // Editor state
   const [editingEntry, setEditingEntry] = useState(null)  // full entry object | null (new)
@@ -647,6 +648,14 @@ export default function Journal() {
 
   useEffect(() => { loadEntries() }, [loadEntries])
   useEffect(() => { loadCalendar() }, [loadCalendar])
+
+  // Load trades for the selected calendar day
+  useEffect(() => {
+    if (!selDate) { setDayTrades([]); return }
+    tradesApi.list({ start_date: selDate, end_date: selDate, limit: 50 })
+      .then(res => setDayTrades(res.data || []))
+      .catch(() => setDayTrades([]))
+  }, [selDate])
 
   // Handle URL params: ?entry=id, ?trade_id=id
   useEffect(() => {
@@ -722,13 +731,12 @@ export default function Journal() {
   function handleDayClick(dateStr) {
     const dayEntries = entries.filter(e => e.date === dateStr)
     if (dayEntries.length === 1) {
-      // Single entry — open it directly
+      // Single entry — open it in the editor, but also show the day panel
       setSelDate(dateStr)
       openEntry(dayEntries[0])
     } else {
-      // Multiple entries or none — show filtered list
+      // Multiple entries or none — toggle day panel
       setSelDate(prev => prev === dateStr ? null : dateStr)
-      setView('list')
     }
   }
 
@@ -824,6 +832,40 @@ export default function Journal() {
                       onDelete={id => setDeleteId(id)}
                       emptyMessage={`No entries for ${format(parseISO(selDate), 'MMM d')} — click a dot above to create one`}
                     />
+
+                    {/* Trades for this day */}
+                    {dayTrades.length > 0 && (
+                      <div className="mt-4 space-y-1.5">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Trades</p>
+                        {dayTrades.map(trade => (
+                          <div
+                            key={trade.id}
+                            onClick={() => navigate(`/trades/${trade.id}`)}
+                            className="cursor-pointer flex items-center gap-2 px-3 py-2.5 bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl transition-all"
+                          >
+                            <span className="font-semibold text-white text-sm">{trade.ticker}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                              trade.direction === 'long'
+                                ? 'bg-emerald-500/15 text-emerald-400'
+                                : 'bg-red-500/15 text-red-400'
+                            }`}>
+                              {trade.direction?.toUpperCase()}
+                            </span>
+                            {trade.status === 'open' && (
+                              <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">Open</span>
+                            )}
+                            {trade.strategy_name && (
+                              <span className="text-xs text-gray-600 truncate">{trade.strategy_name}</span>
+                            )}
+                            {trade.pnl != null && (
+                              <span className={`text-sm font-mono ml-auto ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {fmt$(trade.pnl)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -875,6 +917,40 @@ export default function Journal() {
                   onDelete={id => setDeleteId(id)}
                   emptyMessage="No entries match your filters"
                 />
+
+                {/* Trades for the selected day (list view) */}
+                {selDate && dayTrades.length > 0 && (
+                  <div className="mt-4 space-y-1.5">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Trades</p>
+                    {dayTrades.map(trade => (
+                      <div
+                        key={trade.id}
+                        onClick={() => navigate(`/trades/${trade.id}`)}
+                        className="cursor-pointer flex items-center gap-2 px-3 py-2.5 bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl transition-all"
+                      >
+                        <span className="font-semibold text-white text-sm">{trade.ticker}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                          trade.direction === 'long'
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : 'bg-red-500/15 text-red-400'
+                        }`}>
+                          {trade.direction?.toUpperCase()}
+                        </span>
+                        {trade.status === 'open' && (
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">Open</span>
+                        )}
+                        {trade.strategy_name && (
+                          <span className="text-xs text-gray-600 truncate">{trade.strategy_name}</span>
+                        )}
+                        {trade.pnl != null && (
+                          <span className={`text-sm font-mono ml-auto ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmt$(trade.pnl)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
