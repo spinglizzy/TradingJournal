@@ -88,9 +88,9 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <Link to="/dashboard" unstable_flushSync className="flex items-center px-2 py-0.5 mr-1 select-none">
+        <button type="button" onClick={() => window.location.replace('/dashboard')} className="flex items-center px-2 py-0.5 mr-1 select-none">
           <PulseJournalLogo size="sm" />
-        </Link>
+        </button>
 
         {/* Divider */}
         <div className="w-px h-4 bg-white/10 mx-1 flex-shrink-0" />
@@ -269,9 +269,9 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <Link to="/dashboard" unstable_flushSync className="flex items-center flex-1">
+        <button type="button" onClick={() => window.location.replace('/dashboard')} className="flex items-center flex-1">
           <PulseJournalLogo size="xs" />
-        </Link>
+        </button>
 
         {/* Log Trade (mobile) */}
         <NavLink
