@@ -307,6 +307,36 @@ function IntensityPicker({ value, onChange }) {
   )
 }
 
+// ── New tag inline input ───────────────────────────────────────────────────────
+const TAG_PALETTE = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16']
+
+function NewTagInput({ onAdd }) {
+  const [input, setInput] = useState('')
+  const inputRef = useRef(null)
+
+  function commit() {
+    const v = input.trim()
+    if (v) { onAdd(v); setInput('') }
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit() }
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={input}
+      onChange={e => setInput(e.target.value)}
+      onKeyDown={onKeyDown}
+      onBlur={commit}
+      placeholder="+ Add tag…"
+      className="text-xs bg-transparent border border-dashed border-gray-700 rounded px-2 py-0.5 text-gray-500 placeholder-gray-700 focus:outline-none focus:border-indigo-500 focus:text-white transition-all w-20 focus:w-28"
+    />
+  )
+}
+
 // ── Rule input (free-type, no presets) ────────────────────────────────────────
 function RuleInput({ value, onChange, placeholder, colorClass }) {
   return (
@@ -598,6 +628,22 @@ export default function TradeFormPage() {
     )
   }
 
+  async function handleAddTag(name) {
+    const existing = tags.find(t => t.name.toLowerCase() === name.toLowerCase())
+    if (existing) {
+      if (!selectedTags.includes(existing.id)) toggleTag(existing.id)
+      return
+    }
+    try {
+      const color = TAG_PALETTE[tags.length % TAG_PALETTE.length]
+      const newTag = await tagsApi.create({ name, color })
+      setTags(prev => [...prev, newTag])
+      setSelectedTags(prev => [...prev, newTag.id])
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   if (loading) return <LoadingSpinner className="h-64" />
 
   return (
@@ -811,7 +857,7 @@ export default function TradeFormPage() {
 
           <div>
             <label className="block text-xs text-gray-400 mb-2 font-medium">Tags <span className="text-gray-600 font-normal">(optional)</span></label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               {tags.map(tag => (
                 <button
                   key={tag.id}
@@ -822,6 +868,7 @@ export default function TradeFormPage() {
                   <Badge color={tag.color}>{tag.name}</Badge>
                 </button>
               ))}
+              <NewTagInput onAdd={handleAddTag} />
             </div>
           </div>
 
