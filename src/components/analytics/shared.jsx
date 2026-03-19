@@ -39,9 +39,10 @@ export function MetricCard({ label, value, sub, color, size = 'md' }) {
   }
   const textColor = colorMap[color] ?? colorMap.default
   const valueSize = size === 'lg' ? 'text-2xl' : 'text-xl'
+  const testId = `metric-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
+    <div data-testid={testId} className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">{label}</div>
       <div className={`${valueSize} font-bold font-mono ${textColor} leading-tight`}>{value}</div>
       {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}

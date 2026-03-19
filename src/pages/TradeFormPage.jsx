@@ -111,6 +111,7 @@ function ScreenshotPanel({ screenshots, onChange }) {
 
       {screenshots.length === 0 ? (
         <div
+          data-testid="screenshot-upload-area"
           onClick={() => fileInputRef.current?.click()}
           className="min-h-[120px] border-2 border-dashed border-gray-700 hover:border-gray-600 rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
         >
@@ -701,13 +702,14 @@ export default function TradeFormPage() {
             </Field>
             <Field label="Ticker / Symbol" error={errors.ticker?.message}>
               <input type="text" placeholder="AAPL" {...register('ticker', { required: 'Required' })}
+                data-testid="ticker-input"
                 className={`${inputCls} uppercase`} />
             </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Direction" error={errors.direction?.message}>
-              <select {...register('direction')} className={inputCls}>
+              <select {...register('direction')} data-testid="direction-select" className={inputCls}>
                 <option value="long">Long</option>
                 <option value="short">Short</option>
               </select>
@@ -726,10 +728,10 @@ export default function TradeFormPage() {
             <>
               <div className="grid grid-cols-3 gap-4">
                 <Field label="Entry Price" error={errors.entry_price?.message}>
-                  <input type="number" step="0.01" placeholder="0.00" {...register('entry_price', { required: 'Required', min: { value: 0.01, message: 'Must be > 0' } })} className={inputCls} />
+                  <input type="number" step="0.01" placeholder="0.00" {...register('entry_price', { required: 'Required', min: { value: 0.01, message: 'Must be > 0' } })} data-testid="entry-price-input" className={inputCls} />
                 </Field>
                 <Field label="Exit Price" optional>
-                  <input type="number" step="0.01" placeholder="0.00" {...register('exit_price')} className={inputCls} />
+                  <input type="number" step="0.01" placeholder="0.00" {...register('exit_price')} data-testid="exit-price-input" className={inputCls} />
                 </Field>
                 <Field label="Stop Loss" optional>
                   <input type="number" step="0.01" placeholder="0.00" {...register('stop_loss')} className={inputCls} />
@@ -751,7 +753,7 @@ export default function TradeFormPage() {
                     </button>
                   }
                 >
-                  <input type="number" step="1" placeholder="100" {...register('position_size', { required: 'Required', min: { value: 0.001, message: 'Must be > 0' } })} className={inputCls} />
+                  <input type="number" step="1" placeholder="100" {...register('position_size', { required: 'Required', min: { value: 0.001, message: 'Must be > 0' } })} data-testid="position-size-input" className={inputCls} />
                 </Field>
                 <Field label="Fees / Commission" optional>
                   <input type="number" step="0.01" placeholder="0.00" {...register('fees')} className={inputCls} />
@@ -1027,7 +1029,7 @@ export default function TradeFormPage() {
             className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
             Cancel
           </button>
-          <button type="submit" disabled={submitting}
+          <button type="submit" data-testid="trade-submit-btn" disabled={submitting}
             className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors">
             {submitting ? 'Saving...' : isEdit ? 'Update Trade' : 'Log Trade'}
           </button>

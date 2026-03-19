@@ -60,7 +60,7 @@ function DashboardInner() {
   const existingTypes = layout.map(w => w.type)
 
   return (
-    <div className="space-y-5 pb-64">
+    <div data-testid="dashboard-container" className="space-y-5 pb-64">
       {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -82,6 +82,7 @@ function DashboardInner() {
 
           {/* Add widget */}
           <button
+            data-testid="add-widget-btn"
             onClick={() => setPicker(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-500/20" style={{ color: '#0a1a0a' }}
           >

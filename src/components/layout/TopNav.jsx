@@ -104,6 +104,7 @@ export default function TopNav() {
             <button
               key={link.to}
               type="button"
+              data-testid={`nav-${link.to.replace('/', '')}`}
               onClick={() => window.location.replace(link.to)}
               className={navItemCls(link.to, link.end)}
               style={{ position: 'relative' }}
@@ -177,6 +178,7 @@ export default function TopNav() {
         {/* Log Trade CTA */}
         <button
           type="button"
+          data-testid="nav-log-trade"
           onClick={() => window.location.replace('/trades/new')}
           className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap select-none"
           style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
@@ -189,6 +191,7 @@ export default function TopNav() {
       {/* User avatar pill — sits right next to main nav */}
       <div ref={userRef} className="relative">
         <button
+          data-testid="user-menu-btn"
           onClick={() => setShowUser(v => !v)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all select-none"
           style={{
@@ -239,6 +242,7 @@ export default function TopNav() {
                 Settings
               </button>
               <button
+                data-testid="nav-logout-btn"
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-red-400 transition-colors"
               >

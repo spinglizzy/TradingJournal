@@ -37,7 +37,7 @@ export default function TradeTable({ trades, sort, onSort, onEdit, onDelete, onV
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table data-testid="trade-table" className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-800">
               {COLS.map(col => (
@@ -57,6 +57,7 @@ export default function TradeTable({ trades, sort, onSort, onEdit, onDelete, onV
           <tbody className="divide-y divide-gray-800/60">
             {trades.map(trade => (
               <tr key={trade.id}
+                data-testid={`trade-row-${trade.id}`}
                 className="hover:bg-gray-800/40 transition-colors group cursor-pointer"
                 onClick={() => onView?.(trade.id)}
               >

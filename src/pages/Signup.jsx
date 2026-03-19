@@ -78,7 +78,7 @@ export default function Signup() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              <div data-testid="signup-error" className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
                 {error}
               </div>
             )}
@@ -86,6 +86,7 @@ export default function Signup() {
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300">Name <span className="text-gray-500">(optional)</span></label>
               <input
+                data-testid="name-input"
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -98,6 +99,7 @@ export default function Signup() {
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300">Email</label>
               <input
+                data-testid="email-input"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
@@ -111,6 +113,7 @@ export default function Signup() {
               <label className="text-sm font-medium text-gray-300">Password</label>
               <div className="relative">
                 <input
+                  data-testid="password-input"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -131,6 +134,7 @@ export default function Signup() {
 
             <button
               type="submit"
+              data-testid="signup-submit"
               disabled={loading}
               className="w-full rounded-lg py-2.5 text-sm font-semibold text-gray-950 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#9aea62' }}

@@ -79,7 +79,7 @@ export default function Login() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              <div data-testid="login-error" className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
                 {error}
               </div>
             )}
@@ -88,6 +88,7 @@ export default function Login() {
               <label className="text-sm font-medium text-gray-300">Email</label>
               <input
                 type="email"
+                data-testid="email-input"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@example.com"
@@ -101,6 +102,7 @@ export default function Login() {
               <label className="text-sm font-medium text-gray-300">Password</label>
               <div className="relative">
                 <input
+                  data-testid="password-input"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -121,6 +123,7 @@ export default function Login() {
 
             <button
               type="submit"
+              data-testid="login-submit"
               disabled={loading}
               className="w-full rounded-lg py-2.5 text-sm font-semibold text-gray-950 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#9aea62' }}

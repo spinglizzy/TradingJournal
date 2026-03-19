@@ -268,6 +268,7 @@ export default function Analytics() {
         {TABS.map(({ id, label, Icon }) => (
           <button
             key={id}
+            data-testid={`tab-${id}`}
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap border ${
               activeTab === id

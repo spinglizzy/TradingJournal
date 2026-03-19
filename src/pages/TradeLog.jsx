@@ -79,7 +79,7 @@ export default function TradeLog() {
   const totalPages = Math.ceil(total / LIMIT)
 
   return (
-    <div className="space-y-6">
+    <div data-testid="trade-log-container" className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Trade Log</h1>
@@ -103,6 +103,7 @@ export default function TradeLog() {
             Export CSV
           </button>
           <button
+            data-testid="log-trade-btn"
             onClick={() => flushSync(() => navigate('/trades/new'))}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
           >

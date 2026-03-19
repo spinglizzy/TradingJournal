@@ -561,7 +561,7 @@ export default function TradeDetailPage() {
       </div>
 
       {/* ── Trade Summary Header ── */}
-      <div className={`rounded-xl border p-6 card-glow ${trade.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : trade.pnl != null ? 'border-red-500/30 bg-red-500/5' : 'border-gray-800 bg-gray-900'}`}>
+      <div data-testid="trade-header" className={`rounded-xl border p-6 card-glow ${trade.pnl >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : trade.pnl != null ? 'border-red-500/30 bg-red-500/5' : 'border-gray-800 bg-gray-900'}`}>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           {/* Left: ticker + meta */}
           <div className="space-y-3">
@@ -649,7 +649,7 @@ export default function TradeDetailPage() {
           {/* Right: P&L + actions */}
           <div className="flex flex-col items-end gap-3">
             <div className="text-right">
-              <div className={`text-4xl font-bold font-mono ${pnlColor(trade.pnl)}`}>
+              <div data-testid="pnl-display" className={`text-4xl font-bold font-mono ${pnlColor(trade.pnl)}`}>
                 {trade.pnl != null ? (trade.pnl >= 0 ? '+' : '') + '$' + Math.abs(trade.pnl).toFixed(2) : '—'}
               </div>
               <div className="flex items-center justify-end gap-3 mt-1">
@@ -663,6 +663,7 @@ export default function TradeDetailPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
+                data-testid="edit-trade-btn"
                 onClick={() => flushSync(() => navigate(`/trades/${id}/edit`))}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
               >
@@ -670,6 +671,7 @@ export default function TradeDetailPage() {
                 Edit
               </button>
               <button
+                data-testid="delete-trade-btn"
                 onClick={() => setDeleteOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-colors"
               >
