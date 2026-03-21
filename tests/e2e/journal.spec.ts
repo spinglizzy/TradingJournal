@@ -22,12 +22,8 @@ test.describe('Journal', () => {
   test('can create a new journal entry', async ({ page }) => {
     await page.getByRole('button', { name: /new entry/i }).first().click()
 
-    // Editor should open — look for the TipTap editor or title input
-    const titleInput = page.locator('input[placeholder*="title" i]').or(
-      page.getByPlaceholder('Entry title…')
-    ).or(
-      page.locator('[data-testid="journal-title-input"]')
-    )
+    // Editor should open — look for the title input
+    const titleInput = page.getByTestId('journal-title-input')
     await expect(titleInput).toBeVisible({ timeout: 8_000 })
     await titleInput.fill(TEST_ENTRY_TITLE)
 
@@ -47,9 +43,7 @@ test.describe('Journal', () => {
     // Switch to list view to see entries
     await page.getByRole('button', { name: /new entry/i }).first().click()
 
-    const titleInput = page.locator('input[placeholder*="title" i]').or(
-      page.getByPlaceholder('Entry title…')
-    ).first()
+    const titleInput = page.getByTestId('journal-title-input')
     await expect(titleInput).toBeVisible({ timeout: 8_000 })
     await titleInput.fill(TEST_ENTRY_TITLE)
 
@@ -95,9 +89,7 @@ test.describe('Journal', () => {
     // Create an entry
     await page.getByRole('button', { name: /new entry/i }).first().click()
 
-    const titleInput = page.locator('input[placeholder*="title" i]').or(
-      page.getByPlaceholder('Entry title…')
-    ).first()
+    const titleInput = page.getByTestId('journal-title-input')
     await expect(titleInput).toBeVisible({ timeout: 8_000 })
     await titleInput.fill(TEST_ENTRY_TITLE)
 

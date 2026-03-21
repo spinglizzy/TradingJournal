@@ -162,7 +162,7 @@ export default function TradeLog() {
           trades={trades}
           sort={sort}
           onSort={handleSort}
-          onView={(id) => flushSync(() => navigate(`/trades/${id}/edit`))}
+          onView={(id) => flushSync(() => navigate(`/trades/${id}`))}
           onEdit={(id) => flushSync(() => navigate(`/trades/${id}/edit`))}
           onDelete={(id) => setDeleteId(id)}
         />

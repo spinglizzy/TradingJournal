@@ -80,12 +80,7 @@ test.describe('Trade Entry & Management', () => {
   test('screenshot upload section is present in trade entry', async ({ page }) => {
     await page.goto('/trades/new')
     // The screenshot upload area renders with a dashed border placeholder
-    const uploadArea = page.getByTestId('screenshot-upload-area').or(
-      page.locator('[data-testid="screenshot-panel"]')
-    ).or(
-      page.getByText('Click to upload a chart screenshot')
-    )
-    await expect(uploadArea).toBeVisible({ timeout: 8_000 })
+    await expect(page.getByTestId('screenshot-upload-area')).toBeVisible({ timeout: 8_000 })
   })
 
   test('bias dropdown has Bullish, Bearish, Neutral options', async ({ page }) => {

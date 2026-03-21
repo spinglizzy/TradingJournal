@@ -49,10 +49,14 @@ test.describe('Analytics', () => {
   })
 
   test('date range filter is present and changes content', async ({ page }) => {
-    // LocalDateFilter renders date inputs
+    // LocalDateFilter date inputs are inside a collapsed Custom panel
+    // First click the "Custom" preset button to expose the date inputs
+    const customBtn = page.getByRole('button', { name: /custom/i }).first()
+    await expect(customBtn).toBeVisible({ timeout: 8_000 })
+    await customBtn.click()
+    // Date inputs should now be visible
     const fromInput = page.locator('input[type="date"]').first()
     await expect(fromInput).toBeVisible({ timeout: 8_000 })
-    // Change the from date
     await fromInput.fill('2024-01-01')
     await fromInput.press('Enter')
     // No crash — page still renders

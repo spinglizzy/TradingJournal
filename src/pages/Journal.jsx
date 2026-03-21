@@ -233,6 +233,7 @@ function EntryEditorPanel({
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Title</label>
             <input
+              data-testid="journal-title-input"
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
