@@ -725,7 +725,7 @@ export default function TradeFormPage() {
             <Field label="Timeframe" optional>
               <select {...register('timeframe')} className={inputCls}>
                 <option value="">Select...</option>
-                {['1m','5m','15m','1h','4h','daily','weekly'].map(t => (
+                {['1m','2m','3m','4m','5m','15m','30m','1h','4h','daily','weekly'].map(t => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
