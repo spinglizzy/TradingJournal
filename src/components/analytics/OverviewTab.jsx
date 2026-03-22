@@ -160,7 +160,8 @@ function MonthlyTable({ data }) {
   let running = 0
   const rows = data.map(m => {
     running += m.pnl
-    const winRate = m.trades > 0 ? (m.wins / m.trades) * 100 : 0
+    const decisive = Number(m.wins) + Number(m.losses)
+    const winRate = decisive > 0 ? (Number(m.wins) / decisive) * 100 : 0
     return { ...m, running, winRate }
   }).reverse()
 
@@ -238,7 +239,7 @@ export default function OverviewTab({ dateRange }) {
 
   const metrics = [
     { label: 'Total P&L',      value: fmtPnl(summary.total_pnl), color: summary.total_pnl >= 0 ? 'green' : 'red' },
-    { label: 'Win Rate',       value: `${fmt(wr, 1)}%`, color: wr >= 50 ? 'green' : 'red', sub: `${summary.wins}W / ${summary.losses}L` },
+    { label: 'Win Rate',       value: `${fmt(wr, 1)}%`, color: wr >= 50 ? 'green' : 'red', sub: `${summary.wins}W / ${summary.losses}L${(summary.breakevens ?? 0) > 0 ? ` / ${summary.breakevens}BE` : ''}` },
     { label: 'Profit Factor',  value: summary.profit_factor != null ? fmt(summary.profit_factor) : '—', color: (summary.profit_factor ?? 0) >= 1 ? 'green' : 'red' },
     { label: 'Expectancy',     value: fmtPnl(summary.expectancy), color: (summary.expectancy ?? 0) >= 0 ? 'green' : 'red' },
     { label: 'Avg Winner',     value: fmtPnl(summary.avg_win), color: 'green' },

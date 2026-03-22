@@ -342,4 +342,34 @@ router.get('/session-quality', async (req, res) => {
   }
 })
 
+// ── Unique emotion list (for quick-picks) ─────────────────────────────────────
+router.get('/emotion-list', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT DISTINCT jsonb_array_elements_text(emotions::jsonb) AS e
+       FROM trades WHERE user_id = $1 AND emotions IS NOT NULL AND emotions != '[]'
+       ORDER BY e`,
+      [req.userId]
+    )
+    res.json(r.rows.map(row => row.e))
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Unique mistake list (for quick-picks) ─────────────────────────────────────
+router.get('/mistake-list', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT DISTINCT jsonb_array_elements_text(mistakes::jsonb) AS m
+       FROM trades WHERE user_id = $1 AND mistakes IS NOT NULL AND mistakes != '[]'
+       ORDER BY m`,
+      [req.userId]
+    )
+    res.json(r.rows.map(row => row.m))
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

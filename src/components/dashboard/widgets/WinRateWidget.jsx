@@ -19,10 +19,14 @@ export default function WinRateWidget({ config }) {
 
   if (loading) return <WidgetSkeleton />
 
-  const winRate  = data?.win_rate ?? 0
+  const winRate    = data?.win_rate ?? 0
+  const wins       = data?.wins       ?? 0
+  const losses     = data?.losses     ?? 0
+  const breakevens = data?.breakevens ?? 0
   const chartData = [
-    { name: 'Wins',   value: data?.wins   ?? 0 },
-    { name: 'Losses', value: data?.losses ?? 0 },
+    { name: 'Wins',       value: wins },
+    { name: 'Breakevens', value: breakevens },
+    { name: 'Losses',     value: losses },
   ]
 
   return (
@@ -41,6 +45,7 @@ export default function WinRateWidget({ config }) {
               strokeWidth={0}
             >
               <Cell fill={activeTheme.profitHex} />
+              <Cell fill="#6366f1" />
               <Cell fill="#374151" />
             </Pie>
           </PieChart>
@@ -50,7 +55,7 @@ export default function WinRateWidget({ config }) {
         <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Win Rate</span>
         <span className="text-2xl font-bold font-mono text-white">{winRate.toFixed(1)}%</span>
         <span className="text-xs text-gray-500">
-          {data?.wins ?? 0}W / {data?.losses ?? 0}L
+          {wins}W / {losses}L{breakevens > 0 ? ` / ${breakevens}BE` : ''}
         </span>
       </div>
     </div>

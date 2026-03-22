@@ -15,4 +15,6 @@ export const psychologyApi = {
   ruleCompliance:     (range = {}) => api.get(`/psychology/rule-compliance${qs(range)}`),
   mistakeStats:       (range = {}) => api.get(`/psychology/mistake-stats${qs(range)}`),
   sessionQuality:     (range = {}) => api.get(`/psychology/session-quality${qs(range)}`),
+  emotionList:        () => api.get('/psychology/emotion-list'),
+  mistakeList:        () => api.get('/psychology/mistake-list'),
 }

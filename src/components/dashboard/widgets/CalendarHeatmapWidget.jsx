@@ -56,6 +56,7 @@ export default function CalendarHeatmapWidget({ config }) {
   function pnlBg(pnl, inMonth) {
     if (!inMonth) return 'rgba(17,24,39,0.3)'
     if (pnl == null) return 'rgba(31,41,55,0.5)'
+    if (pnl === 0) return 'rgba(99,102,241,0.35)' // breakeven — indigo neutral
     const ratio = Math.min(Math.abs(pnl) / maxAbsPnl, 1)
     if (pnl > 0) {
       if (ratio > 0.66) return 'rgba(52,110,74,0.92)'
@@ -156,9 +157,9 @@ export default function CalendarHeatmapWidget({ config }) {
                 </span>
                 {inMonth && entry && (
                   <span className={`text-[11px] leading-none font-mono font-medium select-none
-                    ${entry.pnl >= 0 ? 'text-green-200' : 'text-red-200'}
+                    ${entry.pnl > 0 ? 'text-green-200' : entry.pnl < 0 ? 'text-red-200' : 'text-indigo-200'}
                   `}>
-                    {entry.pnl >= 0 ? '+' : '-'}${(Math.abs(entry.pnl) / 1000 >= 0.1 ? `${(Math.abs(entry.pnl)/1000).toFixed(1)}k` : Math.abs(entry.pnl).toFixed(0))}
+                    {entry.pnl > 0 ? '+' : entry.pnl < 0 ? '-' : ''}${(Math.abs(entry.pnl) / 1000 >= 0.1 ? `${(Math.abs(entry.pnl)/1000).toFixed(1)}k` : Math.abs(entry.pnl).toFixed(0))}
                   </span>
                 )}
 
@@ -169,8 +170,8 @@ export default function CalendarHeatmapWidget({ config }) {
                     onClick={e => e.stopPropagation()}
                   >
                     <div className="text-gray-300 font-medium mb-1">{format(parseISO(dateStr), 'MMM d, yyyy')}</div>
-                    <div className={`font-mono font-semibold ${entry.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {entry.pnl >= 0 ? '+' : ''}${Math.abs(entry.pnl).toFixed(2)}
+                    <div className={`font-mono font-semibold ${entry.pnl > 0 ? 'text-emerald-400' : entry.pnl < 0 ? 'text-red-400' : 'text-indigo-400'}`}>
+                      {entry.pnl > 0 ? '+' : entry.pnl < 0 ? '-' : ''}${Math.abs(entry.pnl).toFixed(2)}
                     </div>
                     <div className="text-gray-500 mt-0.5">{entry.trades} trade{entry.trades !== 1 ? 's' : ''}</div>
                   </div>
@@ -185,6 +186,9 @@ export default function CalendarHeatmapWidget({ config }) {
       <div className="flex items-center justify-end gap-3 mt-2 text-xs text-gray-600">
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(130,52,52,0.92)' }} /><span>Loss</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(99,102,241,0.35)' }} /><span>Breakeven</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-gray-800" /><span>No trades</span>

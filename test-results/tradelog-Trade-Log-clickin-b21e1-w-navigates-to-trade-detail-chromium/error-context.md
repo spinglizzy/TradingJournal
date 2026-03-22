@@ -1,0 +1,249 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - button "PulseJournal" [ref=e6]:
+        - generic [ref=e8]: PulseJournal
+      - button "Dashboard" [ref=e10]
+      - button "Trades" [ref=e11]: Trades
+      - button "Analytics" [ref=e12]
+      - button "Journal" [ref=e13]
+      - button "Playbook" [ref=e14]
+      - button "Goals" [ref=e15]
+      - button "Psychology" [ref=e16]
+      - button "More" [ref=e18]:
+        - text: More
+        - img [ref=e19]
+      - button "+ Log Trade" [ref=e22]
+    - button "ET" [ref=e24]
+  - main [ref=e25]:
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - button "Back to Trades" [ref=e28]:
+          - img [ref=e29]
+          - text: Back to Trades
+        - heading "Edit Trade" [level=1] [ref=e31]
+        - paragraph [ref=e32]: Update trade details
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - generic [ref=e36]:
+              - generic [ref=e37]:
+                - heading "Trade Details" [level=2] [ref=e38]
+                - generic [ref=e39]:
+                  - button "Entry / Exit" [ref=e40]
+                  - button "Direct P&L" [ref=e41]
+              - generic [ref=e42]:
+                - generic [ref=e43]:
+                  - generic [ref=e45]: Date
+                  - textbox [ref=e46]: 2026-03-19
+                - generic [ref=e47]:
+                  - generic [ref=e49]: Ticker / Symbol
+                  - textbox "AAPL" [ref=e50]: E2ELOG
+              - generic [ref=e51]:
+                - generic [ref=e52]:
+                  - generic [ref=e54]: Direction
+                  - combobox [ref=e55]:
+                    - option "Long" [selected]
+                    - option "Short"
+                - generic [ref=e56]:
+                  - generic [ref=e58]:
+                    - text: Timeframe
+                    - generic [ref=e59]: (optional)
+                  - combobox [ref=e60]:
+                    - option "Select..." [selected]
+                    - option "1m"
+                    - option "5m"
+                    - option "15m"
+                    - option "1h"
+                    - option "4h"
+                    - option "daily"
+                    - option "weekly"
+              - generic [ref=e61]:
+                - generic [ref=e62]:
+                  - generic [ref=e64]: Entry Price
+                  - spinbutton [ref=e65]: "18000"
+                - generic [ref=e66]:
+                  - generic [ref=e68]:
+                    - text: Exit Price
+                    - generic [ref=e69]: (optional)
+                  - spinbutton [ref=e70]: "18050"
+                - generic [ref=e71]:
+                  - generic [ref=e73]:
+                    - text: Stop Loss
+                    - generic [ref=e74]: (optional)
+                  - spinbutton [ref=e75]
+              - generic [ref=e76]:
+                - generic [ref=e77]:
+                  - generic [ref=e78]:
+                    - generic [ref=e79]: Position Size (shares/units)
+                    - button "Calc Size" [ref=e80]:
+                      - img [ref=e81]
+                      - text: Calc Size
+                  - spinbutton [ref=e83]: "1"
+                - generic [ref=e84]:
+                  - generic [ref=e86]:
+                    - text: Fees / Commission
+                    - generic [ref=e87]: (optional)
+                  - spinbutton [ref=e88]: "5"
+            - generic [ref=e89]:
+              - generic [ref=e90]:
+                - generic [ref=e91]: Net P&L (after fees)
+                - generic [ref=e92]: +$45.00
+                - generic [ref=e93]: "-$5.00 fees"
+              - generic [ref=e94]:
+                - generic [ref=e95]: Return %
+                - generic [ref=e96]: +0.25%
+            - generic [ref=e97]:
+              - heading "Optional Details" [level=2] [ref=e98]
+              - generic [ref=e99]:
+                - generic [ref=e100]:
+                  - generic [ref=e102]:
+                    - text: Strategy
+                    - generic [ref=e103]: (optional)
+                  - combobox [ref=e104]:
+                    - option "None" [selected]
+                    - option "Breakout"
+                    - option "Gap Fill"
+                    - option "Momentum"
+                    - option "Pullback"
+                    - option "Reversal"
+                - generic [ref=e105]:
+                  - generic [ref=e107]:
+                    - text: Bias
+                    - generic [ref=e108]: (optional)
+                  - combobox [ref=e109]:
+                    - option "None" [selected]
+                    - option "Bullish"
+                    - option "Bearish"
+                    - option "Neutral"
+              - generic [ref=e111]:
+                - generic [ref=e113]:
+                  - text: SMT Divergence
+                  - generic [ref=e114]: (optional)
+                - combobox [ref=e115]:
+                  - option "Not recorded" [selected]
+                  - option "Yes"
+                  - option "No"
+              - generic [ref=e116]:
+                - generic [ref=e117]: Tags (optional)
+                - generic [ref=e118]:
+                  - button "A+ setup" [ref=e119]:
+                    - generic [ref=e120]: A+ setup
+                  - button "FOMO" [ref=e121]:
+                    - generic [ref=e122]: FOMO
+                  - button "earnings" [ref=e123]:
+                    - generic [ref=e124]: earnings
+                  - button "high-vol" [ref=e125]:
+                    - generic [ref=e126]: high-vol
+                  - button "overnight" [ref=e127]:
+                    - generic [ref=e128]: overnight
+                  - button "revenge" [ref=e129]:
+                    - generic [ref=e130]: revenge
+                  - button "scalp" [ref=e131]:
+                    - generic [ref=e132]: scalp
+                  - button "swing" [ref=e133]:
+                    - generic [ref=e134]: swing
+                  - textbox "+ Add tag…" [ref=e135]
+              - generic [ref=e136]:
+                - generic [ref=e138]:
+                  - text: Notes
+                  - generic [ref=e139]: (optional)
+                - textbox "What was the setup? How did execution go?" [ref=e140]
+            - generic [ref=e141]:
+              - generic [ref=e142]:
+                - img [ref=e143]
+                - heading "Confluences (optional)" [level=2] [ref=e147]
+              - paragraph [ref=e148]: Factors that aligned to support this trade — type and press Enter to add.
+              - textbox "e.g. Above VWAP, Earnings Catalyst, Inside Day…" [ref=e151]
+            - generic [ref=e152]:
+              - generic [ref=e153]:
+                - img [ref=e154]
+                - heading "Contested Factors (optional)" [level=2] [ref=e158]
+              - paragraph [ref=e159]: Price Delivery Arrays relevant to this trade — type and press Enter to add.
+              - textbox "e.g. Above VWAP, Earnings Catalyst, Inside Day…" [ref=e162]
+            - generic [ref=e163]:
+              - generic [ref=e164]:
+                - img [ref=e165]
+                - heading "Psychology (optional)" [level=2] [ref=e167]
+              - generic [ref=e168]:
+                - generic [ref=e169]:
+                  - generic [ref=e170]: Setup Confidence
+                  - generic [ref=e171]:
+                    - button [ref=e172]:
+                      - img [ref=e173]
+                    - button [ref=e175]:
+                      - img [ref=e176]
+                    - button [ref=e178]:
+                      - img [ref=e179]
+                    - button [ref=e181]:
+                      - img [ref=e182]
+                    - button [ref=e184]:
+                      - img [ref=e185]
+                  - paragraph [ref=e187]: How confident were you in this setup?
+                - generic [ref=e188]:
+                  - generic [ref=e189]: Emotion Intensity
+                  - generic [ref=e190]:
+                    - button "1" [ref=e191]
+                    - button "2" [ref=e192]
+                    - button "3" [ref=e193]
+                    - button "4" [ref=e194]
+                    - button "5" [ref=e195]
+                  - paragraph [ref=e196]: How strong were your emotions during this trade?
+              - generic [ref=e197]:
+                - generic [ref=e198]: Emotions Felt
+                - generic [ref=e199]:
+                  - textbox "Type an emotion and press Enter..." [ref=e201]
+                  - generic [ref=e202]:
+                    - button "+ Calm" [ref=e203]
+                    - button "+ Confident" [ref=e204]
+                    - button "+ Fearful" [ref=e205]
+                    - button "+ Greedy" [ref=e206]
+                    - button "+ FOMO" [ref=e207]
+                    - button "+ Anxious" [ref=e208]
+                    - button "+ Frustrated" [ref=e209]
+                    - button "+ Excited" [ref=e210]
+                    - button "+ Overconfident" [ref=e211]
+                    - button "+ Bored" [ref=e212]
+                    - button "+ Revenge" [ref=e213]
+                    - button "+ Patient" [ref=e214]
+              - generic [ref=e215]:
+                - generic [ref=e216]: Mistakes Made
+                - generic [ref=e217]:
+                  - textbox "Type a mistake and press Enter..." [ref=e219]
+                  - generic [ref=e220]:
+                    - button "+ Moved stop loss" [ref=e221]
+                    - button "+ Overtraded" [ref=e222]
+                    - button "+ FOMO entry" [ref=e223]
+                    - button "+ Early exit" [ref=e224]
+                    - button "+ Late exit" [ref=e225]
+                    - button "+ Position too large" [ref=e226]
+                    - button "+ No stop loss" [ref=e227]
+                    - button "+ Chasing price" [ref=e228]
+                    - button "+ Revenge trade" [ref=e229]
+                    - button "+ Ignored plan" [ref=e230]
+                    - button "+ Overleveraged" [ref=e231]
+                    - button "+ Late entry" [ref=e232]
+              - generic [ref=e233]:
+                - generic [ref=e234]:
+                  - generic [ref=e235]: Rules Followed
+                  - textbox "e.g. Used stop loss..." [ref=e238]
+                - generic [ref=e239]:
+                  - generic [ref=e240]: Rules Broken
+                  - textbox "e.g. Moved stop loss..." [ref=e243]
+          - generic [ref=e244]:
+            - generic [ref=e245]:
+              - heading "Screenshots (max 2)" [level=2] [ref=e246]
+              - button "Add Screenshot" [ref=e247]:
+                - img [ref=e248]
+                - text: Add Screenshot
+            - generic [ref=e252] [cursor=pointer]:
+              - img [ref=e253]
+              - paragraph [ref=e257]: Click to upload a chart screenshot
+        - generic [ref=e258]:
+          - button "Cancel" [ref=e259]
+          - button "Update Trade" [ref=e260]
+  - button "?" [ref=e261]
+```

@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { tradesApi } from '../api/trades.js'
 import { strategiesApi } from '../api/strategies.js'
 import { tagsApi } from '../api/tags.js'
+import { psychologyApi } from '../api/psychology.js'
 import { useAccount } from '../contexts/AccountContext.jsx'
 import { supabase } from '../lib/supabase.js'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
@@ -193,8 +194,8 @@ const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2
 const EMOTION_PRESETS = ['Calm', 'Confident', 'Fearful', 'Greedy', 'FOMO', 'Anxious', 'Frustrated', 'Excited', 'Overconfident', 'Bored', 'Revenge', 'Patient']
 const MISTAKE_PRESETS = ['Moved stop loss', 'Overtraded', 'FOMO entry', 'Early exit', 'Late exit', 'Position too large', 'No stop loss', 'Chasing price', 'Revenge trade', 'Ignored plan', 'Overleveraged', 'Late entry']
 
-// ── Tag-input component (free-type + presets) ──────────────────────────────
-function TagInput({ value, onChange, presets, placeholder, colorClass }) {
+// ── Tag-input component (free-type + presets + history suggestions) ──────────
+function TagInput({ value, onChange, presets, suggestions = [], placeholder, colorClass }) {
   const [input, setInput] = useState('')
   const inputRef = useRef(null)
 
@@ -220,7 +221,11 @@ function TagInput({ value, onChange, presets, placeholder, colorClass }) {
     }
   }
 
-  const unusedPresets = presets.filter(p => !value.includes(p))
+  // Merge presets + history suggestions (deduped), filter out already-selected
+  const allOptions = [...new Set([...presets, ...suggestions])].filter(p => !value.includes(p))
+  const quickPicks = input.length > 0
+    ? allOptions.filter(p => p.toLowerCase().includes(input.toLowerCase()))
+    : allOptions
 
   return (
     <div>
@@ -246,10 +251,10 @@ function TagInput({ value, onChange, presets, placeholder, colorClass }) {
           className="flex-1 min-w-[120px] bg-transparent text-sm text-white placeholder-gray-600 outline-none"
         />
       </div>
-      {/* Preset chips */}
-      {unusedPresets.length > 0 && (
+      {/* Quick-pick chips */}
+      {quickPicks.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-2">
-          {unusedPresets.map(p => (
+          {quickPicks.map(p => (
             <button key={p} type="button" onClick={() => add(p)}
               className="px-2 py-0.5 rounded text-xs text-gray-500 border border-gray-700 hover:border-gray-500 hover:text-gray-300 transition-colors">
               + {p}
@@ -446,12 +451,14 @@ export default function TradeFormPage() {
   }
 
   // Psychology state (managed outside react-hook-form)
-  const [confidence,       setConfidence]       = useState(null)
-  const [emotionIntensity, setEmotionIntensity] = useState(null)
-  const [emotions,         setEmotions]         = useState([])
-  const [mistakes,         setMistakes]         = useState([])
-  const [rulesFollowed,    setRulesFollowed]    = useState([])
-  const [rulesBroken,      setRulesBroken]      = useState([])
+  const [confidence,         setConfidence]         = useState(null)
+  const [emotionIntensity,   setEmotionIntensity]   = useState(null)
+  const [emotions,           setEmotions]           = useState([])
+  const [mistakes,           setMistakes]           = useState([])
+  const [rulesFollowed,      setRulesFollowed]      = useState([])
+  const [rulesBroken,        setRulesBroken]        = useState([])
+  const [emotionSuggestions, setEmotionSuggestions] = useState([])
+  const [mistakeSuggestions, setMistakeSuggestions] = useState([])
 
   const [confluences,           setConfluences]           = useState([])
   const [confluenceSuggestions, setConfluenceSuggestions] = useState([])
@@ -509,6 +516,8 @@ export default function TradeFormPage() {
     tagsApi.list().then(setTags)
     tradesApi.confluences().then(setConfluenceSuggestions).catch(() => {})
     tradesApi.pdArrays().then(setPdArraySuggestions).catch(() => {})
+    psychologyApi.emotionList().then(setEmotionSuggestions).catch(() => {})
+    psychologyApi.mistakeList().then(setMistakeSuggestions).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -962,6 +971,7 @@ export default function TradeFormPage() {
               value={emotions}
               onChange={setEmotions}
               presets={EMOTION_PRESETS}
+              suggestions={emotionSuggestions}
               placeholder="Type an emotion and press Enter..."
               colorClass="bg-purple-500/10 text-purple-300 border border-purple-500/20"
             />
@@ -974,31 +984,10 @@ export default function TradeFormPage() {
               value={mistakes}
               onChange={setMistakes}
               presets={MISTAKE_PRESETS}
+              suggestions={mistakeSuggestions}
               placeholder="Type a mistake and press Enter..."
               colorClass="bg-red-500/10 text-red-300 border border-red-500/20"
             />
-          </div>
-
-          {/* Rules */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-gray-400 mb-2 font-medium">Rules Followed</label>
-              <RuleInput
-                value={rulesFollowed}
-                onChange={setRulesFollowed}
-                placeholder="e.g. Used stop loss..."
-                colorClass="bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-2 font-medium">Rules Broken</label>
-              <RuleInput
-                value={rulesBroken}
-                onChange={setRulesBroken}
-                placeholder="e.g. Moved stop loss..."
-                colorClass="bg-orange-500/10 text-orange-300 border border-orange-500/20"
-              />
-            </div>
           </div>
         </div>
 
