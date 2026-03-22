@@ -38,7 +38,12 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', class
         setOpen(false)
       }
     }
-    function onScroll() { setOpen(false) }
+    function onScroll() {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect()
+        setPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX })
+      }
+    }
     if (open) {
       document.addEventListener('mousedown', onMouseDown)
       window.addEventListener('scroll', onScroll, true)
