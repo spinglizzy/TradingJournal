@@ -128,7 +128,7 @@ router.post('/', async (req, res) => {
 
     let pnl, pnl_percent, r_multiple, status
     if (fields.entry_mode === 'direct_pnl' && fields.direct_pnl != null) {
-      pnl = fields.direct_pnl - (fields.fees ?? 0); pnl_percent = null; r_multiple = null; status = 'closed'
+      pnl = fields.direct_pnl - (fields.fees ?? 0); pnl_percent = null; r_multiple = fields.r_multiple ?? null; status = 'closed'
     } else {
       ;({ pnl, pnl_percent, r_multiple } = calcPnl(
         fields.direction, fields.entry_price, fields.exit_price,
@@ -185,7 +185,7 @@ router.put('/:id', async (req, res) => {
 
     let pnl, pnl_percent, r_multiple, status
     if (merged.entry_mode === 'direct_pnl' && merged.direct_pnl != null) {
-      pnl = merged.direct_pnl - (merged.fees ?? 0); pnl_percent = null; r_multiple = null; status = 'closed'
+      pnl = merged.direct_pnl - (merged.fees ?? 0); pnl_percent = null; r_multiple = fields.r_multiple !== undefined ? (fields.r_multiple ?? null) : (merged.r_multiple ?? null); status = 'closed'
     } else {
       ;({ pnl, pnl_percent, r_multiple } = calcPnl(
         merged.direction, merged.entry_price, merged.exit_price,

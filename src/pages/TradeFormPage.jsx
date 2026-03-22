@@ -468,6 +468,7 @@ export default function TradeFormPage() {
 
   const watchedValues = watch(['direction', 'entry_price', 'exit_price', 'position_size', 'fees', 'stop_loss'])
   const watchedDirectPnl = watch('direct_pnl')
+  const watchedDirectR = watch('direct_r_multiple')
 
   // Live P&L preview
   useEffect(() => {
@@ -476,7 +477,8 @@ export default function TradeFormPage() {
       if (!watchedDirectPnl && watchedDirectPnl !== 0) { setPreviewPnl(null); return }
       const fees = Number(watchedValues[4] || 0)
       const pnl = Number(watchedDirectPnl) - fees
-      setPreviewPnl({ pnl, pct: null, r: null, fees })
+      const r = watchedDirectR !== '' && watchedDirectR != null ? Number(watchedDirectR) : null
+      setPreviewPnl({ pnl, pct: null, r, fees })
       return
     }
     const [direction, entry, exit, size, fees, stop] = watchedValues
@@ -490,7 +492,7 @@ export default function TradeFormPage() {
       if (risk > 0) r = pnl / risk
     }
     setPreviewPnl({ pnl, pct, r, fees: Number(fees || 0) })
-  }, [watchedValues, watchedDirectPnl, entryMode, submitting])
+  }, [watchedValues, watchedDirectPnl, watchedDirectR, entryMode, submitting])
 
   useEffect(() => {
     strategiesApi.list().then(setStrategies)
@@ -567,6 +569,7 @@ export default function TradeFormPage() {
           exit_price:        null,
           stop_loss:         null,
           direct_pnl:        Number(data.direct_pnl),
+          r_multiple:        data.direct_r_multiple !== '' && data.direct_r_multiple != null ? Number(data.direct_r_multiple) : null,
           entry_mode:        'direct_pnl',
           bias:              data.bias || null,
           smt_divergence:    data.smt_divergence !== '' ? data.smt_divergence === 'true' : null,
@@ -761,7 +764,7 @@ export default function TradeFormPage() {
               </div>
             </>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Field label="P&L Amount ($)" error={errors.direct_pnl?.message}>
                 <input
                   type="number"
@@ -774,6 +777,10 @@ export default function TradeFormPage() {
               </Field>
               <Field label="Fees / Commission" optional>
                 <input type="number" step="0.01" placeholder="0.00" {...register('fees')} className={inputCls} />
+              </Field>
+              <Field label="R Multiple" optional>
+                <input type="number" step="0.01" placeholder="e.g. 2.5" {...register('direct_r_multiple')} className={inputCls} />
+                <p className="text-xs text-gray-600 mt-1">e.g. 1.5R, 2R, -1R</p>
               </Field>
             </div>
           )}
