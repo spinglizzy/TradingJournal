@@ -87,22 +87,6 @@ export default function TradeLog() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              const url = importExportApi.exportCsvUrl({
-                ...(selectedAccountId ? { account_id: selectedAccountId } : {}),
-                ...(filters.start_date ? { from: filters.start_date } : {}),
-                ...(filters.end_date   ? { to:   filters.end_date }   : {}),
-                ...(filters.status     ? { status: filters.status }   : {}),
-              })
-              window.open(url, '_blank')
-            }}
-            className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium rounded-lg transition-colors border border-gray-700"
-            title="Export filtered trades as CSV"
-          >
-            <Download className="w-4 h-4" />
-            Export CSV
-          </button>
-          <button
             data-testid="log-trade-btn"
             onClick={() => flushSync(() => navigate('/trades/new'))}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
