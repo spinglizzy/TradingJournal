@@ -10,6 +10,7 @@ import { useAccount } from '../contexts/AccountContext.jsx'
 import { supabase } from '../lib/supabase.js'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import Badge from '../components/ui/Badge.jsx'
+import { DatePicker } from '../components/ui/DatePicker.jsx'
 import PositionCalculator from '../components/calculator/PositionCalculator.jsx'
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
@@ -701,7 +702,11 @@ export default function TradeFormPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Date" error={errors.date?.message}>
-              <input type="date" {...register('date', { required: 'Required' })} className={inputCls} />
+              <DatePicker
+                value={watch('date')}
+                onChange={(val) => setValue('date', val, { shouldValidate: true })}
+                error={!!errors.date}
+              />
             </Field>
             <Field label="Ticker / Symbol" error={errors.ticker?.message}>
               <input type="text" placeholder="AAPL" {...register('ticker', { required: 'Required' })}
@@ -865,7 +870,7 @@ export default function TradeFormPage() {
           </div>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-2 font-medium">Tags <span className="text-gray-600 font-normal">(optional)</span></label>
+            <label className="block text-xs text-gray-400 mb-2 font-medium">Draw/Target <span className="text-gray-600 font-normal">(optional)</span></label>
             <div className="flex flex-wrap gap-2 items-center">
               {tags.map(tag => (
                 <button
