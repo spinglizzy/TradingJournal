@@ -347,9 +347,16 @@ function RuleInput({ value, onChange, placeholder, colorClass }) {
 }
 
 // ── Confluence input (free-type + autocomplete from history) ──────────────────
-function ConfluenceInput({ value, onChange, suggestions = [] }) {
+function ConfluenceInput({ value, onChange, suggestions = [], color = 'cyan' }) {
   const [input, setInput] = useState('')
   const inputRef = useRef(null)
+
+  const tagCls    = color === 'amber'
+    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+    : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+  const quickCls  = color === 'amber'
+    ? 'hover:border-amber-500/40 hover:text-amber-300'
+    : 'hover:border-cyan-500/40 hover:text-cyan-300'
 
   function add(item) {
     const trimmed = item.trim()
@@ -366,9 +373,11 @@ function ConfluenceInput({ value, onChange, suggestions = [] }) {
     if (e.key === 'Backspace' && !input && value.length > 0) remove(value[value.length - 1])
   }
 
-  const filtered = input.length > 0
-    ? suggestions.filter(s => !value.includes(s) && s.toLowerCase().includes(input.toLowerCase()))
-    : []
+  // While typing: filter suggestions by input. When idle: show all unused suggestions.
+  const available = suggestions.filter(s => !value.includes(s))
+  const quickPicks = input.length > 0
+    ? available.filter(s => s.toLowerCase().includes(input.toLowerCase()))
+    : available
 
   return (
     <div>
@@ -377,7 +386,7 @@ function ConfluenceInput({ value, onChange, suggestions = [] }) {
         onClick={() => inputRef.current?.focus()}
       >
         {value.map(item => (
-          <span key={item} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+          <span key={item} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${tagCls}`}>
             {item}
             <button type="button" onClick={e => { e.stopPropagation(); remove(item) }}
               className="opacity-60 hover:opacity-100 leading-none ml-0.5">×</button>
@@ -389,15 +398,15 @@ function ConfluenceInput({ value, onChange, suggestions = [] }) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={onKeyDown}
           onBlur={() => { if (input.trim()) add(input) }}
-          placeholder={value.length === 0 ? 'e.g. Above VWAP, Earnings Catalyst, Inside Day…' : ''}
+          placeholder={value.length === 0 ? 'Type and press Enter to add…' : ''}
           className="flex-1 min-w-[120px] bg-transparent text-sm text-white placeholder-gray-600 outline-none"
         />
       </div>
-      {filtered.length > 0 && (
+      {quickPicks.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-2">
-          {filtered.map(s => (
+          {quickPicks.map(s => (
             <button key={s} type="button" onClick={() => add(s)}
-              className="px-2 py-0.5 rounded text-xs text-gray-500 border border-gray-700 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">
+              className={`px-2 py-0.5 rounded text-xs text-gray-500 border border-gray-700 transition-colors ${quickCls}`}>
               + {s}
             </button>
           ))}
@@ -921,6 +930,7 @@ export default function TradeFormPage() {
             value={pdArrays}
             onChange={setPdArrays}
             suggestions={pdArraySuggestions}
+            color="amber"
           />
         </div>
 
