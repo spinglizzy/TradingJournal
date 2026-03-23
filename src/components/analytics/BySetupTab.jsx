@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts'
-import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 import { Section, WinRateBar, fmt, fmtPnl, fmtR } from './shared.jsx'
@@ -72,7 +72,7 @@ function SmtComparisonPanel({ dateRange }) {
             </div>
           </div>
           <div className="mt-3">
-            <WinRateBar wins={Number(row.wins)} total={Number(row.trades)} />
+            <WinRateBar wins={Number(row.wins)} total={Number(row.wins) + Number(row.losses)} />
           </div>
         </div>
       ))}
@@ -80,51 +80,6 @@ function SmtComparisonPanel({ dateRange }) {
   )
 }
 
-const COLUMNS = [
-  { key: 'setup',         label: 'Setup' },
-  { key: 'trades',        label: 'Trades' },
-  { key: 'pnl',          label: 'P&L' },
-  { key: 'win_rate',      label: 'Win Rate' },
-  { key: 'profit_factor', label: 'Prof. Factor' },
-  { key: 'avg_pnl',      label: 'Avg P&L' },
-  { key: 'avg_r',        label: 'Avg R' },
-]
-
-function SetupExpandedRow({ row }) {
-  const wr = row.trades > 0 ? (row.wins / row.trades) * 100 : 0
-  const expectancy = row.trades > 0
-    ? (wr / 100 * (row.avg_pnl ?? 0)) + ((1 - wr / 100) * (row.avg_pnl ?? 0))
-    : 0
-
-  return (
-    <div className="mx-0 mt-1 mb-2 px-4 py-3 bg-gray-800/50 rounded-lg grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-      <div>
-        <div className="text-xs text-gray-500 mb-0.5">Win Rate</div>
-        <div className={`font-mono font-semibold ${wr >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
-          {fmt(wr, 1)}%
-        </div>
-      </div>
-      <div>
-        <div className="text-xs text-gray-500 mb-0.5">Profit Factor</div>
-        <div className={`font-mono font-semibold ${(row.profit_factor ?? 0) >= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
-          {row.profit_factor != null ? fmt(row.profit_factor) : '—'}
-        </div>
-      </div>
-      <div>
-        <div className="text-xs text-gray-500 mb-0.5">Avg P&L</div>
-        <div className={`font-mono font-semibold ${(row.avg_pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-          {fmtPnl(row.avg_pnl)}
-        </div>
-      </div>
-      <div>
-        <div className="text-xs text-gray-500 mb-0.5">Avg R</div>
-        <div className={`font-mono font-semibold ${(row.avg_r ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-          {fmtR(row.avg_r)}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function BySetupTab({ dateRange }) {
   const navigate = useNavigate()
@@ -132,7 +87,6 @@ export default function BySetupTab({ dateRange }) {
   const [strategyData, setStrategyData] = useState([])
   const [biasData, setBiasData] = useState([])
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(null)
   const [chartMetric, setChartMetric] = useState('pnl')
   const chartRef = useRef(null)
 
@@ -144,7 +98,7 @@ export default function BySetupTab({ dateRange }) {
       analyticsApi.custom({ x_field: 'bias', y_metric: 'pnl', ...dateRange }),
     ]).then(([setupRows, stratRows, biasRows]) => {
       setData(setupRows)
-      setStrategyData(stratRows.map(r => ({ ...r, win_rate: r.trades > 0 ? (r.wins / r.trades) * 100 : 0 })))
+      setStrategyData(stratRows.map(r => { const d = Number(r.wins) + Number(r.losses); return { ...r, win_rate: d > 0 ? (Number(r.wins) / d) * 100 : 0 } }))
       setBiasData(biasRows.filter(r => r.dimension !== 'No Bias'))
       setExpanded(null)
     }).finally(() => setLoading(false))
@@ -152,10 +106,10 @@ export default function BySetupTab({ dateRange }) {
 
   if (loading) return <LoadingSpinner className="h-64" />
 
-  const withWr = data.map(r => ({
-    ...r,
-    win_rate: r.trades > 0 ? (r.wins / r.trades) * 100 : 0,
-  }))
+  const withWr = data.map(r => {
+    const decisive = Number(r.wins) + Number(r.losses)
+    return { ...r, win_rate: decisive > 0 ? (Number(r.wins) / decisive) * 100 : 0 }
+  })
 
   const chartData = withWr.slice(0, 12) // top 12 for readability
 
@@ -230,76 +184,6 @@ export default function BySetupTab({ dateRange }) {
         <SmtComparisonPanel dateRange={dateRange} />
       </Section>
 
-      {/* Table */}
-      <Section title="Setup Breakdown">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-800">
-                {COLUMNS.map(c => (
-                  <th key={c.key} className="text-left text-xs font-medium text-gray-500 uppercase tracking-wide py-2 pr-4 last:pr-0 whitespace-nowrap">
-                    {c.label}
-                  </th>
-                ))}
-                <th className="w-6" />
-                <th className="w-6" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {withWr.map((row, i) => (
-                <>
-                  <tr
-                    key={i}
-                    className="cursor-pointer hover:bg-gray-800/40 transition-colors"
-                    onClick={() => setExpanded(expanded === i ? null : i)}
-                  >
-                    <td className="py-2.5 pr-4 font-medium text-white">{row.setup}</td>
-                    <td className="py-2.5 pr-4 text-gray-300">{row.trades}</td>
-                    <td className={`py-2.5 pr-4 font-mono font-medium ${row.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {fmtPnl(row.pnl)}
-                    </td>
-                    <td className="py-2.5 pr-4 w-36">
-                      <WinRateBar wins={row.wins} total={row.trades} />
-                    </td>
-                    <td className={`py-2.5 pr-4 font-mono text-xs ${(row.profit_factor ?? 0) >= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {row.profit_factor != null ? fmt(row.profit_factor) : '—'}
-                    </td>
-                    <td className={`py-2.5 pr-4 font-mono text-xs ${(row.avg_pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {fmtPnl(row.avg_pnl)}
-                    </td>
-                    <td className={`py-2.5 pr-4 font-mono text-xs ${(row.avg_r ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {fmtR(row.avg_r)}
-                    </td>
-                    <td className="py-2.5 text-gray-500">
-                      {expanded === i ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </td>
-                    <td className="py-2.5 pl-1">
-                      <button
-                        onClick={e => { e.stopPropagation(); navigate(`/trades?search=${encodeURIComponent(row.setup)}`) }}
-                        className="p-1 rounded text-gray-600 hover:text-indigo-400 transition-colors"
-                        title="View trades"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                  {expanded === i && (
-                    <tr key={`${i}-exp`}>
-                      <td colSpan={COLUMNS.length + 2} className="pb-2 pt-0">
-                        <SetupExpandedRow row={row} />
-                      </td>
-                    </tr>
-                  )}
-                </>
-              ))}
-              {!withWr.length && (
-                <tr><td colSpan={COLUMNS.length + 2} className="py-10 text-center text-gray-600 text-sm">No data</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
       {/* By Strategy */}
       <Section title="Strategy Breakdown">
         {!strategyData.length
@@ -320,7 +204,7 @@ export default function BySetupTab({ dateRange }) {
                       <td className="py-2.5 pr-4 font-medium text-white">{row.strategy}</td>
                       <td className="py-2.5 pr-4 text-gray-300">{row.trades}</td>
                       <td className={`py-2.5 pr-4 font-mono font-medium ${row.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPnl(row.pnl)}</td>
-                      <td className="py-2.5 pr-4 w-36"><WinRateBar wins={Number(row.wins)} total={Number(row.trades)} /></td>
+                      <td className="py-2.5 pr-4 w-36"><WinRateBar wins={Number(row.wins)} total={Number(row.wins) + Number(row.losses)} /></td>
                       <td className={`py-2.5 pr-4 font-mono text-xs ${(row.profit_factor ?? 0) >= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {row.profit_factor != null ? fmt(row.profit_factor) : '—'}
                       </td>

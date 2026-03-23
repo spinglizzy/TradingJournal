@@ -27,7 +27,7 @@ router.get('/by-weekday', async (req, res) => {
         COUNT(*)                                          AS trades,
         COALESCE(SUM(pnl),0)                             AS pnl,
         COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<=0 THEN 1 END) AS losses,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN 1 END) AS losses,
         AVG(pnl)                                         AS avg_pnl,
         AVG(r_multiple)                                  AS avg_r
       FROM trades WHERE status='closed' ${clause}
@@ -77,7 +77,7 @@ router.get('/by-strategy', async (req, res) => {
         COUNT(*)                                          AS trades,
         COALESCE(SUM(t.pnl),0)                           AS pnl,
         COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))<=0 THEN 1 END) AS losses,
+        COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))<0  THEN 1 END) AS losses,
         AVG(t.pnl)                                       AS avg_pnl,
         AVG(t.r_multiple)                                AS avg_r,
         1.0*SUM(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0  THEN t.pnl ELSE 0 END)/
@@ -104,7 +104,7 @@ router.get('/by-setup', async (req, res) => {
         COUNT(*)                                          AS trades,
         COALESCE(SUM(pnl),0)                             AS pnl,
         COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<=0 THEN 1 END) AS losses,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN 1 END) AS losses,
         AVG(pnl)                                         AS avg_pnl,
         AVG(r_multiple)                                  AS avg_r,
         1.0*SUM(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN pnl ELSE 0 END)/
@@ -130,7 +130,7 @@ router.get('/by-ticker', async (req, res) => {
         COUNT(*)                                         AS trades,
         COALESCE(SUM(pnl),0)                            AS pnl,
         COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<=0 THEN 1 END) AS losses,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN 1 END) AS losses,
         AVG(pnl)                                        AS avg_pnl,
         AVG(r_multiple)                                 AS avg_r,
         1.0*SUM(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN pnl ELSE 0 END)/
@@ -157,7 +157,7 @@ router.get('/by-tag', async (req, res) => {
         COUNT(*)                                         AS trades,
         COALESCE(SUM(t.pnl),0)                          AS pnl,
         COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))<=0 THEN 1 END) AS losses,
+        COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))<0  THEN 1 END) AS losses,
         AVG(t.pnl)                                      AS avg_pnl,
         AVG(t.r_multiple)                               AS avg_r,
         1.0*SUM(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0  THEN t.pnl ELSE 0 END)/
@@ -186,7 +186,7 @@ router.get('/by-smt', async (req, res) => {
         COUNT(*)                                          AS trades,
         COALESCE(SUM(pnl),0)                             AS pnl,
         COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<=0 THEN 1 END) AS losses,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN 1 END) AS losses,
         AVG(pnl)                                         AS avg_pnl,
         AVG(r_multiple)                                  AS avg_r,
         1.0*SUM(CASE WHEN (pnl + COALESCE(fees,0))>0 THEN pnl ELSE 0 END)/
@@ -198,7 +198,7 @@ router.get('/by-smt', async (req, res) => {
     res.json(r.rows.map(row => ({
       ...row,
       label: row.smt_divergence ? 'SMT Present' : 'No SMT',
-      win_rate: row.trades > 0 ? (Number(row.wins) / Number(row.trades)) * 100 : 0,
+      win_rate: (Number(row.wins) + Number(row.losses)) > 0 ? (Number(row.wins) / (Number(row.wins) + Number(row.losses))) * 100 : 0,
     })))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })

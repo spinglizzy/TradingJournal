@@ -49,10 +49,10 @@ export default function ByInstrumentTab({ dateRange }) {
 
   if (loading) return <LoadingSpinner className="h-64" />
 
-  const withWr = data.map(r => ({
-    ...r,
-    win_rate: r.trades > 0 ? (r.wins / r.trades) * 100 : 0,
-  }))
+  const withWr = data.map(r => {
+    const decisive = Number(r.wins) + Number(r.losses)
+    return { ...r, win_rate: decisive > 0 ? (Number(r.wins) / decisive) * 100 : 0 }
+  })
 
   const sorted = [...withWr].sort((a, b) => b.pnl - a.pnl)
   const top5    = sorted.slice(0, 5)
@@ -131,7 +131,7 @@ export default function ByInstrumentTab({ dateRange }) {
                     {fmtPnl(row.pnl)}
                   </td>
                   <td className="py-2.5 pr-4 w-36">
-                    <WinRateBar wins={row.wins} total={row.trades} />
+                    <WinRateBar wins={Number(row.wins)} total={Number(row.wins) + Number(row.losses)} />
                   </td>
                   <td className={`py-2.5 pr-4 font-mono text-xs ${(row.profit_factor ?? 0) >= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {row.profit_factor != null ? fmt(row.profit_factor) : '—'}
