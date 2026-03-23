@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts'
-import { TrendingUp, TrendingDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, ExternalLink } from 'lucide-react'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 import { Section, WinRateBar, fmt, fmtPnl, fmtR } from './shared.jsx'
@@ -34,6 +35,7 @@ function TopList({ items, title, color, Icon }) {
 }
 
 export default function ByInstrumentTab({ dateRange }) {
+  const navigate = useNavigate()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const chartRef = useRef(null)
@@ -113,7 +115,7 @@ export default function ByInstrumentTab({ dateRange }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800">
-                {['Ticker', 'Trades', 'P&L', 'Win Rate', 'Profit Factor', 'Avg P&L', 'Avg R'].map(h => (
+                {['Ticker', 'Trades', 'P&L', 'Win Rate', 'Profit Factor', 'Avg P&L', 'Avg R', ''].map(h => (
                   <th key={h} className="text-left text-xs font-medium text-gray-500 uppercase tracking-wide py-2 pr-4 last:pr-0 whitespace-nowrap">
                     {h}
                   </th>
@@ -137,13 +139,22 @@ export default function ByInstrumentTab({ dateRange }) {
                   <td className={`py-2.5 pr-4 font-mono text-xs ${(row.avg_pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {fmtPnl(row.avg_pnl)}
                   </td>
-                  <td className={`py-2.5 font-mono text-xs ${(row.avg_r ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <td className={`py-2.5 pr-4 font-mono text-xs ${(row.avg_r ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {fmtR(row.avg_r)}
+                  </td>
+                  <td className="py-2.5">
+                    <button
+                      onClick={() => navigate(`/trades?ticker=${encodeURIComponent(row.ticker)}`)}
+                      className="p-1 rounded text-gray-600 hover:text-indigo-400 transition-colors"
+                      title="View trades"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
                   </td>
                 </tr>
               ))}
               {!withWr.length && (
-                <tr><td colSpan={7} className="py-10 text-center text-gray-600 text-sm">No data</td></tr>
+                <tr><td colSpan={8} className="py-10 text-center text-gray-600 text-sm">No data</td></tr>
               )}
             </tbody>
           </table>

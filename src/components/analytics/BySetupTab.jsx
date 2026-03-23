@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { analyticsApi } from '../../api/analytics.js'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 import { Section, WinRateBar, fmt, fmtPnl, fmtR } from './shared.jsx'
@@ -126,7 +127,10 @@ function SetupExpandedRow({ row }) {
 }
 
 export default function BySetupTab({ dateRange }) {
+  const navigate = useNavigate()
   const [data, setData] = useState([])
+  const [strategyData, setStrategyData] = useState([])
+  const [biasData, setBiasData] = useState([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
   const [chartMetric, setChartMetric] = useState('pnl')
@@ -134,8 +138,14 @@ export default function BySetupTab({ dateRange }) {
 
   useEffect(() => {
     setLoading(true)
-    analyticsApi.bySetup(dateRange).then(rows => {
-      setData(rows)
+    Promise.all([
+      analyticsApi.bySetup(dateRange),
+      analyticsApi.byStrategy(dateRange),
+      analyticsApi.custom({ x_field: 'bias', y_metric: 'pnl', ...dateRange }),
+    ]).then(([setupRows, stratRows, biasRows]) => {
+      setData(setupRows)
+      setStrategyData(stratRows.map(r => ({ ...r, win_rate: r.trades > 0 ? (r.wins / r.trades) * 100 : 0 })))
+      setBiasData(biasRows.filter(r => r.dimension !== 'No Bias'))
       setExpanded(null)
     }).finally(() => setLoading(false))
   }, [dateRange])
@@ -232,6 +242,7 @@ export default function BySetupTab({ dateRange }) {
                   </th>
                 ))}
                 <th className="w-6" />
+                <th className="w-6" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/50">
@@ -262,10 +273,19 @@ export default function BySetupTab({ dateRange }) {
                     <td className="py-2.5 text-gray-500">
                       {expanded === i ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </td>
+                    <td className="py-2.5 pl-1">
+                      <button
+                        onClick={e => { e.stopPropagation(); navigate(`/trades?search=${encodeURIComponent(row.setup)}`) }}
+                        className="p-1 rounded text-gray-600 hover:text-indigo-400 transition-colors"
+                        title="View trades"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
                   </tr>
                   {expanded === i && (
                     <tr key={`${i}-exp`}>
-                      <td colSpan={COLUMNS.length + 1} className="pb-2 pt-0">
+                      <td colSpan={COLUMNS.length + 2} className="pb-2 pt-0">
                         <SetupExpandedRow row={row} />
                       </td>
                     </tr>
@@ -273,12 +293,90 @@ export default function BySetupTab({ dateRange }) {
                 </>
               ))}
               {!withWr.length && (
-                <tr><td colSpan={COLUMNS.length + 1} className="py-10 text-center text-gray-600 text-sm">No data</td></tr>
+                <tr><td colSpan={COLUMNS.length + 2} className="py-10 text-center text-gray-600 text-sm">No data</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </Section>
+
+      {/* By Strategy */}
+      <Section title="Strategy Breakdown">
+        {!strategyData.length
+          ? <div className="py-6 text-center text-gray-600 text-sm">No strategy data. Assign strategies when logging trades.</div>
+          : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    {['Strategy', 'Trades', 'P&L', 'Win Rate', 'Profit Factor', 'Avg P&L', 'Avg R', ''].map(h => (
+                      <th key={h} className="text-left text-xs font-medium text-gray-500 uppercase tracking-wide py-2 pr-4 last:pr-0 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {strategyData.map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-800/20">
+                      <td className="py-2.5 pr-4 font-medium text-white">{row.strategy}</td>
+                      <td className="py-2.5 pr-4 text-gray-300">{row.trades}</td>
+                      <td className={`py-2.5 pr-4 font-mono font-medium ${row.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPnl(row.pnl)}</td>
+                      <td className="py-2.5 pr-4 w-36"><WinRateBar wins={Number(row.wins)} total={Number(row.trades)} /></td>
+                      <td className={`py-2.5 pr-4 font-mono text-xs ${(row.profit_factor ?? 0) >= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {row.profit_factor != null ? fmt(row.profit_factor) : '—'}
+                      </td>
+                      <td className={`py-2.5 pr-4 font-mono text-xs ${(row.avg_pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPnl(row.avg_pnl)}</td>
+                      <td className={`py-2.5 pr-4 font-mono text-xs ${(row.avg_r ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtR(row.avg_r)}</td>
+                      <td className="py-2.5">
+                        <button
+                          onClick={() => navigate(`/trades?search=${encodeURIComponent(row.strategy)}`)}
+                          className="p-1 rounded text-gray-600 hover:text-indigo-400 transition-colors"
+                          title="View trades"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        }
+      </Section>
+
+      {/* By Market Bias */}
+      {biasData.length > 0 && (
+        <Section title="Market Bias — Performance">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {biasData.map(row => {
+              const color = row.dimension === 'bullish' ? '#10b981' : row.dimension === 'bearish' ? '#ef4444' : '#9ca3af'
+              return (
+                <div
+                  key={row.dimension}
+                  className="rounded-xl border p-4 cursor-pointer hover:border-gray-600 transition-colors"
+                  style={{ borderColor: `${color}44`, backgroundColor: `${color}0a` }}
+                  onClick={() => navigate(`/trades?bias=${row.dimension}`)}
+                >
+                  <div className="text-sm font-semibold mb-3 capitalize" style={{ color }}>
+                    {row.dimension}
+                    <ExternalLink className="w-3 h-3 inline ml-1.5 opacity-50" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <div className="text-gray-500 mb-0.5">Trades</div>
+                      <div className="font-mono font-semibold text-white">{row.trades}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500 mb-0.5">Total P&L</div>
+                      <div className={`font-mono font-semibold ${row.value >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPnl(row.value)}</div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Section>
+      )}
     </div>
   )
 }

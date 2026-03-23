@@ -30,8 +30,18 @@ export default function TradeLog() {
   const fromParam = searchParams.get('from') ?? ''
   const toParam   = searchParams.get('to')   ?? ''
   const [filters, setFilters] = useState({
-    start_date: dateParam || fromParam, end_date: dateParam || toParam, ticker: '', direction: '',
-    strategy_id: '', status: '', tag: '', confluence: '', pd_array: '', bias: '', smt_divergence: '', search: '',
+    start_date: dateParam || fromParam,
+    end_date: dateParam || toParam,
+    ticker:        searchParams.get('ticker')        ?? '',
+    direction:     searchParams.get('direction')     ?? '',
+    strategy_id:   searchParams.get('strategy_id')  ?? '',
+    status:        searchParams.get('status')        ?? '',
+    tag:           searchParams.get('tag')           ?? '',
+    confluence:    searchParams.get('confluence')    ?? '',
+    pd_array:      searchParams.get('pd_array')      ?? '',
+    bias:          searchParams.get('bias')          ?? '',
+    smt_divergence:searchParams.get('smt_divergence')?? '',
+    search:        searchParams.get('search')        ?? '',
   })
   const [sort, setSort]   = useState({ sort_by: 'date', sort_dir: 'desc' })
   const [page, setPage]   = useState(1)

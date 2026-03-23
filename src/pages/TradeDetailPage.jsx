@@ -115,7 +115,8 @@ function Lightbox({ src, onClose }) {
 // ── MFE/MAE bar ───────────────────────────────────────────────────────────────
 function ExcursionBar({ trade }) {
   const { direction, entry_price, exit_price, mfe, mae } = trade
-  if (!exit_price) return <p className="text-sm text-gray-600 italic">Trade is still open</p>
+  if (trade.status === 'open') return <p className="text-sm text-gray-600 italic">Trade is still open</p>
+  if (!exit_price) return <p className="text-sm text-gray-600 italic">Excursion analysis unavailable for direct P&L trades.</p>
   if (!mfe && !mae) return <p className="text-sm text-gray-600 italic">MFE/MAE not recorded. Edit trade to add values.</p>
 
   const mult = direction === 'long' ? 1 : -1
@@ -227,6 +228,27 @@ function ExcursionBar({ trade }) {
 function PriceVisual({ trade }) {
   const { direction, entry_price, exit_price, stop_loss, mfe, mae } = trade
   if (!exit_price) {
+    if (trade.status === 'open') {
+      return (
+        <div className="flex items-center gap-6 py-4">
+          <div className="text-center">
+            <div className="text-xs text-gray-500 mb-1">Entry</div>
+            <div className="text-xl font-mono font-bold text-white">{fmtPrice(entry_price)}</div>
+          </div>
+          {stop_loss && (
+            <div className="text-center">
+              <div className="text-xs text-gray-500 mb-1">Stop Loss</div>
+              <div className="text-lg font-mono text-red-400">{fmtPrice(stop_loss)}</div>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-blue-400 text-sm italic">
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+            Trade open
+          </div>
+        </div>
+      )
+    }
+    // Closed trade entered via direct P&L (no exit price recorded)
     return (
       <div className="flex items-center gap-6 py-4">
         <div className="text-center">
@@ -239,10 +261,11 @@ function PriceVisual({ trade }) {
             <div className="text-lg font-mono text-red-400">{fmtPrice(stop_loss)}</div>
           </div>
         )}
-        <div className="flex items-center gap-2 text-blue-400 text-sm italic">
-          <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-          Trade open
+        <div className="text-center">
+          <div className="text-xs text-gray-500 mb-1">P&L</div>
+          <div className={`text-xl font-mono font-bold ${pnlColor(trade.pnl)}`}>{fmt$(trade.pnl)}</div>
         </div>
+        <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">Direct P&L</span>
       </div>
     )
   }
@@ -314,8 +337,10 @@ function WhatIfSimulator({ trade }) {
   const [altSize,  setAltSize]  = useState(trade.position_size)
   const [altFees,  setAltFees]  = useState(trade.fees ?? 0)
 
-  const actual = calcPnlFrontend(trade.direction, trade.entry_price, trade.exit_price,
-    trade.position_size, trade.fees ?? 0, trade.stop_loss)
+  const actual = (trade.entry_mode === 'direct_pnl' && !trade.exit_price)
+    ? { pnl: trade.pnl, pct: trade.pnl_percent, r: trade.r_multiple }
+    : calcPnlFrontend(trade.direction, trade.entry_price, trade.exit_price,
+        trade.position_size, trade.fees ?? 0, trade.stop_loss)
 
   const simulated = calcPnlFrontend(
     trade.direction,
@@ -405,6 +430,14 @@ function ExecutionTable({ trade, executions }) {
       fees: trade.fees ?? 0,
       executed_at: trade.exit_date ?? trade.date,
       notes: null,
+    }] : trade.entry_mode === 'direct_pnl' ? [{
+      id: 'exit-synthetic',
+      type: 'exit',
+      price: null,
+      quantity: trade.position_size,
+      fees: trade.fees ?? 0,
+      executed_at: trade.exit_date ?? trade.date,
+      notes: `Direct P&L: ${fmt$(trade.pnl)}`,
     }] : []),
   ]
 

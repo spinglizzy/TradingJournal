@@ -9,14 +9,16 @@ import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 import { Section, fmt, fmtPnl, fmtR } from './shared.jsx'
 
 const X_OPTIONS = [
-  { value: 'day_of_week', label: 'Day of Week' },
-  { value: 'hour',        label: 'Hour of Day' },
-  { value: 'setup',       label: 'Setup' },
-  { value: 'ticker',      label: 'Ticker' },
-  { value: 'strategy',    label: 'Strategy' },
-  { value: 'direction',   label: 'Direction' },
-  { value: 'timeframe',   label: 'Timeframe' },
-  { value: 'month',       label: 'Month' },
+  { value: 'day_of_week',    label: 'Day of Week' },
+  { value: 'hour',           label: 'Hour of Day' },
+  { value: 'setup',          label: 'Setup' },
+  { value: 'ticker',         label: 'Ticker' },
+  { value: 'strategy',       label: 'Strategy' },
+  { value: 'direction',      label: 'Direction' },
+  { value: 'timeframe',      label: 'Timeframe' },
+  { value: 'month',          label: 'Month' },
+  { value: 'bias',           label: 'Market Bias' },
+  { value: 'smt_divergence', label: 'SMT Divergence' },
 ]
 
 const Y_OPTIONS = [
