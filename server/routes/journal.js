@@ -136,7 +136,7 @@ router.get('/:id', async (req, res) => {
     ])
     if (!entryR.rows[0]) return res.status(404).json({ error: 'Entry not found' })
     const entry = entryR.rows[0]
-    res.json({ ...entry, tags: safeJson(entry.tags), linked_trades: linkedR.rows })
+    res.json({ ...entry, tags: safeJson(entry.tags), screenshot_paths: safeJson(entry.screenshot_paths), linked_trades: linkedR.rows })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
   }
@@ -145,11 +145,11 @@ router.get('/:id', async (req, res) => {
 // ── Create ────────────────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
-    const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[] } = req.body
+    const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[], screenshot_paths=null } = req.body
     const result = await pool.query(`
-      INSERT INTO journal_entries (date,entry_type,title,content,mood,tags,user_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id
-    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.userId])
+      INSERT INTO journal_entries (date,entry_type,title,content,mood,tags,user_id,screenshot_paths)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id
+    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.userId, screenshot_paths ? JSON.stringify(screenshot_paths) : null])
 
     const id = result.rows[0].id
     await syncLinks(id, trade_ids)
@@ -167,13 +167,13 @@ router.put('/:id', async (req, res) => {
     const check = await pool.query('SELECT id FROM journal_entries WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     if (!check.rows[0]) return res.status(404).json({ error: 'Entry not found' })
 
-    const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[] } = req.body
+    const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[], screenshot_paths=null } = req.body
     const NOW = `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
     await pool.query(`
       UPDATE journal_entries
-      SET date=$1,entry_type=$2,title=$3,content=$4,mood=$5,tags=$6,updated_at=${NOW}
-      WHERE id=$7 AND user_id=$8
-    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.params.id, req.userId])
+      SET date=$1,entry_type=$2,title=$3,content=$4,mood=$5,tags=$6,screenshot_paths=$7,updated_at=${NOW}
+      WHERE id=$8 AND user_id=$9
+    `, [date, entry_type, title, content, mood, JSON.stringify(tags), screenshot_paths ? JSON.stringify(screenshot_paths) : null, req.params.id, req.userId])
 
     await syncLinks(req.params.id, trade_ids)
 

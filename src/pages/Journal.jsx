@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useFlushNavigate } from '../hooks/useFlushNavigate.js'
-import { Search, Plus, X, Pencil, Trash2 } from 'lucide-react'
+import { Search, Plus, X, Pencil, Trash2, ImagePlus } from 'lucide-react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
+import { supabase } from '../lib/supabase.js'
 import { journalApi } from '../api/journal.js'
 import { statsApi } from '../api/stats.js'
 import { tradesApi } from '../api/trades.js'
@@ -153,6 +154,127 @@ function TemplateEditorModal({ type, onClose }) {
   )
 }
 
+// ── Screenshot panel ──────────────────────────────────────────────────────────
+function ScreenshotPanel({ screenshots, onChange }) {
+  const fileInputRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+  const [lightbox, setLightbox] = useState(null)
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const formData = new FormData()
+      formData.append('screenshot', file)
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        body: formData,
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      const { path } = await res.json()
+      onChange([...screenshots, { url: path, caption: '' }])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <>
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+            Images <span className="normal-case text-gray-600 font-normal">(max 2)</span>
+          </label>
+          {screenshots.length < 2 && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-indigo-400 hover:text-white hover:bg-indigo-600 border border-indigo-500/40 hover:border-indigo-600 rounded-lg transition-all disabled:opacity-50"
+            >
+              {uploading
+                ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                : <ImagePlus className="w-3 h-3" />
+              }
+              {uploading ? 'Uploading…' : 'Add Image'}
+            </button>
+          )}
+        </div>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+
+        {screenshots.length === 0 ? (
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="min-h-[100px] border-2 border-dashed border-gray-700 hover:border-gray-600 rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+          >
+            <ImagePlus className="w-7 h-7 text-gray-700 group-hover:text-gray-500 transition-colors" />
+            <p className="text-xs text-gray-600 group-hover:text-gray-500 transition-colors">Click to upload an image</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {screenshots.map((s, idx) => (
+              <div key={idx} className="space-y-1.5">
+                <div className="relative group rounded-lg overflow-hidden border border-gray-700">
+                  <img
+                    src={s.url}
+                    alt={s.caption || `Image ${idx + 1}`}
+                    className="w-full object-contain cursor-zoom-in max-h-[400px] bg-gray-950"
+                    onClick={() => setLightbox(s.url)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onChange(screenshots.filter((_, i) => i !== idx))}
+                    className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Caption (optional)"
+                  value={s.caption || ''}
+                  onChange={e => onChange(screenshots.map((sc, i) => i === idx ? { ...sc, caption: e.target.value } : sc))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+            ))}
+            {screenshots.length < 2 && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full py-2 border border-dashed border-gray-700 hover:border-gray-600 rounded-lg text-xs text-gray-600 hover:text-gray-400 transition-colors disabled:opacity-50"
+              >
+                + Add another image
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {lightbox && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4" onClick={() => setLightbox(null)}>
+          <img
+            src={lightbox}
+            alt="Full size"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black text-white rounded-full">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Entry editor panel (right drawer) ────────────────────────────────────────
 function EntryEditorPanel({
   entry,          // null = new entry
@@ -171,6 +293,11 @@ function EntryEditorPanel({
   const [tags,         setTags]         = useState(entry?.tags       ?? [])
   const [linkedTrades, setLinkedTrades] = useState(entry?.linked_trades ?? [])
   const [tradePickerOpen, setTradePickerOpen] = useState(false)
+  const [screenshots, setScreenshots] = useState(() => {
+    if (!entry?.screenshot_paths) return []
+    if (Array.isArray(entry.screenshot_paths)) return entry.screenshot_paths
+    try { const p = JSON.parse(entry.screenshot_paths); return Array.isArray(p) ? p : [] } catch { return [] }
+  })
 
   function handleTradesConfirm(ids) {
     // Load full trade info for display
@@ -192,6 +319,7 @@ function EntryEditorPanel({
       mood: mood || null,
       tags,
       trade_ids: linkedTrades.map(t => t.id),
+      screenshot_paths: screenshots.length ? screenshots : null,
     })
   }
 
@@ -280,6 +408,9 @@ function EntryEditorPanel({
               minHeight={300}
             />
           </div>
+
+          {/* Screenshots */}
+          <ScreenshotPanel screenshots={screenshots} onChange={setScreenshots} />
 
           {/* Linked trades */}
           <div>

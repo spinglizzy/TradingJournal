@@ -729,19 +729,21 @@ export default function TradeDetailPage() {
         </div>
       </div>
 
-      {/* ── Two column layout ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* ── Two column layout (entry/exit trades only) ── */}
+      {trade.entry_mode !== 'direct_pnl' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* ── Price Visual / Chart ── */}
-        <Section title="Price Visualization">
-          <PriceVisual trade={trade} />
-        </Section>
+          {/* ── Price Visual / Chart ── */}
+          <Section title="Price Visualization">
+            <PriceVisual trade={trade} />
+          </Section>
 
-        {/* ── Executions ── */}
-        <Section title="Executions">
-          <ExecutionTable trade={trade} executions={executions} />
-        </Section>
-      </div>
+          {/* ── Executions ── */}
+          <Section title="Executions">
+            <ExecutionTable trade={trade} executions={executions} />
+          </Section>
+        </div>
+      )}
 
       {/* ── MFE / MAE ── */}
       <Section title="Excursion Analysis — MFE / MAE">

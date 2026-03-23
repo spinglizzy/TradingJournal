@@ -144,10 +144,11 @@ CREATE TABLE IF NOT EXISTS journal_entries (
   title      TEXT,
   content    TEXT NOT NULL DEFAULT '',
   mood       TEXT CHECK(mood IN ('great','good','neutral','bad','terrible')),
-  tags       TEXT NOT NULL DEFAULT '[]',
-  user_id    UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  tags             TEXT NOT NULL DEFAULT '[]',
+  screenshot_paths TEXT,
+  user_id          UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at       TIMESTAMPTZ DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =============================================================================
@@ -429,6 +430,7 @@ ALTER TABLE trades ADD COLUMN IF NOT EXISTS confluences TEXT[] DEFAULT '{}';
 ALTER TABLE trades ADD COLUMN IF NOT EXISTS pd_arrays   TEXT[] DEFAULT '{}';
 ALTER TABLE trades ADD COLUMN IF NOT EXISTS bias           TEXT CHECK(bias IN ('bullish','bearish','neutral'));
 ALTER TABLE trades ADD COLUMN IF NOT EXISTS smt_divergence BOOLEAN;
+ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS screenshot_paths TEXT;
 CREATE INDEX IF NOT EXISTS idx_trades_confluences ON trades USING GIN(confluences);
 CREATE INDEX IF NOT EXISTS idx_trades_pd_arrays   ON trades USING GIN(pd_arrays);
 

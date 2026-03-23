@@ -18,7 +18,7 @@ const mainLinks = [
 
 const moreLinks = [
   { to: '/calculator',    label: 'Position Calc' },
-  { to: '/import-export', label: 'Import / Export' },
+  { to: '/import-export', label: 'Import' },
   { to: '/accounts',      label: 'Accounts' },
 ]
 

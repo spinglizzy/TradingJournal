@@ -32,11 +32,11 @@ router.get('/summary', async (req, res) => {
         COUNT(CASE WHEN status='closed' THEN 1 END)                     AS closed_trades,
         COUNT(CASE WHEN status='open'   THEN 1 END)                     AS open_trades,
         COALESCE(SUM(CASE WHEN status='closed' THEN pnl END), 0)        AS total_pnl,
-        COUNT(CASE WHEN pnl>0  AND status='closed' THEN 1 END)          AS wins,
-        COUNT(CASE WHEN pnl<0  AND status='closed' THEN 1 END)          AS losses,
-        COUNT(CASE WHEN pnl=0  AND status='closed' THEN 1 END)          AS breakevens,
-        AVG(CASE WHEN pnl>0  AND status='closed' THEN pnl END)          AS avg_win,
-        AVG(CASE WHEN pnl<0  AND status='closed' THEN pnl END)          AS avg_loss,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  AND status='closed' THEN 1 END) AS wins,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  AND status='closed' THEN 1 END) AS losses,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))=0  AND status='closed' THEN 1 END) AS breakevens,
+        AVG(CASE WHEN (pnl + COALESCE(fees,0))>0  AND status='closed' THEN pnl END) AS avg_win,
+        AVG(CASE WHEN (pnl + COALESCE(fees,0))<0  AND status='closed' THEN pnl END) AS avg_loss,
         MAX(CASE WHEN status='closed' THEN pnl END)                     AS best_pnl,
         MIN(CASE WHEN status='closed' THEN pnl END)                     AS worst_pnl
       FROM trades WHERE 1=1 ${clause}
@@ -45,8 +45,8 @@ router.get('/summary', async (req, res) => {
 
     const grossR = await pool.query(`
       SELECT
-        COALESCE(SUM(CASE WHEN pnl>0  THEN pnl END), 0)       AS gross_profit,
-        ABS(COALESCE(SUM(CASE WHEN pnl<0  THEN pnl END), 0))  AS gross_loss
+        COALESCE(SUM(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN pnl END), 0)       AS gross_profit,
+        ABS(COALESCE(SUM(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN pnl END), 0))  AS gross_loss
       FROM trades WHERE status='closed' ${clause}
     `, params)
     const grossRow = grossR.rows[0]
@@ -130,9 +130,9 @@ router.get('/monthly', async (req, res) => {
       SELECT
         SUBSTRING(date,1,7)                                   AS month,
         COALESCE(SUM(pnl),0)                                  AS pnl,
-        COUNT(CASE WHEN pnl>0  THEN 1 END)                    AS wins,
-        COUNT(CASE WHEN pnl<0  THEN 1 END)                    AS losses,
-        COUNT(CASE WHEN pnl=0  THEN 1 END)                    AS breakevens,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0 THEN 1 END) AS wins,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0 THEN 1 END) AS losses,
+        COUNT(CASE WHEN (pnl + COALESCE(fees,0))=0 THEN 1 END) AS breakevens,
         COUNT(*)                                              AS trades
       FROM trades WHERE status='closed' ${clause}
       GROUP BY SUBSTRING(date,1,7) ORDER BY month ASC
@@ -150,16 +150,16 @@ router.get('/streaks', async (req, res) => {
     const { clause, params } = dateFilter(from, to, account_id, req.userId)
 
     const r = await pool.query(`
-      SELECT pnl FROM trades
+      SELECT pnl, COALESCE(fees,0) AS fees FROM trades
       WHERE status='closed' AND pnl IS NOT NULL ${clause}
       ORDER BY date ASC, id ASC
     `, params)
 
     let currentStreak=0, longestWin=0, longestLoss=0, prevWin=null
     for (const t of r.rows) {
-      const pnl = Number(t.pnl)
-      if (pnl === 0) continue // breakeven — doesn't extend or break a streak
-      const isWin = pnl > 0
+      const gross = Number(t.pnl) + Number(t.fees)
+      if (gross === 0) continue // breakeven — doesn't extend or break a streak
+      const isWin = gross > 0
       if (prevWin === null || isWin !== prevWin) currentStreak = isWin ? 1 : -1
       else currentStreak = isWin ? currentStreak + 1 : currentStreak - 1
       if (isWin)  longestWin  = Math.max(longestWin,  currentStreak)
