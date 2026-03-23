@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { DatePicker } from '../ui/DatePicker.jsx'
 
 export default function TradeFilters({ filters, onChange, strategies, tags, confluenceSuggestions = [], pdArraySuggestions = [] }) {
   const [open, setOpen] = useState(false)
@@ -52,13 +53,11 @@ export default function TradeFilters({ filters, onChange, strategies, tags, conf
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1.5">From</label>
-            <input type="date" value={filters.start_date} onChange={e => set('start_date', e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500" />
+            <DatePicker value={filters.start_date} onChange={val => set('start_date', val)} placeholder="From date" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5">To</label>
-            <input type="date" value={filters.end_date} onChange={e => set('end_date', e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500" />
+            <DatePicker value={filters.end_date} onChange={val => set('end_date', val)} placeholder="To date" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5">Direction</label>

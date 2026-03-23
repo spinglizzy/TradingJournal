@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useFlushNavigate } from '../hooks/useFlushNavigate.js'
 import { Search, Plus, X, Pencil, Trash2, ImagePlus } from 'lucide-react'
@@ -16,6 +17,7 @@ import TradePicker from '../components/journal/TradePicker.jsx'
 import TagInput from '../components/journal/TagInput.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
+import { DatePicker } from '../components/ui/DatePicker.jsx'
 
 // ── Templates ────────────────────────────────────────────────────────────────
 const STORAGE_KEY = 'journal_templates_v2'
@@ -154,6 +156,32 @@ function TemplateEditorModal({ type, onClose }) {
   )
 }
 
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function JournalLightbox({ src, onClose }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
+      <img
+        src={src}
+        className="max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] object-contain rounded-lg shadow-2xl"
+        alt="journal image"
+        onClick={e => e.stopPropagation()}
+      />
+      <button
+        className="absolute top-4 right-4 p-2 rounded-full bg-gray-900/80 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+        onClick={onClose}
+      >
+        <X className="w-6 h-6" />
+      </button>
+    </div>
+  )
+}
+
 // ── Screenshot panel ──────────────────────────────────────────────────────────
 function ScreenshotPanel({ screenshots, onChange }) {
   const fileInputRef = useRef(null)
@@ -258,18 +286,9 @@ function ScreenshotPanel({ screenshots, onChange }) {
         )}
       </div>
 
-      {lightbox && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4" onClick={() => setLightbox(null)}>
-          <img
-            src={lightbox}
-            alt="Full size"
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          />
-          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black text-white rounded-full">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      {lightbox && createPortal(
+        <JournalLightbox src={lightbox} onClose={() => setLightbox(null)} />,
+        document.body
       )}
     </>
   )
@@ -349,12 +368,7 @@ function EntryEditorPanel({
           {/* Date */}
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className={inputCls}
-            />
+            <DatePicker value={date} onChange={setDate} />
           </div>
 
           {/* Title */}
@@ -504,7 +518,7 @@ function MissedForm({ trade, setups, onSave, onCancel }) {
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Date *</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={missedInputCls} />
+          <DatePicker value={date} onChange={setDate} />
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Ticker *</label>

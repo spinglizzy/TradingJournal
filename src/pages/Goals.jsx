@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, Eye, EyeOff, Pencil, Trash2, Plus, Target } from 'lucide-react'
 import { goalsApi } from '../api/goals.js'
+import { DatePicker } from '../components/ui/DatePicker.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -264,11 +265,10 @@ function AchievementFormModal({ ach, onSave, onClose }) {
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1.5">Earned Date (optional)</label>
-            <input
-              type="date"
+            <DatePicker
               value={form.earned_at ? form.earned_at.split('T')[0] : ''}
-              onChange={e => setForm(f => ({ ...f, earned_at: e.target.value ? e.target.value + 'T00:00:00.000Z' : null }))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+              onChange={val => setForm(f => ({ ...f, earned_at: val ? val + 'T00:00:00.000Z' : null }))}
+              placeholder="No date set"
             />
           </div>
 

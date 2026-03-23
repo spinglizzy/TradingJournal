@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Calendar, ChevronDown, X } from 'lucide-react'
 import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
 import { useDashboard, periodToRange } from '../../contexts/DashboardContext.jsx'
+import { DatePicker } from '../ui/DatePicker.jsx'
 
 const PERIODS = [
   { key: 'all',    label: 'All time' },
@@ -117,21 +118,11 @@ export default function DateRangeFilter() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">From</label>
-                  <input
-                    type="date"
-                    value={customFrom}
-                    onChange={e => setFrom(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-indigo-500 [color-scheme:dark]"
-                  />
+                  <DatePicker value={customFrom} onChange={setFrom} placeholder="From" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">To</label>
-                  <input
-                    type="date"
-                    value={customTo}
-                    onChange={e => setTo(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-indigo-500 [color-scheme:dark]"
-                  />
+                  <DatePicker value={customTo} onChange={setTo} placeholder="To" />
                 </div>
               </div>
               <button

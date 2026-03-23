@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useFlushNavigate } from '../hooks/useFlushNavigate.js'
 import { Pencil, Trash2, ChevronUp, ChevronDown, X, Plus, Image } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { DatePicker } from '../components/ui/DatePicker.jsx'
 import { playbookApi } from '../api/playbook.js'
 import { strategiesApi } from '../api/strategies.js'
 import TipTapEditor from '../components/journal/TipTapEditor.jsx'
@@ -976,7 +977,7 @@ function ExecuteModal({ plan, onExecute, onClose }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+            <DatePicker value={date} onChange={setDate} />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Actual Entry</label>
@@ -1222,7 +1223,7 @@ function MissedForm({ trade, setups, onSave, onCancel }) {
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Date *</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+          <DatePicker value={date} onChange={setDate} />
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Ticker *</label>

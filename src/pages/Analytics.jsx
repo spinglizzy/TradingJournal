@@ -5,6 +5,7 @@ import {
 import { statsApi } from '../api/stats.js'
 import { useAccount } from '../contexts/AccountContext.jsx'
 import { LocalDateFilter, fmt, fmtPnl, downloadCSV } from '../components/analytics/shared.jsx'
+import { DatePicker } from '../components/ui/DatePicker.jsx'
 import OverviewTab      from '../components/analytics/OverviewTab.jsx'
 import ByTimeTab        from '../components/analytics/ByTimeTab.jsx'
 import BySetupTab       from '../components/analytics/BySetupTab.jsx'
@@ -127,11 +128,9 @@ function ComparisonPanel({ onClose }) {
               className="bg-gray-700 border border-gray-600 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 outline-none focus:border-indigo-500 w-36" />
           </div>
           <div className="flex items-center gap-1">
-            <input type="date" value={newFrom} onChange={e => setNewFrom(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-indigo-500 [color-scheme:dark] w-36" />
+            <div className="w-36"><DatePicker value={newFrom} onChange={setNewFrom} placeholder="From" /></div>
             <span className="text-gray-600 text-xs">→</span>
-            <input type="date" value={newTo} onChange={e => setNewTo(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-indigo-500 [color-scheme:dark] w-36" />
+            <div className="w-36"><DatePicker value={newTo} onChange={setNewTo} placeholder="To" /></div>
           </div>
           <button onClick={addPreset}
             className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg transition-colors">

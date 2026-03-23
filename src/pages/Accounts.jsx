@@ -6,6 +6,7 @@ import { useAccount } from '../contexts/AccountContext.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Modal from '../components/ui/Modal.jsx'
+import { DatePicker } from '../components/ui/DatePicker.jsx'
 
 const CURRENCIES = ['USD', 'AUD', 'GBP', 'EUR', 'CAD', 'JPY', 'NZD', 'CHF', 'SGD', 'HKD']
 const CURRENCY_SYMBOL = { USD: '$', AUD: 'A$', GBP: '£', EUR: '€', CAD: 'C$', JPY: '¥', NZD: 'NZ$', CHF: 'Fr', SGD: 'S$', HKD: 'HK$' }
@@ -141,8 +142,7 @@ function TransactionModal({ account, onClose, onAdded }) {
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Date</label>
-              <input type="date" required className={inputCls} value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+              <DatePicker value={form.date} onChange={val => setForm(f => ({ ...f, date: val }))} />
             </div>
           </div>
           <input className={inputCls} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
