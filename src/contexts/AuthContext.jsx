@@ -38,6 +38,14 @@ export function AuthProvider({ children }) {
     return formatUser(data.user)
   }, [])
 
+  const loginWithOAuth = useCallback(async (provider) => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: `${window.location.origin}/dashboard` },
+    })
+    if (error) throw new Error(error.message)
+  }, [])
+
   const register = useCallback(async (email, password, name) => {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -64,7 +72,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, getToken }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithOAuth, register, logout, getToken }}>
       {children}
     </AuthContext.Provider>
   )
