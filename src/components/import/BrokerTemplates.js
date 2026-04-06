@@ -145,6 +145,25 @@ export const BROKER_TEMPLATES = [
     },
   },
   {
+    id: 'alpaca',
+    name: 'Alpaca',
+    description: 'Order history CSV export',
+    mappings: {
+      date:          'Filled At',
+      ticker:        'Symbol',
+      direction:     'Side',
+      entry_price:   'Avg Price',
+      position_size: 'Qty',
+      fees:          'Commission',
+    },
+    transforms: {
+      direction:     v => String(v).toLowerCase() === 'buy' ? 'long' : 'short',
+      date:          v => v?.split('T')[0] || v,   // ISO datetime → date
+      position_size: v => Math.abs(parseFloat(v) || 0),
+      fees:          v => Math.abs(parseFloat(v) || 0),
+    },
+  },
+  {
     id: 'generic',
     name: 'Generic / Custom',
     description: 'Standard columns — customize as needed',

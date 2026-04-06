@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import rateLimit from 'express-rate-limit'
 
 import { requireAuth }    from './middleware/auth.js'
 import tradesRouter       from './routes/trades.js'
@@ -14,6 +15,7 @@ import playbookRouter     from './routes/playbook.js'
 import goalsRouter        from './routes/goals.js'
 import accountsRouter     from './routes/accounts.js'
 import importExportRouter from './routes/importexport.js'
+import alpacaRouter       from './routes/alpaca.js'
 
 const app = express()
 
@@ -32,6 +34,11 @@ app.use(cors({
 }))
 app.use(express.json({ limit: '10mb' }))
 
+// Rate limiting — applied before auth so unauthenticated abuse is still capped
+app.use('/api/import', rateLimit({ windowMs: 60_000, max: 10 }))
+app.use('/api/upload', rateLimit({ windowMs: 60_000, max: 20 }))
+app.use('/api',        rateLimit({ windowMs: 60_000, max: 300 }))
+
 app.use(requireAuth)
 
 app.use('/api/trades',     tradesRouter)
@@ -47,6 +54,7 @@ app.use('/api/goals',      goalsRouter)
 app.use('/api/accounts',   accountsRouter)
 app.use('/api/import',     importExportRouter)
 app.use('/api/export',     importExportRouter)
+app.use('/api/alpaca',     alpacaRouter)
 
 app.use((err, _req, res, _next) => {
   console.error(err)

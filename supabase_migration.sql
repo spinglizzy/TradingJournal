@@ -435,6 +435,26 @@ CREATE INDEX IF NOT EXISTS idx_trades_confluences ON trades USING GIN(confluence
 CREATE INDEX IF NOT EXISTS idx_trades_pd_arrays   ON trades USING GIN(pd_arrays);
 
 -- =============================================================================
+-- BROKER CONNECTIONS (Alpaca API integration)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS broker_connections (
+  id           SERIAL PRIMARY KEY,
+  user_id      UUID REFERENCES auth.users ON DELETE CASCADE,
+  broker       TEXT NOT NULL,
+  api_key      TEXT NOT NULL,
+  api_secret   TEXT NOT NULL,
+  is_paper     BOOLEAN DEFAULT true,
+  status       TEXT DEFAULT 'active',
+  last_sync_at TIMESTAMPTZ,
+  connected_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (user_id, broker)
+);
+
+ALTER TABLE broker_connections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "broker_connections_all"
+  ON broker_connections FOR ALL USING (user_id = auth.uid());
+
+-- =============================================================================
 -- SAMPLE SEED DATA
 -- Replace 'YOUR-USER-UUID-HERE' with your actual user UUID after signing up.
 -- You can find your UUID in: Supabase Dashboard → Authentication → Users
