@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import {
   Download, Upload, AlertTriangle,
   Link2, Unlink, RefreshCw,
-  Lock, Mail, Smartphone, CheckCircle, Eye, EyeOff, Shield,
+  Lock, Mail, Smartphone, CheckCircle, Eye, EyeOff, Shield, Monitor, LogOut,
 } from 'lucide-react'
 import { BouncingDots } from '../components/ui/BouncingDots.jsx'
 import { importExportApi } from '../api/importexport.js'
@@ -65,6 +65,7 @@ export default function Settings() {
   const [mfaData, setMfaData] = useState(null)
   const [mfaCode, setMfaCode] = useState('')
   const [mfaStatus, setMfaStatus] = useState(null)
+  const [sessionStatus, setSessionStatus] = useState(null)
 
   useEffect(() => {
     if (activeTab === 'Brokers') loadBrokerStatus()
@@ -246,6 +247,16 @@ export default function Settings() {
       setMfaData(null)
       await loadMfaFactors()
       setMfaStatus({ success: true, text: '2FA removed from your account.' })
+    }
+  }
+
+  async function handleSignOutOthers() {
+    setSessionStatus('loading')
+    const { error } = await supabase.auth.signOut({ scope: 'others' })
+    if (error) {
+      setSessionStatus({ success: false, error: error.message })
+    } else {
+      setSessionStatus({ success: true, text: 'All other devices have been signed out.' })
     }
   }
 
@@ -701,6 +712,31 @@ export default function Settings() {
                 </button>
               </div>
             )}
+          </div>
+        </Section>
+
+        {/* Active Sessions */}
+        <Section
+          title="Active Sessions"
+          description="Sign out all other devices where your account is currently logged in."
+        >
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-4 bg-gray-800/60 rounded-lg border border-gray-700/50">
+              <Monitor className="w-5 h-5 text-gray-500 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-white">Other devices</p>
+                <p className="text-xs text-gray-500 mt-0.5">Any browser or device with an active session will be signed out immediately.</p>
+              </div>
+            </div>
+            <StatusBanner status={sessionStatus} />
+            <button
+              onClick={handleSignOutOthers}
+              disabled={sessionStatus === 'loading' || sessionStatus?.success}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-red-900/40 hover:text-red-400 border border-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {sessionStatus === 'loading' ? <BouncingDots size="sm" /> : <LogOut className="w-4 h-4" />}
+              Sign out other devices
+            </button>
           </div>
         </Section>
       </>}
