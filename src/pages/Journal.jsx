@@ -873,8 +873,9 @@ export default function Journal() {
   }
 
   function handleDayClick(dateStr) {
-    // Always toggle the day panel; editor only opens when user clicks an entry in the list
     setSelDate(prev => prev === dateStr ? null : dateStr)
+    setIsEditorOpen(false)
+    setEditingEntry(null)
   }
 
   // ── Filtered entries for list view ──
