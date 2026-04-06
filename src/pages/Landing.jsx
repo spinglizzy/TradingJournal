@@ -688,24 +688,44 @@ export default function Landing() {
         </section>
 
         {/* Footer */}
-        <footer className="py-8" style={{ borderTop: '1px solid color-mix(in srgb, #9aea62 10%, transparent)' }}>
-          <div className="mx-auto max-w-7xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <Logo />
-            <p className="text-xs text-gray-600">
-              © {new Date().getFullYear()} PulseJournal. Built for traders.
-            </p>
-            <div className="flex gap-6 text-xs text-gray-600">
-              {['Features', 'Analytics', 'Psychology'].map(label => (
-                <a
-                  key={label}
-                  href={`#${label.toLowerCase()}`}
+        <footer className="py-10" style={{ borderTop: '1px solid color-mix(in srgb, #9aea62 10%, transparent)' }}>
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+              <Logo />
+              <div className="flex gap-6 text-xs text-gray-600">
+                {['Features', 'Analytics', 'Psychology'].map(label => (
+                  <a
+                    key={label}
+                    href={`#${label.toLowerCase()}`}
+                    className="transition-colors hover:text-gray-400"
+                    onMouseEnter={e => e.target.style.color = '#9aea62'}
+                    onMouseLeave={e => e.target.style.color = ''}
+                  >
+                    {label}
+                  </a>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-900 text-xs text-gray-600">
+              <p>© {new Date().getFullYear()} PulseJournal. Built for traders.</p>
+              <div className="flex gap-6">
+                <Link
+                  to="/privacy"
                   className="transition-colors hover:text-gray-400"
                   onMouseEnter={e => e.target.style.color = '#9aea62'}
                   onMouseLeave={e => e.target.style.color = ''}
                 >
-                  {label}
-                </a>
-              ))}
+                  Privacy Policy
+                </Link>
+                <Link
+                  to="/terms"
+                  className="transition-colors hover:text-gray-400"
+                  onMouseEnter={e => e.target.style.color = '#9aea62'}
+                  onMouseLeave={e => e.target.style.color = ''}
+                >
+                  Terms of Service
+                </Link>
+              </div>
             </div>
           </div>
         </footer>

@@ -195,9 +195,9 @@ export default function Signup() {
           {/* Terms */}
           <p className="text-xs text-gray-600 text-center leading-relaxed">
             By creating an account, you agree to our{' '}
-            <a href="#" className="text-gray-500 hover:text-gray-300 underline underline-offset-2 transition-colors">Terms</a>
+            <Link to="/terms" className="text-gray-500 hover:text-gray-300 underline underline-offset-2 transition-colors">Terms of Service</Link>
             {' '}and{' '}
-            <a href="#" className="text-gray-500 hover:text-gray-300 underline underline-offset-2 transition-colors">Privacy Policy</a>.
+            <Link to="/privacy" className="text-gray-500 hover:text-gray-300 underline underline-offset-2 transition-colors">Privacy Policy</Link>.
           </p>
 
           {/* Sign in link */}

@@ -5,6 +5,8 @@ import Layout from './components/layout/Layout.jsx'
 import Landing from './pages/Landing.jsx'
 import Login from './pages/Login.jsx'
 import Signup from './pages/Signup.jsx'
+import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
+import TermsOfService from './pages/TermsOfService.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import TradeLog from './pages/TradeLog.jsx'
 import TradeFormPage from './pages/TradeFormPage.jsx'
@@ -20,9 +22,11 @@ import Settings from './pages/Settings.jsx'
 import Calculator from './pages/Calculator.jsx'
 
 const router = createBrowserRouter([
-  { path: '/',       element: <Landing /> },
-  { path: '/login',  element: <Login /> },
-  { path: '/signup', element: <Signup /> },
+  { path: '/',        element: <Landing /> },
+  { path: '/login',   element: <Login /> },
+  { path: '/signup',  element: <Signup /> },
+  { path: '/privacy', element: <PrivacyPolicy /> },
+  { path: '/terms',   element: <TermsOfService /> },
   {
     element: <ProtectedRoute><Layout /></ProtectedRoute>,
     children: [
