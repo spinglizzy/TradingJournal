@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import Layout from './components/layout/Layout.jsx'
+import { BouncingDots } from './components/ui/BouncingDots.jsx'
 
 // Public pages — loaded immediately (small, always needed)
 import Landing      from './pages/Landing.jsx'
@@ -28,7 +29,7 @@ const Calculator      = lazy(() => import('./pages/Calculator.jsx'))
 
 const PageLoader = () => (
   <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-    <div className="w-8 h-8 border-2 border-[#9aea62] border-t-transparent rounded-full animate-spin" />
+    <BouncingDots />
   </div>
 )
 
