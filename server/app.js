@@ -6,6 +6,8 @@ import { requireAuth }    from './middleware/auth.js'
 import oauthRouter        from './routes/oauth.js'
 import brokersRouter      from './routes/brokers.js'
 import tradierRouter      from './routes/tradier.js'
+import schwabRouter       from './routes/schwab.js'
+import tradestationRouter from './routes/tradestation.js'
 import tradesRouter       from './routes/trades.js'
 import statsRouter        from './routes/stats.js'
 import analyticsRouter    from './routes/analytics.js'
@@ -62,8 +64,10 @@ app.use('/api/accounts',   accountsRouter)
 app.use('/api/import',     importExportRouter)
 app.use('/api/export',     importExportRouter)
 app.use('/api/alpaca',     alpacaRouter)
-app.use('/api/brokers',   brokersRouter)
-app.use('/api/tradier',   tradierRouter)
+app.use('/api/brokers',      brokersRouter)
+app.use('/api/tradier',      tradierRouter)
+app.use('/api/schwab',       schwabRouter)
+app.use('/api/tradestation', tradestationRouter)
 
 app.use((err, _req, res, _next) => {
   console.error(err)
