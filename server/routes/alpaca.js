@@ -86,18 +86,14 @@ router.post('/sync', async (req, res) => {
 
     if (!ticker || !date || isNaN(entry_price) || isNaN(qty)) { skipped++; continue }
 
-    const dup = await pool.query(
-      `SELECT id FROM trades WHERE user_id=$1 AND ticker=$2 AND date=$3 AND entry_price=$4`,
-      [req.userId, ticker, date, entry_price]
+    const result = await pool.query(
+      `INSERT INTO trades (user_id, ticker, direction, entry_price, position_size, date, status, broker, broker_trade_id)
+       VALUES ($1,$2,$3,$4,$5,$6,'open','alpaca',$7)
+       ON CONFLICT (user_id, broker, broker_trade_id) DO NOTHING`,
+      [req.userId, ticker, direction, entry_price, qty, date, act.id]
     )
-    if (dup.rows.length) { skipped++; continue }
-
-    await pool.query(
-      `INSERT INTO trades (user_id, ticker, direction, entry_price, position_size, date, status)
-       VALUES ($1,$2,$3,$4,$5,$6,'open')`,
-      [req.userId, ticker, direction, entry_price, qty, date]
-    )
-    imported++
+    if (result.rowCount > 0) imported++
+    else skipped++
   }
 
   await pool.query(

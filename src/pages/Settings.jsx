@@ -7,7 +7,7 @@ import {
 import { BouncingDots } from '../components/ui/BouncingDots.jsx'
 import { importExportApi } from '../api/importexport.js'
 import { markOnboarded } from '../components/onboarding/OnboardingModal.jsx'
-import { alpacaApi } from '../api/alpaca.js'
+import { brokersApi } from '../api/brokers.js'
 import { supabase } from '../lib/supabase.js'
 
 function Section({ title, description, children }) {
@@ -37,9 +37,69 @@ function StatusBanner({ status }) {
 
 const TABS = ['Backup & Data', 'Brokers', 'Security', 'Advanced']
 
+const BROKER_LABELS = {
+  alpaca: 'Alpaca', tradier: 'Tradier', schwab: 'Schwab',
+  tradestation: 'TradeStation', etrade: 'E*TRADE', tradovate: 'Tradovate',
+}
+
+function BrokerCard({ label, type, note, comingSoon, status, loading, syncing, msg, onConnect, onSync, onDisconnect, children }) {
+  const connected = status?.connected
+  return (
+    <div className="p-4 bg-gray-800/60 rounded-lg border border-gray-700/50 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-white">{label}</p>
+          {comingSoon && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-700/80 text-gray-500 font-medium">Soon</span>}
+          {connected && (
+            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${status.is_paper ? 'bg-amber-900/40 text-amber-400' : 'bg-emerald-900/40 text-emerald-400'}`}>
+              {status.is_paper ? 'Paper' : 'Live'}
+            </span>
+          )}
+        </div>
+        {connected && (
+          <div className="flex items-center gap-2">
+            <button onClick={onSync} disabled={syncing || loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition-colors">
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing…' : 'Sync Now'}
+            </button>
+            <button onClick={onDisconnect} disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-red-900/50 hover:text-red-400 text-gray-400 text-xs font-medium rounded-lg transition-colors">
+              <Unlink className="w-3.5 h-3.5" />
+              Disconnect
+            </button>
+          </div>
+        )}
+      </div>
+      {connected && (
+        <p className="text-xs text-gray-500">
+          {status.last_sync_at ? `Last synced ${new Date(status.last_sync_at).toLocaleString()}` : 'Never synced'}
+        </p>
+      )}
+      <StatusBanner status={msg} />
+      {!connected && (
+        <>
+          {note && <p className="text-xs text-gray-500">{note}</p>}
+          {!comingSoon && type === 'oauth' && (
+            <button onClick={onConnect} disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
+              {loading ? <BouncingDots size="sm" /> : <Link2 className="w-4 h-4" />}
+              {loading ? 'Redirecting…' : `Connect ${label}`}
+            </button>
+          )}
+          {!comingSoon && type === 'credentials' && children}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Settings() {
   const fileRef = useRef(null)
-  const [activeTab, setActiveTab] = useState('Backup & Data')
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.has('connected') || params.get('tab') === 'Brokers' ? 'Brokers' : 'Backup & Data'
+  })
 
   // ── Backup & Data ────────────────────────────────────────────────────────────
   const [restoreMode, setRestoreMode] = useState('merge')
@@ -47,10 +107,10 @@ export default function Settings() {
   const [exportLoading, setExportLoading] = useState(false)
 
   // ── Brokers ──────────────────────────────────────────────────────────────────
-  const [brokerStatus, setBrokerStatus] = useState(null)
-  const [brokerLoading, setBrokerLoading] = useState(false)
-  const [syncLoading, setSyncLoading] = useState(false)
-  const [brokerMsg, setBrokerMsg] = useState(null)
+  const [brokerStatuses, setBrokerStatuses] = useState(null) // null = loading
+  const [brokerLoading, setBrokerLoading] = useState({})     // { alpaca: true }
+  const [syncLoading, setSyncLoading] = useState({})         // { tradier: true }
+  const [brokerMsg, setBrokerMsg] = useState({})             // { alpaca: { success, text } }
   const [alpacaForm, setAlpacaForm] = useState({ api_key: '', api_secret: '', is_paper: true })
   const [showSecret, setShowSecret] = useState(false)
 
@@ -68,16 +128,71 @@ export default function Settings() {
   const [sessionStatus, setSessionStatus] = useState(null)
 
   useEffect(() => {
-    if (activeTab === 'Brokers') loadBrokerStatus()
+    if (activeTab === 'Brokers') {
+      loadBrokerStatuses()
+      const params = new URLSearchParams(window.location.search)
+      const justConnected = params.get('connected')
+      const errorMsg = params.get('error')
+      if (justConnected) {
+        setBrokerMsg(m => ({ ...m, [justConnected]: { success: true, text: `${BROKER_LABELS[justConnected] || justConnected} connected successfully.` } }))
+        window.history.replaceState({}, '', '/settings?tab=Brokers')
+      }
+      if (errorMsg) {
+        setBrokerMsg(m => ({ ...m, _global: { success: false, error: decodeURIComponent(errorMsg) } }))
+        window.history.replaceState({}, '', '/settings?tab=Brokers')
+      }
+    }
     if (activeTab === 'Security') loadMfaFactors()
   }, [activeTab])
 
-  async function loadBrokerStatus() {
+  async function loadBrokerStatuses() {
     try {
-      const data = await alpacaApi.status()
-      setBrokerStatus(data)
+      const data = await brokersApi.allStatus()
+      setBrokerStatuses(data)
     } catch {
-      setBrokerStatus({ connected: false })
+      setBrokerStatuses({})
+    }
+  }
+
+  async function handleOAuthConnect(broker) {
+    setBrokerLoading(l => ({ ...l, [broker]: true }))
+    setBrokerMsg(m => ({ ...m, [broker]: null }))
+    try {
+      const { url } = await brokersApi.authorizeUrl(broker)
+      window.location.href = url
+    } catch (err) {
+      setBrokerMsg(m => ({ ...m, [broker]: { success: false, error: err.message || 'Failed to initiate connection.' } }))
+      setBrokerLoading(l => ({ ...l, [broker]: false }))
+    }
+  }
+
+  async function handleSync(broker) {
+    setSyncLoading(l => ({ ...l, [broker]: true }))
+    setBrokerMsg(m => ({ ...m, [broker]: null }))
+    try {
+      const { imported, skipped } = await brokersApi.sync(broker)
+      await loadBrokerStatuses()
+      setBrokerMsg(m => ({ ...m, [broker]: { success: true, text: `Sync complete: ${imported} imported, ${skipped} skipped.` } }))
+    } catch (err) {
+      setBrokerMsg(m => ({ ...m, [broker]: { success: false, error: err.message || 'Sync failed.' } }))
+    } finally {
+      setSyncLoading(l => ({ ...l, [broker]: false }))
+    }
+  }
+
+  async function handleDisconnect(broker) {
+    const label = BROKER_LABELS[broker] || broker
+    if (!confirm(`Remove ${label} connection? Your existing trades will not be deleted.`)) return
+    setBrokerLoading(l => ({ ...l, [broker]: true }))
+    setBrokerMsg(m => ({ ...m, [broker]: null }))
+    try {
+      await brokersApi.disconnect(broker)
+      await loadBrokerStatuses()
+      setBrokerMsg(m => ({ ...m, [broker]: { success: true, text: `${label} disconnected.` } }))
+    } catch (err) {
+      setBrokerMsg(m => ({ ...m, [broker]: { success: false, error: err.message || 'Failed to disconnect.' } }))
+    } finally {
+      setBrokerLoading(l => ({ ...l, [broker]: false }))
     }
   }
 
@@ -125,50 +240,21 @@ export default function Settings() {
     window.location.reload()
   }
 
-  // ── Alpaca handlers ───────────────────────────────────────────────────────────
+  // ── Alpaca connect (credential-based) ────────────────────────────────────────
   async function handleAlpacaConnect(e) {
     e.preventDefault()
     if (!alpacaForm.api_key || !alpacaForm.api_secret) return
-    setBrokerLoading(true)
-    setBrokerMsg(null)
+    setBrokerLoading(l => ({ ...l, alpaca: true }))
+    setBrokerMsg(m => ({ ...m, alpaca: null }))
     try {
-      await alpacaApi.connect(alpacaForm)
-      await loadBrokerStatus()
+      await brokersApi.connect('alpaca', alpacaForm)
+      await loadBrokerStatuses()
       setAlpacaForm({ api_key: '', api_secret: '', is_paper: true })
-      setBrokerMsg({ success: true, text: 'Alpaca connected successfully.' })
+      setBrokerMsg(m => ({ ...m, alpaca: { success: true, text: 'Alpaca connected successfully.' } }))
     } catch (err) {
-      setBrokerMsg({ success: false, error: err.message || 'Connection failed.' })
+      setBrokerMsg(m => ({ ...m, alpaca: { success: false, error: err.message || 'Connection failed.' } }))
     } finally {
-      setBrokerLoading(false)
-    }
-  }
-
-  async function handleAlpacaSync() {
-    setSyncLoading(true)
-    setBrokerMsg(null)
-    try {
-      const { imported, skipped } = await alpacaApi.sync()
-      await loadBrokerStatus()
-      setBrokerMsg({ success: true, text: `Sync complete: ${imported} imported, ${skipped} skipped.` })
-    } catch (err) {
-      setBrokerMsg({ success: false, error: err.message || 'Sync failed.' })
-    } finally {
-      setSyncLoading(false)
-    }
-  }
-
-  async function handleAlpacaDisconnect() {
-    if (!confirm('Remove Alpaca connection? Your existing trades will not be deleted.')) return
-    setBrokerLoading(true)
-    setBrokerMsg(null)
-    try {
-      await alpacaApi.disconnect()
-      setBrokerStatus({ connected: false })
-      setBrokerMsg({ success: true, text: 'Alpaca disconnected.' })
-    } catch (err) {
-      setBrokerMsg({ success: false, error: err.message || 'Failed to disconnect.' })
-    } finally {
-      setBrokerLoading(false)
+      setBrokerLoading(l => ({ ...l, alpaca: false }))
     }
   }
 
@@ -414,125 +500,103 @@ export default function Settings() {
       {activeTab === 'Brokers' && (
         <Section
           title="Broker Connections"
-          description="Connect your broker to automatically sync filled orders as trades."
+          description="Connect brokers to automatically sync your filled orders as trades."
         >
-          {brokerStatus === null ? (
+          {brokerStatuses === null ? (
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <BouncingDots size="sm" /> Loading…
             </div>
-          ) : brokerStatus.connected ? (
-            <div className="space-y-4">
-              {/* Connected state */}
-              <div className="flex items-center justify-between p-4 bg-gray-800/60 rounded-lg border border-gray-700/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-indigo-900/50 rounded-lg flex items-center justify-center">
-                    <Link2 className="w-4 h-4 text-indigo-400" />
+          ) : (
+            <div className="space-y-3">
+              <StatusBanner status={brokerMsg._global} />
+
+              {/* Alpaca */}
+              <BrokerCard label="Alpaca" type="credentials"
+                note="Get API keys from alpaca.markets → Your Account → API Keys."
+                status={brokerStatuses.alpaca} loading={brokerLoading.alpaca}
+                syncing={syncLoading.alpaca} msg={brokerMsg.alpaca}
+                onSync={() => handleSync('alpaca')} onDisconnect={() => handleDisconnect('alpaca')}
+              >
+                <form onSubmit={handleAlpacaConnect} className="space-y-3 pt-1">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">API Key ID</label>
+                    <input type="text" value={alpacaForm.api_key}
+                      onChange={e => setAlpacaForm(f => ({ ...f, api_key: e.target.value }))}
+                      placeholder="PKXXXXXXXXXXXXXXXXXX"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+                    />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-white">Alpaca</p>
-                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                        brokerStatus.is_paper
-                          ? 'bg-amber-900/40 text-amber-400'
-                          : 'bg-emerald-900/40 text-emerald-400'
-                      }`}>
-                        {brokerStatus.is_paper ? 'Paper' : 'Live'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {brokerStatus.last_sync_at
-                        ? `Last synced ${new Date(brokerStatus.last_sync_at).toLocaleString()}`
-                        : 'Never synced'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleAlpacaSync}
-                    disabled={syncLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition-colors"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${syncLoading ? 'animate-spin' : ''}`} />
-                    {syncLoading ? 'Syncing…' : 'Sync Now'}
-                  </button>
-                  <button
-                    onClick={handleAlpacaDisconnect}
-                    disabled={brokerLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-red-900/50 hover:text-red-400 text-gray-400 text-xs font-medium rounded-lg transition-colors"
-                  >
-                    <Unlink className="w-3.5 h-3.5" />
-                    Disconnect
-                  </button>
-                </div>
-              </div>
-              <StatusBanner status={brokerMsg} />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Disconnected — connect form */}
-              <p className="text-sm text-gray-400">
-                Connect your Alpaca account to import filled orders directly into your trade log.
-                Get your API keys from{' '}
-                <span className="text-indigo-400">alpaca.markets → Your Account → API Keys</span>.
-              </p>
-              <form onSubmit={handleAlpacaConnect} className="space-y-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">API Key ID</label>
-                  <input
-                    type="text"
-                    value={alpacaForm.api_key}
-                    onChange={e => setAlpacaForm(f => ({ ...f, api_key: e.target.value }))}
-                    placeholder="PKXXXXXXXXXXXXXXXXXX"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">API Secret Key</label>
-                  <div className="relative">
-                    <input
-                      type={showSecret ? 'text' : 'password'}
-                      value={alpacaForm.api_secret}
-                      onChange={e => setAlpacaForm(f => ({ ...f, api_secret: e.target.value }))}
-                      placeholder="••••••••••••••••••••"
-                      className="w-full px-3 py-2 pr-10 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowSecret(s => !s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-                    >
-                      {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500">Account type:</span>
-                  {[
-                    { value: true, label: 'Paper Trading' },
-                    { value: false, label: 'Live Trading' },
-                  ].map(opt => (
-                    <label key={String(opt.value)} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="alpacaMode"
-                        checked={alpacaForm.is_paper === opt.value}
-                        onChange={() => setAlpacaForm(f => ({ ...f, is_paper: opt.value }))}
-                        className="accent-indigo-500"
+                    <label className="block text-xs text-gray-500 mb-1">API Secret Key</label>
+                    <div className="relative">
+                      <input type={showSecret ? 'text' : 'password'} value={alpacaForm.api_secret}
+                        onChange={e => setAlpacaForm(f => ({ ...f, api_secret: e.target.value }))}
+                        placeholder="••••••••••••••••••••"
+                        className="w-full px-3 py-2 pr-10 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500"
                       />
-                      <span className="text-sm text-gray-300">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-                <StatusBanner status={brokerMsg} />
-                <button
-                  type="submit"
-                  disabled={brokerLoading || !alpacaForm.api_key || !alpacaForm.api_secret}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-                >
-                  {brokerLoading ? <BouncingDots size="sm" /> : <Link2 className="w-4 h-4" />}
-                  {brokerLoading ? 'Connecting…' : 'Connect Alpaca'}
-                </button>
-              </form>
+                      <button type="button" onClick={() => setShowSecret(s => !s)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                        {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500">Account type:</span>
+                    {[{ value: true, label: 'Paper' }, { value: false, label: 'Live' }].map(opt => (
+                      <label key={String(opt.value)} className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="alpacaMode" checked={alpacaForm.is_paper === opt.value}
+                          onChange={() => setAlpacaForm(f => ({ ...f, is_paper: opt.value }))}
+                          className="accent-indigo-500" />
+                        <span className="text-sm text-gray-300">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button type="submit" disabled={brokerLoading.alpaca || !alpacaForm.api_key || !alpacaForm.api_secret}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
+                    {brokerLoading.alpaca ? <BouncingDots size="sm" /> : <Link2 className="w-4 h-4" />}
+                    {brokerLoading.alpaca ? 'Connecting…' : 'Connect Alpaca'}
+                  </button>
+                </form>
+              </BrokerCard>
+
+              {/* Tradier */}
+              <BrokerCard label="Tradier" type="oauth"
+                note="Connect via Tradier OAuth. Supports sandbox (paper) and live accounts."
+                status={brokerStatuses.tradier} loading={brokerLoading.tradier}
+                syncing={syncLoading.tradier} msg={brokerMsg.tradier}
+                onConnect={() => handleOAuthConnect('tradier')}
+                onSync={() => handleSync('tradier')} onDisconnect={() => handleDisconnect('tradier')}
+              />
+
+              {/* Schwab */}
+              <BrokerCard label="Schwab" type="oauth"
+                note="Connect via Schwab OAuth. Requires a registered app at developer.schwab.com."
+                status={brokerStatuses.schwab} loading={brokerLoading.schwab}
+                syncing={syncLoading.schwab} msg={brokerMsg.schwab}
+                onConnect={() => handleOAuthConnect('schwab')}
+                onSync={() => handleSync('schwab')} onDisconnect={() => handleDisconnect('schwab')}
+              />
+
+              {/* TradeStation */}
+              <BrokerCard label="TradeStation" type="oauth"
+                note="Connect via TradeStation OAuth."
+                status={brokerStatuses.tradestation} loading={brokerLoading.tradestation}
+                syncing={syncLoading.tradestation} msg={brokerMsg.tradestation}
+                onConnect={() => handleOAuthConnect('tradestation')}
+                onSync={() => handleSync('tradestation')} onDisconnect={() => handleDisconnect('tradestation')}
+              />
+
+              {/* E*TRADE — coming soon */}
+              <BrokerCard label="E*TRADE" type="oauth" comingSoon
+                note="OAuth 1.0a integration — coming soon."
+                status={brokerStatuses.etrade}
+              />
+
+              {/* Tradovate — coming soon */}
+              <BrokerCard label="Tradovate" type="credentials" comingSoon
+                note="Futures (CME). Credential-based integration — coming soon."
+                status={brokerStatuses.tradovate}
+              />
             </div>
           )}
         </Section>

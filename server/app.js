@@ -3,6 +3,9 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 
 import { requireAuth }    from './middleware/auth.js'
+import oauthRouter        from './routes/oauth.js'
+import brokersRouter      from './routes/brokers.js'
+import tradierRouter      from './routes/tradier.js'
 import tradesRouter       from './routes/trades.js'
 import statsRouter        from './routes/stats.js'
 import analyticsRouter    from './routes/analytics.js'
@@ -39,6 +42,10 @@ app.use('/api/import', rateLimit({ windowMs: 60_000, max: 10 }))
 app.use('/api/upload', rateLimit({ windowMs: 60_000, max: 20 }))
 app.use('/api',        rateLimit({ windowMs: 60_000, max: 300 }))
 
+// OAuth callback routes must be BEFORE requireAuth — the broker's server calls
+// these redirects, not the user's browser, so there's no Supabase JWT present
+app.use('/api/oauth', oauthRouter)
+
 app.use(requireAuth)
 
 app.use('/api/trades',     tradesRouter)
@@ -55,6 +62,8 @@ app.use('/api/accounts',   accountsRouter)
 app.use('/api/import',     importExportRouter)
 app.use('/api/export',     importExportRouter)
 app.use('/api/alpaca',     alpacaRouter)
+app.use('/api/brokers',   brokersRouter)
+app.use('/api/tradier',   tradierRouter)
 
 app.use((err, _req, res, _next) => {
   console.error(err)
