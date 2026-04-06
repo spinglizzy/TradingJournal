@@ -2,7 +2,8 @@ import { useState, useRef, useCallback } from 'react'
 import { importExportApi } from '../api/importexport.js'
 import { useAccount } from '../contexts/AccountContext.jsx'
 import { BROKER_TEMPLATES, JOURNAL_FIELDS } from '../components/import/BrokerTemplates.js'
-import { Upload, ChevronRight, Check, AlertCircle, RefreshCw } from 'lucide-react'
+import { Upload, ChevronRight, Check, AlertCircle } from 'lucide-react'
+import { BouncingDots } from '../components/ui/BouncingDots.jsx'
 
 const TEMPLATE_STORAGE_KEY = 'import_custom_templates'
 const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
@@ -473,7 +474,7 @@ function ReviewStep({ data, onBack, onDone }) {
             </button>
             <button onClick={runImport} disabled={loading}
               className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-colors">
-              {loading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              {loading && <BouncingDots size="sm" />}
               {loading ? 'Importing...' : `Import ${data.totalRows} Trades`}
             </button>
           </>

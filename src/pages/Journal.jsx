@@ -17,6 +17,7 @@ import TradePicker from '../components/journal/TradePicker.jsx'
 import TagInput from '../components/journal/TagInput.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
+import { BouncingDots } from '../components/ui/BouncingDots.jsx'
 import { DatePicker } from '../components/ui/DatePicker.jsx'
 
 // ── Templates ────────────────────────────────────────────────────────────────
@@ -226,10 +227,7 @@ function ScreenshotPanel({ screenshots, onChange }) {
               disabled={uploading}
               className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-indigo-400 hover:text-white hover:bg-indigo-600 border border-indigo-500/40 hover:border-indigo-600 rounded-lg transition-all disabled:opacity-50"
             >
-              {uploading
-                ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                : <ImagePlus className="w-3 h-3" />
-              }
+              {uploading ? <BouncingDots size="sm" /> : <ImagePlus className="w-3 h-3" />}
               {uploading ? 'Uploading…' : 'Add Image'}
             </button>
           )}
