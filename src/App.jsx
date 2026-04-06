@@ -1,25 +1,36 @@
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import Layout from './components/layout/Layout.jsx'
-import Landing from './pages/Landing.jsx'
-import Login from './pages/Login.jsx'
-import Signup from './pages/Signup.jsx'
-import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
+
+// Public pages — loaded immediately (small, always needed)
+import Landing      from './pages/Landing.jsx'
+import Login        from './pages/Login.jsx'
+import Signup       from './pages/Signup.jsx'
+import PrivacyPolicy  from './pages/PrivacyPolicy.jsx'
 import TermsOfService from './pages/TermsOfService.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import TradeLog from './pages/TradeLog.jsx'
-import TradeFormPage from './pages/TradeFormPage.jsx'
-import TradeDetailPage from './pages/TradeDetailPage.jsx'
-import Analytics from './pages/Analytics.jsx'
-import Journal from './pages/Journal.jsx'
-import Psychology from './pages/Psychology.jsx'
-import Playbook from './pages/Playbook.jsx'
-import Goals from './pages/Goals.jsx'
-import Accounts from './pages/Accounts.jsx'
-import ImportExport from './pages/ImportExport.jsx'
-import Settings from './pages/Settings.jsx'
-import Calculator from './pages/Calculator.jsx'
+
+// Authenticated pages — lazy loaded, only fetched when navigated to
+const Dashboard       = lazy(() => import('./pages/Dashboard.jsx'))
+const TradeLog        = lazy(() => import('./pages/TradeLog.jsx'))
+const TradeFormPage   = lazy(() => import('./pages/TradeFormPage.jsx'))
+const TradeDetailPage = lazy(() => import('./pages/TradeDetailPage.jsx'))
+const Analytics       = lazy(() => import('./pages/Analytics.jsx'))
+const Journal         = lazy(() => import('./pages/Journal.jsx'))
+const Psychology      = lazy(() => import('./pages/Psychology.jsx'))
+const Playbook        = lazy(() => import('./pages/Playbook.jsx'))
+const Goals           = lazy(() => import('./pages/Goals.jsx'))
+const Accounts        = lazy(() => import('./pages/Accounts.jsx'))
+const ImportExport    = lazy(() => import('./pages/ImportExport.jsx'))
+const Settings        = lazy(() => import('./pages/Settings.jsx'))
+const Calculator      = lazy(() => import('./pages/Calculator.jsx'))
+
+const PageLoader = () => (
+  <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-[#9aea62] border-t-transparent rounded-full animate-spin" />
+  </div>
+)
 
 const router = createBrowserRouter([
   { path: '/',        element: <Landing /> },
@@ -51,7 +62,9 @@ const router = createBrowserRouter([
 export default function App() {
   return (
     <AuthProvider>
-      <RouterProvider router={router} />
+      <Suspense fallback={<PageLoader />}>
+        <RouterProvider router={router} />
+      </Suspense>
     </AuthProvider>
   )
 }
