@@ -211,18 +211,10 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
           </span>
           {(() => {
             const name = (idea.setup_name || '').trim()
-            const lower = name.toLowerCase()
-            let cls = 'bg-gray-800 text-gray-400 border-gray-700'
-            let label = name || 'No Model Selected'
-            if (lower.includes('continuation')) {
-              cls = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-            } else if (lower.includes('rejection') || lower.includes('reversal')) {
-              cls = 'bg-rose-500/15 text-rose-300 border-rose-500/40'
-            } else if (name) {
-              cls = 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40'
-            } else {
-              cls = 'bg-gray-800/60 text-gray-500 border-gray-700 italic'
-            }
+            const cls = name
+              ? 'bg-gray-800 text-gray-200 border-gray-600'
+              : 'bg-gray-800/60 text-gray-500 border-gray-700 italic'
+            const label = name || 'No Model Selected'
             return (
               <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${cls}`}>
                 {label}
