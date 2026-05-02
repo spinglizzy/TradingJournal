@@ -14,10 +14,9 @@ function newId() { return Date.now() + Math.random() }
 
 function todayStr() { return new Date().toISOString().split('T')[0] }
 
-function emptyIdea(type = 'continuation') {
+function emptyIdea() {
   return {
     id: newId(),
-    type,                      // 'rejection' | 'continuation'
     direction: 'long',         // 'long' | 'short'
     setup_id: '',              // playbook setup id (optional)
     setup_name: '',
@@ -31,7 +30,7 @@ function emptyTicker() {
     id: newId(),
     symbol: '',
     bias: 'bullish',           // 'bullish' | 'bearish'
-    ideas: [emptyIdea('continuation')],
+    ideas: [emptyIdea()],
   }
 }
 
@@ -124,8 +123,8 @@ function PlanChecklist({ items, onChange }) {
             onClick={() => toggle(item.id)}
             className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition-all border ${
               item.checked
-                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-500/30'
-                : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-emerald-500/60 hover:text-emerald-400'
+                ? 'bg-indigo-600 border-indigo-500'
+                : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-indigo-500/60 hover:text-indigo-400'
             }`}
             title={item.checked ? 'Mark as not done' : 'Mark as done'}
           >
@@ -207,10 +206,8 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
       {/* Header row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
-            idea.type === 'rejection' ? 'bg-rose-500/15 text-rose-300' : 'bg-sky-500/15 text-sky-300'
-          }`}>
-            #{ideaIndex + 1} · {idea.type === 'rejection' ? 'Rejection' : 'Continuation'}
+          <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+            Idea #{ideaIndex + 1}
           </span>
           <div className="flex rounded-md border border-gray-700 overflow-hidden">
             <button type="button" onClick={() => patch({ direction: 'long' })}
@@ -299,8 +296,8 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
 function TickerSection({ ticker, setups, onChange, onRemove, index }) {
   function patch(p) { onChange({ ...ticker, ...p }) }
 
-  function addIdea(type) {
-    patch({ ideas: [...ticker.ideas, emptyIdea(type)] })
+  function addIdea() {
+    patch({ ideas: [...ticker.ideas, emptyIdea()] })
   }
   function updateIdea(ideaId, next) {
     patch({ ideas: ticker.ideas.map(i => i.id === ideaId ? next : i) })
@@ -342,25 +339,16 @@ function TickerSection({ ticker, setups, onChange, onRemove, index }) {
       <div className="space-y-3 pt-1">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Trade Ideas</h4>
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={() => addIdea('continuation')}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 rounded transition-colors"
-            >
-              <Plus className="w-3 h-3" /> Continuation
-            </button>
-            <button
-              type="button"
-              onClick={() => addIdea('rejection')}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 rounded transition-colors"
-            >
-              <Plus className="w-3 h-3" /> Rejection
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={addIdea}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 rounded transition-colors font-medium"
+          >
+            <Plus className="w-3 h-3" /> Add Trade Idea
+          </button>
         </div>
         {ticker.ideas.length === 0 ? (
-          <p className="text-xs text-gray-600 italic">No ideas yet — add a continuation or rejection play above.</p>
+          <p className="text-xs text-gray-600 italic">No ideas yet — click "Add Trade Idea" above.</p>
         ) : (
           ticker.ideas.map((idea, ideaIdx) => (
             <IdeaCard
@@ -786,7 +774,6 @@ function normalisePlan(raw) {
       bias: t.bias ?? 'bullish',
       ideas: (t.ideas ?? []).map(i => ({
         id: i.id ?? newId(),
-        type: i.type ?? 'continuation',
         direction: i.direction ?? 'long',
         setup_id: i.setup_id ?? '',
         setup_name: i.setup_name ?? '',
