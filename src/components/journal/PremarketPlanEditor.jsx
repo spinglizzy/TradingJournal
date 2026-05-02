@@ -202,30 +202,16 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
     patch({ checklist: seedChecklistFromSetup(s) })
   }
 
-  const typeColors = idea.type === 'rejection'
-    ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-    : 'bg-sky-500/10 border-sky-500/30 text-sky-300'
-
   return (
     <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 space-y-3">
       {/* Header row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-gray-600">#{ideaIndex + 1}</span>
-          <div className="flex rounded-md border border-gray-700 overflow-hidden">
-            <button type="button" onClick={() => patch({ type: 'continuation' })}
-              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
-                idea.type === 'continuation' ? 'bg-sky-500/20 text-sky-300' : 'text-gray-500 hover:text-gray-300'
-              }`}>
-              Continuation
-            </button>
-            <button type="button" onClick={() => patch({ type: 'rejection' })}
-              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
-                idea.type === 'rejection' ? 'bg-rose-500/20 text-rose-300' : 'text-gray-500 hover:text-gray-300'
-              }`}>
-              Rejection
-            </button>
-          </div>
+          <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+            idea.type === 'rejection' ? 'bg-rose-500/15 text-rose-300' : 'bg-sky-500/15 text-sky-300'
+          }`}>
+            #{ideaIndex + 1} · {idea.type === 'rejection' ? 'Rejection' : 'Continuation'}
+          </span>
           <div className="flex rounded-md border border-gray-700 overflow-hidden">
             <button type="button" onClick={() => patch({ direction: 'long' })}
               className={`px-2.5 py-1 text-xs font-medium transition-colors ${
@@ -304,9 +290,6 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
         <PlanChecklist items={idea.checklist} onChange={c => patch({ checklist: c })} />
       </div>
 
-      <div className={`text-[10px] uppercase tracking-wide font-semibold border-t border-gray-800 pt-2 -mb-1 ${typeColors.split(' ').slice(2).join(' ')}`}>
-        {idea.type === 'rejection' ? 'REJECTION PLAY' : 'CONTINUATION PLAY'} · {idea.direction.toUpperCase()}
-      </div>
     </div>
   )
 }
