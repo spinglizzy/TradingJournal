@@ -205,10 +205,30 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
     <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 space-y-3">
       {/* Header row */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
             Idea #{ideaIndex + 1}
           </span>
+          {(() => {
+            const name = (idea.setup_name || '').trim()
+            const lower = name.toLowerCase()
+            let cls = 'bg-gray-800 text-gray-400 border-gray-700'
+            let label = name || 'No Model Selected'
+            if (lower.includes('continuation')) {
+              cls = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+            } else if (lower.includes('rejection') || lower.includes('reversal')) {
+              cls = 'bg-rose-500/15 text-rose-300 border-rose-500/40'
+            } else if (name) {
+              cls = 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40'
+            } else {
+              cls = 'bg-gray-800/60 text-gray-500 border-gray-700 italic'
+            }
+            return (
+              <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${cls}`}>
+                {label}
+              </span>
+            )
+          })()}
           <div className="flex rounded-md border border-gray-700 overflow-hidden">
             <button type="button" onClick={() => patch({ direction: 'long' })}
               className={`px-2.5 py-1 text-xs font-medium transition-colors ${
