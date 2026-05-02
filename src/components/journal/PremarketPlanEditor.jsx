@@ -1,0 +1,627 @@
+import { useEffect, useState } from 'react'
+import { Plus, X, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Minus, Trash2 } from 'lucide-react'
+import { DatePicker } from '../ui/DatePicker.jsx'
+import TipTapEditor from './TipTapEditor.jsx'
+import { strategiesApi } from '../../api/strategies.js'
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
+  text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
+
+function newId() { return Date.now() + Math.random() }
+
+function todayStr() { return new Date().toISOString().split('T')[0] }
+
+function calcRR(entry, stop, target) {
+  if (!entry || !stop || !target) return null
+  const e = Number(entry), s = Number(stop), t = Number(target)
+  const risk   = Math.abs(e - s)
+  const reward = Math.abs(t - e)
+  return risk > 0 ? reward / risk : null
+}
+
+function emptyIdea(type = 'continuation') {
+  return {
+    id: newId(),
+    type,                      // 'rejection' | 'continuation'
+    direction: 'long',         // 'long' | 'short'
+    setup_id: '',              // playbook setup id (optional)
+    setup_name: '',
+    entry: '',
+    stop: '',
+    target: '',
+    size: '',
+    notes: '',
+    checklist: [],
+  }
+}
+
+function emptyTicker() {
+  return {
+    id: newId(),
+    symbol: '',
+    bias: 'bullish',           // 'bullish' | 'bearish'
+    thesis: '',
+    key_levels: '',            // freeform "support / resistance" line
+    ideas: [emptyIdea('continuation')],
+  }
+}
+
+const EMPTY_PLAN = {
+  bias: 'neutral',             // overall day bias
+  market_notes: '',
+  tickers: [emptyTicker()],
+}
+
+// ── Bias pill selector ────────────────────────────────────────────────────────
+
+function BiasSelector({ value, onChange, allowNeutral = true, size = 'md' }) {
+  const options = [
+    { value: 'bullish', label: 'Bullish', icon: TrendingUp,   on: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' },
+    ...(allowNeutral ? [{ value: 'neutral', label: 'Neutral', icon: Minus, on: 'bg-gray-700/50 text-gray-200 border-gray-500' }] : []),
+    { value: 'bearish', label: 'Bearish', icon: TrendingDown, on: 'bg-red-500/15 text-red-400 border-red-500/40' },
+  ]
+  const pad = size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-xs'
+  return (
+    <div className="flex gap-1.5">
+      {options.map(o => {
+        const Icon = o.icon
+        const selected = value === o.value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={`flex items-center gap-1.5 ${pad} rounded-lg border font-medium transition-colors ${
+              selected ? o.on : 'border-gray-700 text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Inline checklist editor (used inside an idea card) ───────────────────────
+
+function PlanChecklist({ items, onChange }) {
+  const [newItem, setNewItem] = useState('')
+
+  function add() {
+    const t = newItem.trim()
+    if (!t) return
+    onChange([...items, { id: newId(), text: t, checked: false }])
+    setNewItem('')
+  }
+  function toggle(id) {
+    onChange(items.map(i => i.id === id ? { ...i, checked: !i.checked } : i))
+  }
+  function remove(id) { onChange(items.filter(i => i.id !== id)) }
+  function move(idx, dir) {
+    const next = idx + dir
+    if (next < 0 || next >= items.length) return
+    const a = [...items]
+    ;[a[idx], a[next]] = [a[next], a[idx]]
+    onChange(a)
+  }
+  function updateText(id, text) {
+    onChange(items.map(i => i.id === id ? { ...i, text } : i))
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {items.length === 0 && (
+        <p className="text-[11px] text-gray-600 italic">No checklist items — add some below or pick a setup to seed defaults.</p>
+      )}
+      {items.map((item, idx) => (
+        <div key={item.id} className="flex items-center gap-1.5 group">
+          <input
+            type="checkbox"
+            checked={!!item.checked}
+            onChange={() => toggle(item.id)}
+            className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-0 shrink-0"
+          />
+          <input
+            value={item.text}
+            onChange={e => updateText(item.id, e.target.value)}
+            className={`flex-1 bg-transparent border-0 px-1.5 py-0.5 text-xs text-white focus:outline-none focus:bg-gray-800 rounded ${
+              item.checked ? 'line-through text-gray-500' : ''
+            }`}
+          />
+          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0}
+              className="text-gray-600 hover:text-gray-300 disabled:opacity-20"><ChevronUp className="w-3 h-3" /></button>
+            <button type="button" onClick={() => move(idx, 1)} disabled={idx === items.length - 1}
+              className="text-gray-600 hover:text-gray-300 disabled:opacity-20"><ChevronDown className="w-3 h-3" /></button>
+            <button type="button" onClick={() => remove(item.id)}
+              className="text-gray-600 hover:text-red-400"><X className="w-3 h-3" /></button>
+          </div>
+        </div>
+      ))}
+      <div className="flex gap-1.5 pt-1">
+        <input
+          value={newItem}
+          onChange={e => setNewItem(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+          placeholder="Add checklist item…"
+          className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+        />
+        <button type="button" onClick={add}
+          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded transition-colors">
+          Add
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Single trade idea card ────────────────────────────────────────────────────
+
+function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
+  const rr = calcRR(idea.entry, idea.stop, idea.target)
+
+  function patch(p) { onChange({ ...idea, ...p }) }
+
+  function pickSetup(setupId) {
+    if (!setupId) {
+      patch({ setup_id: '', setup_name: '' })
+      return
+    }
+    const s = setups.find(x => String(x.id) === String(setupId))
+    if (!s) return
+    // Seed checklist from setup if idea checklist is empty
+    const seededChecklist = (s.checklist || []).map(c => ({
+      id: newId(),
+      text: typeof c === 'string' ? c : (c.text || ''),
+      checked: false,
+    }))
+    patch({
+      setup_id: s.id,
+      setup_name: s.name,
+      checklist: idea.checklist.length === 0 ? seededChecklist : idea.checklist,
+      direction: s.default_fields?.direction || idea.direction,
+    })
+  }
+
+  const typeColors = idea.type === 'rejection'
+    ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+    : 'bg-sky-500/10 border-sky-500/30 text-sky-300'
+
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 space-y-3">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-gray-600">#{ideaIndex + 1}</span>
+          <div className="flex rounded-md border border-gray-700 overflow-hidden">
+            <button type="button" onClick={() => patch({ type: 'continuation' })}
+              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                idea.type === 'continuation' ? 'bg-sky-500/20 text-sky-300' : 'text-gray-500 hover:text-gray-300'
+              }`}>
+              Continuation
+            </button>
+            <button type="button" onClick={() => patch({ type: 'rejection' })}
+              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                idea.type === 'rejection' ? 'bg-rose-500/20 text-rose-300' : 'text-gray-500 hover:text-gray-300'
+              }`}>
+              Rejection
+            </button>
+          </div>
+          <div className="flex rounded-md border border-gray-700 overflow-hidden">
+            <button type="button" onClick={() => patch({ direction: 'long' })}
+              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                idea.direction === 'long' ? 'bg-emerald-500/20 text-emerald-300' : 'text-gray-500 hover:text-gray-300'
+              }`}>
+              Long
+            </button>
+            <button type="button" onClick={() => patch({ direction: 'short' })}
+              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                idea.direction === 'short' ? 'bg-red-500/20 text-red-300' : 'text-gray-500 hover:text-gray-300'
+              }`}>
+              Short
+            </button>
+          </div>
+        </div>
+        <button type="button" onClick={onRemove}
+          className="text-gray-600 hover:text-red-400 transition-colors p-1 rounded hover:bg-gray-800">
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Setup picker */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Playbook Setup</label>
+          <select
+            value={idea.setup_id || ''}
+            onChange={e => pickSetup(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">— None —</option>
+            {setups.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">R:R</label>
+          <div className={`px-3 py-2 text-sm font-mono rounded-lg border ${
+            rr == null ? 'bg-gray-800 border-gray-700 text-gray-600' :
+            rr >= 2 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
+            rr >= 1 ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' :
+            'bg-red-500/10 border-red-500/30 text-red-400'
+          }`}>
+            {rr != null ? `${rr.toFixed(2)}R` : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Entry / Stop / Target / Size */}
+      <div className="grid grid-cols-4 gap-2">
+        <div>
+          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Entry</label>
+          <input type="number" step="0.01" value={idea.entry} onChange={e => patch({ entry: e.target.value })}
+            placeholder="0.00" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Stop</label>
+          <input type="number" step="0.01" value={idea.stop} onChange={e => patch({ stop: e.target.value })}
+            placeholder="0.00" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Target</label>
+          <input type="number" step="0.01" value={idea.target} onChange={e => patch({ target: e.target.value })}
+            placeholder="0.00" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Size</label>
+          <input type="number" step="1" value={idea.size} onChange={e => patch({ size: e.target.value })}
+            placeholder="100" className={inputCls} />
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Idea Notes</label>
+        <textarea
+          value={idea.notes}
+          onChange={e => patch({ notes: e.target.value })}
+          rows={2}
+          placeholder={idea.type === 'rejection'
+            ? 'What needs to fail / get rejected for this idea to be live?'
+            : 'What confirms the trend continues?'}
+          className={`${inputCls} resize-none`}
+        />
+      </div>
+
+      {/* Checklist */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">Pre-Trade Checklist</label>
+          {idea.setup_name && (
+            <span className="text-[10px] text-gray-600">from <span className="text-indigo-400">{idea.setup_name}</span></span>
+          )}
+        </div>
+        <PlanChecklist items={idea.checklist} onChange={c => patch({ checklist: c })} />
+      </div>
+
+      <div className={`text-[10px] uppercase tracking-wide font-semibold border-t border-gray-800 pt-2 -mb-1 ${typeColors.split(' ').slice(2).join(' ')}`}>
+        {idea.type === 'rejection' ? 'REJECTION PLAY' : 'CONTINUATION PLAY'} · {idea.direction.toUpperCase()}
+      </div>
+    </div>
+  )
+}
+
+// ── Per-ticker section ────────────────────────────────────────────────────────
+
+function TickerSection({ ticker, setups, onChange, onRemove, index }) {
+  function patch(p) { onChange({ ...ticker, ...p }) }
+
+  function addIdea(type) {
+    patch({ ideas: [...ticker.ideas, emptyIdea(type)] })
+  }
+  function updateIdea(ideaId, next) {
+    patch({ ideas: ticker.ideas.map(i => i.id === ideaId ? next : i) })
+  }
+  function removeIdea(ideaId) {
+    patch({ ideas: ticker.ideas.filter(i => i.id !== ideaId) })
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 space-y-3">
+      {/* Ticker header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Ticker</label>
+            <input
+              value={ticker.symbol}
+              onChange={e => patch({ symbol: e.target.value.toUpperCase() })}
+              placeholder="AAPL"
+              className={`${inputCls} uppercase font-mono font-bold`}
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Bias</label>
+            <BiasSelector value={ticker.bias} onChange={b => patch({ bias: b })} allowNeutral={false} size="sm" />
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-gray-600 hover:text-red-400 transition-colors p-1.5 rounded hover:bg-gray-800 mt-5"
+          title="Remove ticker"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Thesis */}
+      <div>
+        <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Thesis</label>
+        <textarea
+          value={ticker.thesis}
+          onChange={e => patch({ thesis: e.target.value })}
+          rows={2}
+          placeholder="Why are you watching this name today?"
+          className={`${inputCls} resize-none`}
+        />
+      </div>
+
+      {/* Key levels */}
+      <div>
+        <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Key Levels</label>
+        <input
+          value={ticker.key_levels}
+          onChange={e => patch({ key_levels: e.target.value })}
+          placeholder="Support: 180.50 / 178.20  ·  Resistance: 184.00 / 187.50"
+          className={inputCls}
+        />
+      </div>
+
+      {/* Ideas */}
+      <div className="space-y-3 pt-1">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Trade Ideas</h4>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => addIdea('continuation')}
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 rounded transition-colors"
+            >
+              <Plus className="w-3 h-3" /> Continuation
+            </button>
+            <button
+              type="button"
+              onClick={() => addIdea('rejection')}
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 rounded transition-colors"
+            >
+              <Plus className="w-3 h-3" /> Rejection
+            </button>
+          </div>
+        </div>
+        {ticker.ideas.length === 0 ? (
+          <p className="text-xs text-gray-600 italic">No ideas yet — add a continuation or rejection play above.</p>
+        ) : (
+          ticker.ideas.map((idea, ideaIdx) => (
+            <IdeaCard
+              key={idea.id}
+              idea={idea}
+              setups={setups}
+              ideaIndex={ideaIdx}
+              onChange={next => updateIdea(idea.id, next)}
+              onRemove={() => removeIdea(idea.id)}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Main editor ───────────────────────────────────────────────────────────────
+
+export default function PremarketPlanEditor({
+  entry,
+  initialDate,
+  onSave,
+  onClose,
+  isSaving,
+}) {
+  const isNew = !entry
+  const [date, setDate]   = useState(entry?.date ?? initialDate ?? todayStr())
+  const [title, setTitle] = useState(entry?.title ?? '')
+  const [content, setContent] = useState(entry?.content ?? '')
+  const [plan, setPlan]   = useState(() => {
+    if (entry?.plan_data) return normalisePlan(entry.plan_data)
+    return EMPTY_PLAN
+  })
+  const [setups, setSetups] = useState([])
+
+  useEffect(() => {
+    strategiesApi.list().then(setSetups).catch(() => setSetups([]))
+  }, [])
+
+  function patchPlan(p) { setPlan(prev => ({ ...prev, ...p })) }
+
+  function addTicker() {
+    patchPlan({ tickers: [...plan.tickers, emptyTicker()] })
+  }
+  function updateTicker(id, next) {
+    patchPlan({ tickers: plan.tickers.map(t => t.id === id ? next : t) })
+  }
+  function removeTicker(id) {
+    patchPlan({ tickers: plan.tickers.filter(t => t.id !== id) })
+  }
+
+  function handleSave() {
+    onSave({
+      date,
+      entry_type: 'premarket_plan',
+      title: title.trim() || `Pre-Market Plan — ${date}`,
+      content,
+      mood: null,
+      tags: [],
+      trade_ids: entry?.linked_trades?.map(t => t.id) ?? [],
+      screenshot_paths: null,
+      plan_data: plan,
+    })
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 rounded border border-amber-500/30">
+            Pre-Market Plan
+          </span>
+          <h2 className="font-semibold text-white text-sm">
+            {isNew ? 'New Plan' : 'Edit Plan'}
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+        {/* Date + title */}
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Date</label>
+            <DatePicker value={date} onChange={setDate} />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Title</label>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder={`Pre-Market Plan — ${date}`}
+              className={inputCls}
+            />
+          </div>
+        </div>
+
+        {/* Overall day bias */}
+        <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 space-y-3">
+          <div>
+            <label className="block text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Overall Day Bias</label>
+            <BiasSelector value={plan.bias} onChange={b => patchPlan({ bias: b })} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Market Notes</label>
+            <textarea
+              value={plan.market_notes}
+              onChange={e => patchPlan({ market_notes: e.target.value })}
+              rows={3}
+              placeholder="SPY/QQQ context, news, sector rotation, key macro events…"
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+        </div>
+
+        {/* Tickers */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white">Tickers</h3>
+            <button
+              type="button"
+              onClick={addTicker}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Ticker
+            </button>
+          </div>
+
+          {plan.tickers.length === 0 ? (
+            <p className="text-xs text-gray-600 italic">No tickers — add one above to start planning.</p>
+          ) : (
+            plan.tickers.map((ticker, idx) => (
+              <TickerSection
+                key={ticker.id}
+                ticker={ticker}
+                setups={setups}
+                index={idx}
+                onChange={next => updateTicker(ticker.id, next)}
+                onRemove={() => removeTicker(ticker.id)}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Free-form notes */}
+        <div>
+          <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Additional Notes</label>
+          <TipTapEditor
+            content={content}
+            onChange={setContent}
+            placeholder="Anything else for today's plan…"
+            minHeight={180}
+          />
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-800 shrink-0">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving}
+          className="px-5 py-2 text-sm bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
+        >
+          {isSaving ? 'Saving…' : isNew ? 'Create Plan' : 'Save Plan'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Defensive normaliser — handles older/partial plan_data shapes
+function normalisePlan(raw) {
+  return {
+    bias: raw.bias ?? 'neutral',
+    market_notes: raw.market_notes ?? '',
+    tickers: (raw.tickers ?? []).map(t => ({
+      id: t.id ?? newId(),
+      symbol: t.symbol ?? '',
+      bias: t.bias ?? 'bullish',
+      thesis: t.thesis ?? '',
+      key_levels: t.key_levels ?? '',
+      ideas: (t.ideas ?? []).map(i => ({
+        id: i.id ?? newId(),
+        type: i.type ?? 'continuation',
+        direction: i.direction ?? 'long',
+        setup_id: i.setup_id ?? '',
+        setup_name: i.setup_name ?? '',
+        entry: i.entry ?? '',
+        stop: i.stop ?? '',
+        target: i.target ?? '',
+        size: i.size ?? '',
+        notes: i.notes ?? '',
+        checklist: (i.checklist ?? []).map(c => ({
+          id: c.id ?? newId(),
+          text: c.text ?? '',
+          checked: !!c.checked,
+        })),
+      })),
+    })),
+  }
+}

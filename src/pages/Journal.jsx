@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useFlushNavigate } from '../hooks/useFlushNavigate.js'
-import { Search, Plus, X, Pencil, Trash2, ImagePlus } from 'lucide-react'
+import { Search, Plus, X, Pencil, Trash2, ImagePlus, ChevronDown, ClipboardList, BookOpen } from 'lucide-react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { supabase } from '../lib/supabase.js'
 import { journalApi } from '../api/journal.js'
@@ -14,6 +14,7 @@ import JournalCalendar, { ENTRY_TYPES } from '../components/journal/JournalCalen
 import JournalList from '../components/journal/JournalList.jsx'
 import TipTapEditor from '../components/journal/TipTapEditor.jsx'
 import TradePicker from '../components/journal/TradePicker.jsx'
+import PremarketPlanEditor from '../components/journal/PremarketPlanEditor.jsx'
 import TagInput from '../components/journal/TagInput.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
@@ -330,7 +331,7 @@ function EntryEditorPanel({
   function handleSave() {
     onSave({
       date,
-      entry_type: entry?.entry_type ?? 'daily',
+      entry_type: entry?.entry_type ?? initialType ?? 'daily',
       title: title.trim(),
       content,
       mood: mood || null,
@@ -760,6 +761,10 @@ export default function Journal() {
   const [search,    setSearch]   = useState('')
   const [filterTag, setFilterTag] = useState('')
 
+  // New entry dropdown menu
+  const menuRef = useRef(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+
   // ── Load entries + tags (on mount and after mutations) ──
   const loadEntries = useCallback(() => {
     setLoading(true)
@@ -833,6 +838,15 @@ export default function Journal() {
     setNewEntryDate(date)
     setEditingEntry(null)
     setIsEditorOpen(true)
+    setMenuOpen(false)
+  }
+
+  function openNewPlan(date = todayStr()) {
+    setNewEntryType('premarket_plan')
+    setNewEntryDate(date)
+    setEditingEntry(null)
+    setIsEditorOpen(true)
+    setMenuOpen(false)
   }
 
   async function openEntry(entry) {
@@ -914,15 +928,51 @@ export default function Journal() {
             ))}
           </div>
 
-          {/* New Entry button — hidden on missed tab */}
+          {/* New Entry dropdown — hidden on missed tab */}
           {view !== 'missed' && (
-            <button
-              onClick={() => openNewEntry(selDate || todayStr())}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              New Entry
-            </button>
+            <div className="relative" ref={menuRef}>
+              <div className="flex">
+                <button
+                  onClick={() => openNewEntry(selDate || todayStr())}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-l-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Entry
+                </button>
+                <button
+                  onClick={() => setMenuOpen(o => !o)}
+                  className="px-2 py-2 bg-indigo-600 hover:bg-indigo-700 text-white border-l border-indigo-500 rounded-r-lg transition-colors"
+                  title="Choose entry type"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-20">
+                  <button
+                    onClick={() => openNewEntry(selDate || todayStr())}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-gray-800 transition-colors"
+                  >
+                    <BookOpen className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-sm text-white font-medium">Journal Entry</div>
+                      <div className="text-[11px] text-gray-500">Post-market reflection &amp; notes</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => openNewPlan(selDate || todayStr())}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-gray-800 transition-colors border-t border-gray-800"
+                  >
+                    <ClipboardList className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-sm text-white font-medium">Pre-Market Plan</div>
+                      <div className="text-[11px] text-gray-500">Bias, tickers, ideas &amp; checklists</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -1094,43 +1144,75 @@ export default function Journal() {
           </div>
 
           {/* Right: Editor panel — desktop only (mobile uses overlay below) */}
-          {isEditorOpen && (
-            <div className="hidden lg:block lg:col-span-3">
-              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden h-full flex flex-col card-glow" style={{ minHeight: '600px' }}>
+          {isEditorOpen && (() => {
+            const activeType = editingEntry?.entry_type ?? newEntryType
+            const isPlan = activeType === 'premarket_plan'
+            const closeEditor = () => { setIsEditorOpen(false); setEditingEntry(null) }
+            return (
+              <div className="hidden lg:block lg:col-span-3">
+                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden h-full flex flex-col card-glow" style={{ minHeight: '600px' }}>
+                  {isPlan ? (
+                    <PremarketPlanEditor
+                      key={editingEntry?.id ?? `new-plan-${newEntryDate}`}
+                      entry={editingEntry}
+                      initialDate={newEntryDate}
+                      onSave={handleSave}
+                      onClose={closeEditor}
+                      isSaving={isSaving}
+                    />
+                  ) : (
+                    <EntryEditorPanel
+                      key={editingEntry?.id ?? `new-${newEntryType}-${newEntryDate}`}
+                      entry={editingEntry}
+                      initialDate={newEntryDate}
+                      initialType={newEntryType}
+                      allTags={allTags}
+                      onSave={handleSave}
+                      onClose={closeEditor}
+                      isSaving={isSaving}
+                    />
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* Right-side overlay on mobile when editor is open */}
+      {isEditorOpen && (() => {
+        const activeType = editingEntry?.entry_type ?? newEntryType
+        const isPlan = activeType === 'premarket_plan'
+        const closeEditor = () => { setIsEditorOpen(false); setEditingEntry(null) }
+        return (
+          <div className="lg:hidden fixed inset-0 z-40 flex">
+            <div className="flex-1 bg-black/50" onClick={closeEditor} />
+            <div className="w-full max-w-lg bg-gray-950 border-l border-gray-800 h-full overflow-y-auto flex flex-col shadow-2xl">
+              {isPlan ? (
+                <PremarketPlanEditor
+                  key={`mobile-${editingEntry?.id ?? 'new-plan'}`}
+                  entry={editingEntry}
+                  initialDate={newEntryDate}
+                  onSave={handleSave}
+                  onClose={closeEditor}
+                  isSaving={isSaving}
+                />
+              ) : (
                 <EntryEditorPanel
-                  key={editingEntry?.id ?? `new-${newEntryType}-${newEntryDate}`}
+                  key={`mobile-${editingEntry?.id ?? `new-${newEntryType}`}`}
                   entry={editingEntry}
                   initialDate={newEntryDate}
                   initialType={newEntryType}
                   allTags={allTags}
                   onSave={handleSave}
-                  onClose={() => { setIsEditorOpen(false); setEditingEntry(null) }}
+                  onClose={closeEditor}
                   isSaving={isSaving}
                 />
-              </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Right-side overlay on mobile when editor is open */}
-      {isEditorOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 flex">
-          <div className="flex-1 bg-black/50" onClick={() => { setIsEditorOpen(false); setEditingEntry(null) }} />
-          <div className="w-full max-w-lg bg-gray-950 border-l border-gray-800 h-full overflow-y-auto flex flex-col shadow-2xl">
-            <EntryEditorPanel
-              key={`mobile-${editingEntry?.id ?? `new-${newEntryType}`}`}
-              entry={editingEntry}
-              initialDate={newEntryDate}
-              initialType={newEntryType}
-              allTags={allTags}
-              onSave={handleSave}
-              onClose={() => { setIsEditorOpen(false); setEditingEntry(null) }}
-              isSaving={isSaving}
-            />
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Delete confirm */}
       <ConfirmDialog

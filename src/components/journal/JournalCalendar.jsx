@@ -6,10 +6,11 @@ import {
 
 // Entry type config — kept for backwards compatibility with stored data
 export const ENTRY_TYPES = {
-  daily:         { label: 'Journal Entry', color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
-  pre_session:   { label: 'Journal Entry', color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
-  post_session:  { label: 'Journal Entry', color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
-  weekly_review: { label: 'Journal Entry', color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
+  daily:           { label: 'Journal Entry',   color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
+  pre_session:     { label: 'Journal Entry',   color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
+  post_session:    { label: 'Journal Entry',   color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
+  weekly_review:   { label: 'Journal Entry',   color: 'bg-indigo-400', dot: 'bg-indigo-400', text: 'text-indigo-400' },
+  premarket_plan:  { label: 'Pre-Market Plan', color: 'bg-amber-400',  dot: 'bg-amber-400',  text: 'text-amber-400'  },
 }
 
 export default function JournalCalendar({
@@ -86,8 +87,10 @@ export default function JournalCalendar({
             const entryTypes = journalMap[dateStr] || []
             const tradeDay  = tradeMap[dateStr]
             const hasEntries = entryTypes.length > 0
+            const hasPlan    = entryTypes.includes('premarket_plan')
+            const hasJournal = entryTypes.some(t => t !== 'premarket_plan')
             const hasTrades  = !!tradeDay
-            const missingJournal = hasTrades && !hasEntries
+            const missingJournal = hasTrades && !hasJournal
 
             return (
               <button
@@ -115,9 +118,12 @@ export default function JournalCalendar({
                   {format(day, 'd')}
                 </span>
 
-                {/* Entry dot */}
+                {/* Entry dots */}
                 {hasEntries && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                  <span className="flex gap-0.5">
+                    {hasJournal && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+                    {hasPlan && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+                  </span>
                 )}
 
                 {/* Trade P&L indicator */}
@@ -144,6 +150,10 @@ export default function JournalCalendar({
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
           <span className="w-2 h-2 rounded-full bg-indigo-400" />
           Journal entry
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
+          Pre-market plan
         </div>
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
           <span className="w-2 h-2 rounded-full bg-orange-500/70" />
