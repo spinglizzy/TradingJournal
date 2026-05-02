@@ -14,14 +14,6 @@ function newId() { return Date.now() + Math.random() }
 
 function todayStr() { return new Date().toISOString().split('T')[0] }
 
-function calcRR(entry, stop, target) {
-  if (!entry || !stop || !target) return null
-  const e = Number(entry), s = Number(stop), t = Number(target)
-  const risk   = Math.abs(e - s)
-  const reward = Math.abs(t - e)
-  return risk > 0 ? reward / risk : null
-}
-
 function emptyIdea(type = 'continuation') {
   return {
     id: newId(),
@@ -29,10 +21,6 @@ function emptyIdea(type = 'continuation') {
     direction: 'long',         // 'long' | 'short'
     setup_id: '',              // playbook setup id (optional)
     setup_name: '',
-    entry: '',
-    stop: '',
-    target: '',
-    size: '',
     notes: '',
     checklist: [],
   }
@@ -174,9 +162,15 @@ function PlanChecklist({ items, onChange }) {
 // ── Single trade idea card ────────────────────────────────────────────────────
 
 function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
-  const rr = calcRR(idea.entry, idea.stop, idea.target)
-
   function patch(p) { onChange({ ...idea, ...p }) }
+
+  function seedChecklistFromSetup(s) {
+    return (s.checklist || []).map(c => ({
+      id: newId(),
+      text: typeof c === 'string' ? c : (c.text || ''),
+      checked: false,
+    })).filter(item => item.text.trim() !== '')
+  }
 
   function pickSetup(setupId) {
     if (!setupId) {
@@ -185,18 +179,21 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
     }
     const s = setups.find(x => String(x.id) === String(setupId))
     if (!s) return
-    // Seed checklist from setup if idea checklist is empty
-    const seededChecklist = (s.checklist || []).map(c => ({
-      id: newId(),
-      text: typeof c === 'string' ? c : (c.text || ''),
-      checked: false,
-    }))
+    const seeded = seedChecklistFromSetup(s)
     patch({
       setup_id: s.id,
       setup_name: s.name,
-      checklist: idea.checklist.length === 0 ? seededChecklist : idea.checklist,
+      // Always replace checklist with the setup's checklist when picking
+      checklist: seeded,
       direction: s.default_fields?.direction || idea.direction,
     })
+  }
+
+  function reloadChecklist() {
+    if (!idea.setup_id) return
+    const s = setups.find(x => String(x.id) === String(idea.setup_id))
+    if (!s) return
+    patch({ checklist: seedChecklistFromSetup(s) })
   }
 
   const typeColors = idea.type === 'rejection'
@@ -245,55 +242,23 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
       </div>
 
       {/* Setup picker */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Playbook Setup</label>
-          <select
-            value={idea.setup_id || ''}
-            onChange={e => pickSetup(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">— None —</option>
-            {setups.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">R:R</label>
-          <div className={`px-3 py-2 text-sm font-mono rounded-lg border ${
-            rr == null ? 'bg-gray-800 border-gray-700 text-gray-600' :
-            rr >= 2 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
-            rr >= 1 ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' :
-            'bg-red-500/10 border-red-500/30 text-red-400'
-          }`}>
-            {rr != null ? `${rr.toFixed(2)}R` : '—'}
-          </div>
-        </div>
-      </div>
-
-      {/* Entry / Stop / Target / Size */}
-      <div className="grid grid-cols-4 gap-2">
-        <div>
-          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Entry</label>
-          <input type="number" step="0.01" value={idea.entry} onChange={e => patch({ entry: e.target.value })}
-            placeholder="0.00" className={inputCls} />
-        </div>
-        <div>
-          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Stop</label>
-          <input type="number" step="0.01" value={idea.stop} onChange={e => patch({ stop: e.target.value })}
-            placeholder="0.00" className={inputCls} />
-        </div>
-        <div>
-          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Target</label>
-          <input type="number" step="0.01" value={idea.target} onChange={e => patch({ target: e.target.value })}
-            placeholder="0.00" className={inputCls} />
-        </div>
-        <div>
-          <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Size</label>
-          <input type="number" step="1" value={idea.size} onChange={e => patch({ size: e.target.value })}
-            placeholder="100" className={inputCls} />
-        </div>
+      <div>
+        <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Playbook Setup</label>
+        <select
+          value={idea.setup_id || ''}
+          onChange={e => pickSetup(e.target.value)}
+          className={inputCls}
+        >
+          <option value="">— None —</option>
+          {setups.map(s => (
+            <option key={s.id} value={s.id}>
+              {s.name}{Array.isArray(s.checklist) && s.checklist.length > 0 ? ` · ${s.checklist.length} checklist item${s.checklist.length === 1 ? '' : 's'}` : ''}
+            </option>
+          ))}
+        </select>
+        {setups.length === 0 && (
+          <p className="text-[10px] text-gray-600 mt-1 italic">No setups in your Playbook yet. Create one in the Playbook tab to seed checklists here.</p>
+        )}
       </div>
 
       {/* Notes */}
@@ -314,9 +279,21 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <label className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">Pre-Trade Checklist</label>
-          {idea.setup_name && (
-            <span className="text-[10px] text-gray-600">from <span className="text-indigo-400">{idea.setup_name}</span></span>
-          )}
+          <div className="flex items-center gap-2">
+            {idea.setup_name && (
+              <span className="text-[10px] text-gray-600">from <span className="text-indigo-400">{idea.setup_name}</span></span>
+            )}
+            {idea.setup_id && (
+              <button
+                type="button"
+                onClick={reloadChecklist}
+                className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors underline-offset-2 hover:underline"
+                title="Replace this checklist with the latest from the playbook setup"
+              >
+                Reload from setup
+              </button>
+            )}
+          </div>
         </div>
         <PlanChecklist items={idea.checklist} onChange={c => patch({ checklist: c })} />
       </div>
@@ -824,10 +801,6 @@ function normalisePlan(raw) {
         direction: i.direction ?? 'long',
         setup_id: i.setup_id ?? '',
         setup_name: i.setup_name ?? '',
-        entry: i.entry ?? '',
-        stop: i.stop ?? '',
-        target: i.target ?? '',
-        size: i.size ?? '',
         notes: i.notes ?? '',
         checklist: (i.checklist ?? []).map(c => ({
           id: c.id ?? newId(),
