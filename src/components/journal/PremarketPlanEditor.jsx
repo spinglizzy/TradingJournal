@@ -118,18 +118,24 @@ function PlanChecklist({ items, onChange }) {
         <p className="text-[11px] text-gray-600 italic">No checklist items — add some below or pick a setup to seed defaults.</p>
       )}
       {items.map((item, idx) => (
-        <div key={item.id} className="flex items-center gap-1.5 group">
-          <input
-            type="checkbox"
-            checked={!!item.checked}
-            onChange={() => toggle(item.id)}
-            className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-0 shrink-0"
-          />
+        <div key={item.id} className="flex items-center gap-2 group">
+          <button
+            type="button"
+            onClick={() => toggle(item.id)}
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition-all border ${
+              item.checked
+                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-emerald-500/60 hover:text-emerald-400'
+            }`}
+            title={item.checked ? 'Mark as not done' : 'Mark as done'}
+          >
+            {idx + 1}
+          </button>
           <input
             value={item.text}
             onChange={e => updateText(item.id, e.target.value)}
-            className={`flex-1 bg-transparent border-0 px-1.5 py-0.5 text-xs text-white focus:outline-none focus:bg-gray-800 rounded ${
-              item.checked ? 'line-through text-gray-500' : ''
+            className={`flex-1 bg-transparent border-0 px-1.5 py-0.5 text-xs focus:outline-none focus:bg-gray-800 rounded transition-colors ${
+              item.checked ? 'line-through text-gray-500' : 'text-white'
             }`}
           />
           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
