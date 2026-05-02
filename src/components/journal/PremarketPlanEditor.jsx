@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Plus, X, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Minus, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Plus, X, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Minus, Trash2, ImagePlus, Camera, Check, Ban } from 'lucide-react'
 import { DatePicker } from '../ui/DatePicker.jsx'
 import TipTapEditor from './TipTapEditor.jsx'
 import { strategiesApi } from '../../api/strategies.js'
+import { supabase } from '../../lib/supabase.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -42,9 +43,19 @@ function emptyTicker() {
     id: newId(),
     symbol: '',
     bias: 'bullish',           // 'bullish' | 'bearish'
-    thesis: '',
-    key_levels: '',            // freeform "support / resistance" line
     ideas: [emptyIdea('continuation')],
+  }
+}
+
+function emptyAnnotation() {
+  return {
+    id: newId(),
+    time: new Date().toTimeString().slice(0, 5),  // HH:MM local
+    ticker: '',
+    image_path: '',
+    caption: '',
+    decision: 'none',          // 'took' | 'skipped' | 'none'
+    notes: '',
   }
 }
 
@@ -52,6 +63,7 @@ const EMPTY_PLAN = {
   bias: 'neutral',             // overall day bias
   market_notes: '',
   tickers: [emptyTicker()],
+  annotations: [],
 }
 
 // ── Bias pill selector ────────────────────────────────────────────────────────
@@ -360,29 +372,6 @@ function TickerSection({ ticker, setups, onChange, onRemove, index }) {
         </button>
       </div>
 
-      {/* Thesis */}
-      <div>
-        <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Thesis</label>
-        <textarea
-          value={ticker.thesis}
-          onChange={e => patch({ thesis: e.target.value })}
-          rows={2}
-          placeholder="Why are you watching this name today?"
-          className={`${inputCls} resize-none`}
-        />
-      </div>
-
-      {/* Key levels */}
-      <div>
-        <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Key Levels</label>
-        <input
-          value={ticker.key_levels}
-          onChange={e => patch({ key_levels: e.target.value })}
-          placeholder="Support: 180.50 / 178.20  ·  Resistance: 184.00 / 187.50"
-          className={inputCls}
-        />
-      </div>
-
       {/* Ideas */}
       <div className="space-y-3 pt-1">
         <div className="flex items-center justify-between">
@@ -423,6 +412,185 @@ function TickerSection({ ticker, setups, onChange, onRemove, index }) {
   )
 }
 
+// ── Annotation card (live market screenshot + caption + decision) ───────────
+
+async function uploadImage(file) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const form = new FormData()
+  form.append('screenshot', file)
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+    body: form,
+  })
+  if (!res.ok) throw new Error('Upload failed')
+  const { path } = await res.json()
+  return path
+}
+
+function AnnotationCard({ annotation, onChange, onRemove, onLightbox }) {
+  const fileRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+
+  function patch(p) { onChange({ ...annotation, ...p }) }
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const path = await uploadImage(file)
+      patch({ image_path: path })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const decisionStyles = {
+    took:    { activeCls: 'bg-emerald-500/20 text-emerald-300', icon: Check, label: 'Took' },
+    skipped: { activeCls: 'bg-rose-500/20 text-rose-300',       icon: Ban,   label: 'Skipped' },
+    none:    { activeCls: 'bg-gray-700/60 text-gray-200',       icon: Minus, label: 'Watch' },
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 space-y-2.5">
+      {/* Header: time + ticker + decision + delete */}
+      <div className="flex items-center gap-2">
+        <input
+          type="time"
+          value={annotation.time}
+          onChange={e => patch({ time: e.target.value })}
+          className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+        />
+        <input
+          value={annotation.ticker}
+          onChange={e => patch({ ticker: e.target.value.toUpperCase() })}
+          placeholder="TICKER"
+          className="w-24 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs font-mono font-bold text-white uppercase placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+        />
+        <div className="flex rounded-md border border-gray-700 overflow-hidden ml-auto">
+          {Object.entries(decisionStyles).map(([key, cfg]) => {
+            const Icon = cfg.icon
+            const active = annotation.decision === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => patch({ decision: key })}
+                className={`flex items-center gap-1 px-2 py-1 text-xs font-medium transition-colors ${
+                  active ? cfg.activeCls : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <Icon className="w-3 h-3" />
+                {cfg.label}
+              </button>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-gray-600 hover:text-red-400 transition-colors p-1 rounded hover:bg-gray-800"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Image */}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      {annotation.image_path ? (
+        <div className="relative group rounded-lg overflow-hidden border border-gray-700">
+          <img
+            src={annotation.image_path}
+            alt={annotation.caption || 'annotation'}
+            className="w-full object-contain max-h-72 bg-gray-950 cursor-zoom-in"
+            onClick={() => onLightbox(annotation.image_path)}
+          />
+          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="p-1 bg-black/60 hover:bg-indigo-600 text-white rounded-full"
+              title="Replace image"
+            >
+              <ImagePlus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => patch({ image_path: '' })}
+              className="p-1 bg-black/60 hover:bg-red-600 text-white rounded-full"
+              title="Remove image"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="w-full min-h-[80px] border-2 border-dashed border-gray-700 hover:border-indigo-500/60 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-indigo-400 transition-colors disabled:opacity-50"
+        >
+          <ImagePlus className="w-5 h-5" />
+          <span className="text-xs">{uploading ? 'Uploading…' : 'Add screenshot'}</span>
+        </button>
+      )}
+
+      {/* Caption */}
+      <input
+        value={annotation.caption}
+        onChange={e => patch({ caption: e.target.value })}
+        placeholder="Caption (e.g. AAPL VWAP reclaim, 5m chart)"
+        className="w-full bg-gray-800 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+      />
+
+      {/* Notes */}
+      <textarea
+        value={annotation.notes}
+        onChange={e => patch({ notes: e.target.value })}
+        rows={2}
+        placeholder={
+          annotation.decision === 'took'
+            ? 'Why I took it — entry trigger, confluence, conviction…'
+            : annotation.decision === 'skipped'
+              ? "Why I didn't take it — what was missing, what stopped me…"
+              : 'What you saw and your read on it…'
+        }
+        className="w-full bg-gray-800 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none"
+      />
+    </div>
+  )
+}
+
+function AnnotationLightbox({ src, onClose }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85" onClick={onClose}>
+      <img
+        src={src}
+        className="max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] object-contain rounded-lg shadow-2xl"
+        alt="annotation"
+        onClick={e => e.stopPropagation()}
+      />
+      <button
+        className="absolute top-4 right-4 p-2 rounded-full bg-gray-900/80 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+        onClick={onClose}
+      >
+        <X className="w-6 h-6" />
+      </button>
+    </div>
+  )
+}
+
 // ── Main editor ───────────────────────────────────────────────────────────────
 
 export default function PremarketPlanEditor({
@@ -441,6 +609,7 @@ export default function PremarketPlanEditor({
     return EMPTY_PLAN
   })
   const [setups, setSetups] = useState([])
+  const [lightbox, setLightbox] = useState(null)
 
   useEffect(() => {
     strategiesApi.list().then(setSetups).catch(() => setSetups([]))
@@ -456,6 +625,16 @@ export default function PremarketPlanEditor({
   }
   function removeTicker(id) {
     patchPlan({ tickers: plan.tickers.filter(t => t.id !== id) })
+  }
+
+  function addAnnotation() {
+    patchPlan({ annotations: [...(plan.annotations || []), emptyAnnotation()] })
+  }
+  function updateAnnotation(id, next) {
+    patchPlan({ annotations: (plan.annotations || []).map(a => a.id === id ? next : a) })
+  }
+  function removeAnnotation(id) {
+    patchPlan({ annotations: (plan.annotations || []).filter(a => a.id !== id) })
   }
 
   function handleSave() {
@@ -560,6 +739,40 @@ export default function PremarketPlanEditor({
           )}
         </div>
 
+        {/* Live annotations (during the session) */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Camera className="w-4 h-4 text-amber-400" />
+                Live Annotations
+              </h3>
+              <p className="text-[11px] text-gray-600 mt-0.5">Screenshot setups as they form during the session — captured why you took or skipped them.</p>
+            </div>
+            <button
+              type="button"
+              onClick={addAnnotation}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Annotation
+            </button>
+          </div>
+
+          {(plan.annotations || []).length === 0 ? (
+            <p className="text-xs text-gray-600 italic">No annotations yet — click "Add Annotation" when a setup appears intraday.</p>
+          ) : (
+            (plan.annotations || []).map(annotation => (
+              <AnnotationCard
+                key={annotation.id}
+                annotation={annotation}
+                onChange={next => updateAnnotation(annotation.id, next)}
+                onRemove={() => removeAnnotation(annotation.id)}
+                onLightbox={setLightbox}
+              />
+            ))
+          )}
+        </div>
+
         {/* Free-form notes */}
         <div>
           <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Additional Notes</label>
@@ -571,6 +784,8 @@ export default function PremarketPlanEditor({
           />
         </div>
       </div>
+
+      {lightbox && <AnnotationLightbox src={lightbox} onClose={() => setLightbox(null)} />}
 
       {/* Footer */}
       <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-800 shrink-0">
@@ -603,8 +818,6 @@ function normalisePlan(raw) {
       id: t.id ?? newId(),
       symbol: t.symbol ?? '',
       bias: t.bias ?? 'bullish',
-      thesis: t.thesis ?? '',
-      key_levels: t.key_levels ?? '',
       ideas: (t.ideas ?? []).map(i => ({
         id: i.id ?? newId(),
         type: i.type ?? 'continuation',
@@ -622,6 +835,15 @@ function normalisePlan(raw) {
           checked: !!c.checked,
         })),
       })),
+    })),
+    annotations: (raw.annotations ?? []).map(a => ({
+      id: a.id ?? newId(),
+      time: a.time ?? '',
+      ticker: a.ticker ?? '',
+      image_path: a.image_path ?? '',
+      caption: a.caption ?? '',
+      decision: a.decision ?? 'none',
+      notes: a.notes ?? '',
     })),
   }
 }
