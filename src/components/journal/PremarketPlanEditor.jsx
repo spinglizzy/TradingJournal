@@ -212,7 +212,7 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
           {(() => {
             const name = (idea.setup_name || '').trim()
             const cls = name
-              ? 'bg-gray-800 text-gray-200 border-gray-600'
+              ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
               : 'bg-gray-800/60 text-gray-500 border-gray-700 italic'
             const label = name || 'No Model Selected'
             return (
