@@ -871,6 +871,10 @@ export default function Journal() {
       setIsEditorOpen(false)
       setEditingEntry(null)
       loadAll()
+    } catch (err) {
+      // Surface save failures so they don't appear as silent successes
+      console.error('Failed to save journal entry:', err)
+      alert(`Couldn't save entry: ${err?.message || 'unknown error'}`)
     } finally {
       setIsSaving(false)
     }

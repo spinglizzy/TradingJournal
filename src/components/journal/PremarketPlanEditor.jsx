@@ -46,12 +46,14 @@ function emptyAnnotation() {
   }
 }
 
-const EMPTY_PLAN = {
-  bias: 'neutral',             // overall day bias
-  market_images: [],           // [{ id, image_path }]
-  market_notes: '',
-  tickers: [emptyTicker()],
-  annotations: [],
+function emptyPlan() {
+  return {
+    bias: 'neutral',             // overall day bias
+    market_images: [],           // [{ id, image_path }]
+    market_notes: '',
+    tickers: [emptyTicker()],
+    annotations: [],
+  }
 }
 
 // ── Bias pill selector ────────────────────────────────────────────────────────
@@ -91,25 +93,31 @@ function BiasSelector({ value, onChange, allowNeutral = true, size = 'md' }) {
 function PlanChecklist({ items, onChange }) {
   const [newItem, setNewItem] = useState('')
 
+  // All mutations go through functional updaters so rapid edits
+  // (toggle + type + reorder) don't trample each other.
   function add() {
     const t = newItem.trim()
     if (!t) return
-    onChange([...items, { id: newId(), text: t, checked: false }])
+    onChange(prev => [...prev, { id: newId(), text: t, checked: false }])
     setNewItem('')
   }
   function toggle(id) {
-    onChange(items.map(i => i.id === id ? { ...i, checked: !i.checked } : i))
+    onChange(prev => prev.map(i => i.id === id ? { ...i, checked: !i.checked } : i))
   }
-  function remove(id) { onChange(items.filter(i => i.id !== id)) }
+  function remove(id) {
+    onChange(prev => prev.filter(i => i.id !== id))
+  }
   function move(idx, dir) {
-    const next = idx + dir
-    if (next < 0 || next >= items.length) return
-    const a = [...items]
-    ;[a[idx], a[next]] = [a[next], a[idx]]
-    onChange(a)
+    onChange(prev => {
+      const next = idx + dir
+      if (next < 0 || next >= prev.length) return prev
+      const a = [...prev]
+      ;[a[idx], a[next]] = [a[next], a[idx]]
+      return a
+    })
   }
   function updateText(id, text) {
-    onChange(items.map(i => i.id === id ? { ...i, text } : i))
+    onChange(prev => prev.map(i => i.id === id ? { ...i, text } : i))
   }
 
   return (
@@ -168,7 +176,9 @@ function PlanChecklist({ items, onChange }) {
 // ── Single trade idea card ────────────────────────────────────────────────────
 
 function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
-  function patch(p) { onChange({ ...idea, ...p }) }
+  // Functional updater — parent's `idea` prop can be stale during rapid edits
+  // because state changes batch through React 19's concurrent renderer.
+  function patch(p) { onChange(prev => ({ ...prev, ...p })) }
 
   function seedChecklistFromSetup(s) {
     return (s.checklist || []).map(c => ({
@@ -297,7 +307,13 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
             )}
           </div>
         </div>
-        <PlanChecklist items={idea.checklist} onChange={c => patch({ checklist: c })} />
+        <PlanChecklist
+          items={idea.checklist}
+          onChange={fnOrArr => onChange(prev => ({
+            ...prev,
+            checklist: typeof fnOrArr === 'function' ? fnOrArr(prev.checklist || []) : fnOrArr,
+          }))}
+        />
       </div>
 
     </div>
@@ -307,16 +323,24 @@ function IdeaCard({ idea, setups, onChange, onRemove, ideaIndex }) {
 // ── Per-ticker section ────────────────────────────────────────────────────────
 
 function TickerSection({ ticker, setups, onChange, onRemove, index }) {
-  function patch(p) { onChange({ ...ticker, ...p }) }
+  // Use functional updater so chained edits don't drop earlier changes
+  // (parent's plan.tickers[i] reference can be stale across rapid edits).
+  function patch(p) { onChange(prev => ({ ...prev, ...p })) }
 
   function addIdea() {
-    patch({ ideas: [...ticker.ideas, emptyIdea()] })
+    onChange(prev => ({ ...prev, ideas: [...prev.ideas, emptyIdea()] }))
   }
-  function updateIdea(ideaId, next) {
-    patch({ ideas: ticker.ideas.map(i => i.id === ideaId ? next : i) })
+  function updateIdea(ideaId, nextOrFn) {
+    onChange(prev => ({
+      ...prev,
+      ideas: prev.ideas.map(i => {
+        if (i.id !== ideaId) return i
+        return typeof nextOrFn === 'function' ? nextOrFn(i) : nextOrFn
+      }),
+    }))
   }
   function removeIdea(ideaId) {
-    patch({ ideas: ticker.ideas.filter(i => i.id !== ideaId) })
+    onChange(prev => ({ ...prev, ideas: prev.ideas.filter(i => i.id !== ideaId) }))
   }
 
   return (
@@ -475,7 +499,9 @@ function AnnotationCard({ annotation, onChange, onRemove, onLightbox }) {
   const fileRef = useRef(null)
   const [uploading, setUploading] = useState(false)
 
-  function patch(p) { onChange({ ...annotation, ...p }) }
+  // Functional updater so back-to-back patches (e.g. caption + decision)
+  // compose against the latest annotation rather than a stale closure copy.
+  function patch(p) { onChange(prev => ({ ...prev, ...p })) }
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -649,7 +675,7 @@ export default function PremarketPlanEditor({
   const [content, setContent] = useState(entry?.content ?? '')
   const [plan, setPlan]   = useState(() => {
     if (entry?.plan_data) return normalisePlan(entry.plan_data)
-    return EMPTY_PLAN
+    return emptyPlan()
   })
   const [setups, setSetups] = useState([])
   const [lightbox, setLightbox] = useState(null)
@@ -661,23 +687,35 @@ export default function PremarketPlanEditor({
   function patchPlan(p) { setPlan(prev => ({ ...prev, ...p })) }
 
   function addTicker() {
-    patchPlan({ tickers: [...plan.tickers, emptyTicker()] })
+    setPlan(prev => ({ ...prev, tickers: [...prev.tickers, emptyTicker()] }))
   }
-  function updateTicker(id, next) {
-    patchPlan({ tickers: plan.tickers.map(t => t.id === id ? next : t) })
+  function updateTicker(id, nextOrFn) {
+    setPlan(prev => ({
+      ...prev,
+      tickers: prev.tickers.map(t => {
+        if (t.id !== id) return t
+        return typeof nextOrFn === 'function' ? nextOrFn(t) : nextOrFn
+      }),
+    }))
   }
   function removeTicker(id) {
-    patchPlan({ tickers: plan.tickers.filter(t => t.id !== id) })
+    setPlan(prev => ({ ...prev, tickers: prev.tickers.filter(t => t.id !== id) }))
   }
 
   function addAnnotation() {
-    patchPlan({ annotations: [...(plan.annotations || []), emptyAnnotation()] })
+    setPlan(prev => ({ ...prev, annotations: [...(prev.annotations || []), emptyAnnotation()] }))
   }
-  function updateAnnotation(id, next) {
-    patchPlan({ annotations: (plan.annotations || []).map(a => a.id === id ? next : a) })
+  function updateAnnotation(id, nextOrFn) {
+    setPlan(prev => ({
+      ...prev,
+      annotations: (prev.annotations || []).map(a => {
+        if (a.id !== id) return a
+        return typeof nextOrFn === 'function' ? nextOrFn(a) : nextOrFn
+      }),
+    }))
   }
   function removeAnnotation(id) {
-    patchPlan({ annotations: (plan.annotations || []).filter(a => a.id !== id) })
+    setPlan(prev => ({ ...prev, annotations: (prev.annotations || []).filter(a => a.id !== id) }))
   }
 
   function handleSave() {
