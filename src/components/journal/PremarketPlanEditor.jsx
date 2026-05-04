@@ -402,17 +402,13 @@ function MarketImagesSection({ images, onChange, onLightbox }) {
   const [uploading, setUploading] = useState(false)
 
   async function handleFiles(e) {
-    const files = Array.from(e.target.files || [])
-    if (!files.length) return
+    const file = e.target.files?.[0]
+    if (!file) return
     e.target.value = ''
     setUploading(true)
     try {
-      const uploaded = []
-      for (const file of files) {
-        const path = await uploadImage(file)
-        uploaded.push({ id: newId(), image_path: path })
-      }
-      onChange([...(images || []), ...uploaded])
+      const path = await uploadImage(file)
+      onChange([{ id: newId(), image_path: path }])
     } catch (err) {
       console.error(err)
     } finally {
@@ -435,10 +431,10 @@ function MarketImagesSection({ images, onChange, onLightbox }) {
           className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded transition-colors"
         >
           <ImagePlus className="w-3 h-3" />
-          {uploading ? 'Uploading…' : 'Add Image'}
+          {uploading ? 'Uploading…' : (images || []).length > 0 ? 'Replace Image' : 'Add Image'}
         </button>
       </div>
-      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFiles} />
       {(images || []).length === 0 ? (
         <button
           type="button"
@@ -447,16 +443,16 @@ function MarketImagesSection({ images, onChange, onLightbox }) {
           className="w-full min-h-[80px] border-2 border-dashed border-gray-700 hover:border-indigo-500/60 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-indigo-400 transition-colors disabled:opacity-50"
         >
           <ImagePlus className="w-5 h-5" />
-          <span className="text-xs">{uploading ? 'Uploading…' : 'Add chart screenshots — SPY/QQQ, sector heatmap, key levels…'}</span>
+          <span className="text-xs">{uploading ? 'Uploading…' : 'Add chart screenshot — SPY/QQQ, sector heatmap, key levels…'}</span>
         </button>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {images.map(img => (
-            <div key={img.id} className="relative group rounded-lg overflow-hidden border border-gray-700">
+        <div className="flex justify-center">
+          {images.slice(0, 1).map(img => (
+            <div key={img.id} className="relative group rounded-lg overflow-hidden border border-gray-700 bg-gray-950 inline-block">
               <img
                 src={img.image_path}
                 alt="market"
-                className="w-full object-contain max-h-60 bg-gray-950 cursor-zoom-in"
+                className="block max-w-full max-h-[600px] w-auto h-auto object-contain cursor-zoom-in mx-auto"
                 onClick={() => onLightbox(img.image_path)}
               />
               <button
@@ -757,9 +753,9 @@ export default function PremarketPlanEditor({
             <textarea
               value={plan.market_notes}
               onChange={e => patchPlan({ market_notes: e.target.value })}
-              rows={3}
+              rows={8}
               placeholder="SPY/QQQ context, news, sector rotation, key macro events…"
-              className={`${inputCls} resize-none`}
+              className={`${inputCls} resize-y min-h-[160px]`}
             />
           </div>
         </div>
