@@ -168,10 +168,9 @@ router.put('/:id', async (req, res) => {
     if (!check.rows[0]) return res.status(404).json({ error: 'Entry not found' })
 
     const { date, entry_type='daily', title='', content='', mood=null, tags=[], trade_ids=[], screenshot_paths=null, plan_data=null } = req.body
-    const NOW = `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
     await pool.query(`
       UPDATE journal_entries
-      SET date=$1,entry_type=$2,title=$3,content=$4,mood=$5,tags=$6,screenshot_paths=$7,plan_data=$8,updated_at=${NOW}
+      SET date=$1,entry_type=$2,title=$3,content=$4,mood=$5,tags=$6,screenshot_paths=$7,plan_data=$8,updated_at=NOW()
       WHERE id=$9 AND user_id=$10
     `, [date, entry_type, title, content, mood, JSON.stringify(tags), screenshot_paths ? JSON.stringify(screenshot_paths) : null, plan_data ? JSON.stringify(plan_data) : null, req.params.id, req.userId])
 
