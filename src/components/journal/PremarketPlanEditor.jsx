@@ -48,6 +48,7 @@ function emptyAnnotation() {
 
 const EMPTY_PLAN = {
   bias: 'neutral',             // overall day bias
+  market_images: [],           // [{ id, image_path }]
   market_notes: '',
   tickers: [emptyTicker()],
   annotations: [],
@@ -394,6 +395,86 @@ async function uploadImage(file) {
   return path
 }
 
+// ── Market images section (above Market Notes; notes acts as the caption) ───
+
+function MarketImagesSection({ images, onChange, onLightbox }) {
+  const fileRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFiles(e) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const uploaded = []
+      for (const file of files) {
+        const path = await uploadImage(file)
+        uploaded.push({ id: newId(), image_path: path })
+      }
+      onChange([...(images || []), ...uploaded])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function removeAt(id) {
+    onChange((images || []).filter(img => img.id !== id))
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="block text-xs text-gray-500 font-medium uppercase tracking-wide">Market Images</label>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded transition-colors"
+        >
+          <ImagePlus className="w-3 h-3" />
+          {uploading ? 'Uploading…' : 'Add Image'}
+        </button>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+      {(images || []).length === 0 ? (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="w-full min-h-[80px] border-2 border-dashed border-gray-700 hover:border-indigo-500/60 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-indigo-400 transition-colors disabled:opacity-50"
+        >
+          <ImagePlus className="w-5 h-5" />
+          <span className="text-xs">{uploading ? 'Uploading…' : 'Add chart screenshots — SPY/QQQ, sector heatmap, key levels…'}</span>
+        </button>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {images.map(img => (
+            <div key={img.id} className="relative group rounded-lg overflow-hidden border border-gray-700">
+              <img
+                src={img.image_path}
+                alt="market"
+                className="w-full object-contain max-h-60 bg-gray-950 cursor-zoom-in"
+                onClick={() => onLightbox(img.image_path)}
+              />
+              <button
+                type="button"
+                onClick={() => removeAt(img.id)}
+                className="absolute top-1.5 right-1.5 p-1 bg-black/60 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Remove image"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AnnotationCard({ annotation, onChange, onRemove, onLightbox }) {
   const fileRef = useRef(null)
   const [uploading, setUploading] = useState(false)
@@ -664,8 +745,15 @@ export default function PremarketPlanEditor({
             <label className="block text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Overall Day Bias</label>
             <BiasSelector value={plan.bias} onChange={b => patchPlan({ bias: b })} />
           </div>
+          <MarketImagesSection
+            images={plan.market_images || []}
+            onChange={imgs => patchPlan({ market_images: imgs })}
+            onLightbox={setLightbox}
+          />
           <div>
-            <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">Market Notes</label>
+            <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wide">
+              Market Notes {(plan.market_images || []).length > 0 && <span className="text-gray-600 normal-case tracking-normal">— caption for the images above</span>}
+            </label>
             <textarea
               value={plan.market_notes}
               onChange={e => patchPlan({ market_notes: e.target.value })}
@@ -779,6 +867,10 @@ export default function PremarketPlanEditor({
 function normalisePlan(raw) {
   return {
     bias: raw.bias ?? 'neutral',
+    market_images: (raw.market_images ?? []).map(img => ({
+      id: img.id ?? newId(),
+      image_path: img.image_path ?? '',
+    })).filter(img => img.image_path),
     market_notes: raw.market_notes ?? '',
     tickers: (raw.tickers ?? []).map(t => ({
       id: t.id ?? newId(),
