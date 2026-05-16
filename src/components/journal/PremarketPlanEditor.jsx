@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, X, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Minus, Trash2, ImagePlus, Camera, Check, Ban } from 'lucide-react'
 import { DatePicker } from '../ui/DatePicker.jsx'
 import TipTapEditor from './TipTapEditor.jsx'
@@ -629,7 +630,7 @@ function AnnotationCard({ annotation, onChange, onRemove, onLightbox }) {
               ? "Why I didn't take it — what was missing, what stopped me…"
               : 'What you saw and your read on it…'
         }
-        className="w-full bg-gray-800 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none"
+        className="w-full bg-gray-800 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-y min-h-[2.5rem]"
       />
     </div>
   )
@@ -642,7 +643,7 @@ function AnnotationLightbox({ src, onClose }) {
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85" onClick={onClose}>
       <img
         src={src}
@@ -656,7 +657,8 @@ function AnnotationLightbox({ src, onClose }) {
       >
         <X className="w-6 h-6" />
       </button>
-    </div>
+    </div>,
+    document.body
   )
 }
 
