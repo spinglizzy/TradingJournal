@@ -20,10 +20,11 @@ export default function RecentTradesWidget({ config }) {
       ...(apiParams.from ? { start_date: apiParams.from } : {}),
       ...(apiParams.to   ? { end_date:   apiParams.to   } : {}),
       ...(apiParams.account_id ? { account_id: apiParams.account_id } : {}),
+      ...(apiParams.strategy_ids ? { strategy_ids: apiParams.strategy_ids } : {}),
     })
       .then(d => setTrades(d.data ?? []))
       .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id])
+  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
 
   return (
     <div className="flex flex-col h-full">

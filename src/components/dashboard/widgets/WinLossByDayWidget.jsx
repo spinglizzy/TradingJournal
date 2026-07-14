@@ -30,7 +30,7 @@ export default function WinLossByDayWidget({ config }) {
     analyticsApi.byWeekday(apiParams)
       .then(d => setData(d))
       .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id])
+  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
 
   if (loading) return <div className="h-52 animate-pulse bg-gray-800/30 rounded-lg" />
   if (!data.length) return <div className="h-52 flex items-center justify-center text-gray-600 text-sm">No data yet</div>

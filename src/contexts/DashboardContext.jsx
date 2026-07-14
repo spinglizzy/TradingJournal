@@ -21,23 +21,52 @@ export function periodToRange(period, today = new Date()) {
   }
 }
 
+// Strategy filter: null = all strategies (no filtering, new strategies included
+// automatically); otherwise an array of tokens — strategy ids plus 'null' for
+// trades with no strategy. An empty array means "show nothing".
+const STRATEGY_FILTER_KEY = 'dashboard_strategy_filter'
+
+function loadStrategyFilter() {
+  try {
+    const saved = localStorage.getItem(STRATEGY_FILTER_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) return parsed
+    }
+  } catch {}
+  return null
+}
+
 export function DashboardProvider({ children }) {
   const { selectedAccountId } = useAccount()
   const [dateRange, setDateRangeState] = useState({ from: null, to: null })
+  const [strategyFilter, setStrategyFilterState] = useState(loadStrategyFilter)
 
   const updateDateRange = useCallback((range) => {
     setDateRangeState({ from: range.from ?? null, to: range.to ?? null })
   }, [])
 
+  const setStrategyFilter = useCallback((selection) => {
+    setStrategyFilterState(selection)
+    try {
+      if (selection == null) localStorage.removeItem(STRATEGY_FILTER_KEY)
+      else localStorage.setItem(STRATEGY_FILTER_KEY, JSON.stringify(selection))
+    } catch {}
+  }, [])
+
   // apiParams merges the date range with the currently selected account
-  // Widgets pass apiParams to all API calls to get automatic account + date filtering
+  // Widgets pass apiParams to all API calls to get automatic account + date + strategy filtering.
+  // strategy_ids: comma-separated ids ('null' = unassigned); 'none' matches nothing.
   const apiParams = useMemo(() => ({
     ...dateRange,
     ...(selectedAccountId != null ? { account_id: selectedAccountId } : {}),
-  }), [dateRange, selectedAccountId])
+    ...(strategyFilter != null
+      ? { strategy_ids: strategyFilter.length ? strategyFilter.join(',') : 'none' }
+      : {}),
+  }), [dateRange, selectedAccountId, strategyFilter])
 
   return (
-    <DashboardContext.Provider value={{ dateRange, setDateRange: updateDateRange, apiParams }}>
+    <DashboardContext.Provider value={{ dateRange, setDateRange: updateDateRange, strategyFilter, setStrategyFilter, apiParams }}>
       {children}
     </DashboardContext.Provider>
   )

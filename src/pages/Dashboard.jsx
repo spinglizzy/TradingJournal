@@ -5,6 +5,7 @@ import WidgetGrid      from '../components/dashboard/WidgetGrid.jsx'
 import WidgetPicker    from '../components/dashboard/WidgetPicker.jsx'
 import PresetManager   from '../components/dashboard/PresetManager.jsx'
 import DateRangeFilter from '../components/dashboard/DateRangeFilter.jsx'
+import StrategyFilter  from '../components/dashboard/StrategyFilter.jsx'
 import { WIDGET_REGISTRY, DEFAULT_LAYOUT } from '../components/dashboard/widgetRegistry.js'
 import { sizeToGrid } from '../components/dashboard/WidgetGrid.jsx'
 
@@ -74,6 +75,9 @@ function DashboardInner() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Strategy filter */}
+          <StrategyFilter />
+
           {/* Date range filter */}
           <DateRangeFilter />
 

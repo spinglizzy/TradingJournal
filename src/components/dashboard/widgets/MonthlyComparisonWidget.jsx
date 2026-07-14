@@ -37,7 +37,7 @@ export default function MonthlyComparisonWidget({ config }) {
     statsApi.monthly(apiParams)
       .then(d => setMonthlyData(d))
       .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id])
+  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
 
   if (loading) return <div className="h-52 animate-pulse bg-gray-800/30 rounded-lg" />
   if (!monthlyData.length) return <div className="h-52 flex items-center justify-center text-gray-600 text-sm">No monthly data yet</div>

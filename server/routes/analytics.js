@@ -3,7 +3,9 @@ import pool from '../db.js'
 
 const router = Router()
 
-function dateFilter(from, to, account_id, userId, col='t.date', startIdx=1) {
+// strategy_ids: comma-separated strategy ids, may include 'null' for unassigned trades;
+// an empty selection (no valid tokens) matches nothing.
+function dateFilter(from, to, account_id, strategy_ids, userId, col='t.date', startIdx=1) {
   const params = []
   const parts  = []
   let i = startIdx
@@ -12,14 +14,23 @@ function dateFilter(from, to, account_id, userId, col='t.date', startIdx=1) {
   parts.push(`${prefix}user_id = $${i++}`); params.push(userId)
   if (from) { parts.push(`${col} >= $${i++}`); params.push(from) }
   if (to)   { parts.push(`${col} <= $${i++}`); params.push(to)   }
+  if (strategy_ids !== undefined && strategy_ids !== '') {
+    const tokens      = String(strategy_ids).split(',').filter(Boolean)
+    const includeNull = tokens.includes('null')
+    const ids         = tokens.filter(t => t !== 'null').map(Number).filter(Number.isFinite)
+    const conds = []
+    if (ids.length)  { conds.push(`${prefix}strategy_id = ANY($${i++}::int[])`); params.push(ids) }
+    if (includeNull) conds.push(`${prefix}strategy_id IS NULL`)
+    parts.push(conds.length ? `(${conds.join(' OR ')})` : '1=0')
+  }
   return { clause: parts.length ? `AND ${parts.join(' AND ')}` : '', params }
 }
 
 // ── By day of week ─────────────────────────────────────────────────────────────
 router.get('/by-weekday', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -44,8 +55,8 @@ router.get('/by-weekday', async (req, res) => {
 // ── By hour of day ─────────────────────────────────────────────────────────────
 router.get('/by-hour', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -68,8 +79,8 @@ router.get('/by-hour', async (req, res) => {
 // ── By strategy ────────────────────────────────────────────────────────────────
 router.get('/by-strategy', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 't.date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 't.date')
 
     const r = await pool.query(`
       SELECT
@@ -95,8 +106,8 @@ router.get('/by-strategy', async (req, res) => {
 // ── By setup ──────────────────────────────────────────────────────────────────
 router.get('/by-setup', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -121,8 +132,8 @@ router.get('/by-setup', async (req, res) => {
 // ── By ticker ─────────────────────────────────────────────────────────────────
 router.get('/by-ticker', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -147,8 +158,8 @@ router.get('/by-ticker', async (req, res) => {
 // ── By tag ────────────────────────────────────────────────────────────────────
 router.get('/by-tag', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 't.date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 't.date')
 
     const r = await pool.query(`
       SELECT
@@ -177,8 +188,8 @@ router.get('/by-tag', async (req, res) => {
 // ── By SMT Divergence ─────────────────────────────────────────────────────────
 router.get('/by-smt', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -208,8 +219,8 @@ router.get('/by-smt', async (req, res) => {
 // ── R:R distribution ──────────────────────────────────────────────────────────
 router.get('/rr-dist', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT r_multiple FROM trades
@@ -225,8 +236,8 @@ router.get('/rr-dist', async (req, res) => {
 // ── P&L distribution ────────────────────────────────────────────────────────
 router.get('/pnl-dist', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT pnl FROM trades
@@ -242,8 +253,8 @@ router.get('/pnl-dist', async (req, res) => {
 // ── Drawdown ──────────────────────────────────────────────────────────────────
 router.get('/drawdown', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT date, SUM(pnl) as day_pnl FROM trades
@@ -266,8 +277,8 @@ router.get('/drawdown', async (req, res) => {
 // ── Hold time ─────────────────────────────────────────────────────────────────
 router.get('/hold-time', async (req, res) => {
   try {
-    const { from, to, account_id } = req.query
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 'date')
+    const { from, to, account_id, strategy_ids } = req.query
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date')
 
     const r = await pool.query(`
       SELECT
@@ -347,14 +358,14 @@ const Y_METRICS = {
 
 router.get('/custom', async (req, res) => {
   try {
-    const { x_field, y_metric, from, to, account_id } = req.query
+    const { x_field, y_metric, from, to, account_id, strategy_ids } = req.query
     if (!X_FIELDS[x_field] || !Y_METRICS[y_metric]) {
       return res.status(400).json({ error: 'Invalid x_field or y_metric' })
     }
 
     const xDef  = X_FIELDS[x_field]
     const yExpr = Y_METRICS[y_metric]
-    const { clause, params } = dateFilter(from, to, account_id, req.userId, 't.date')
+    const { clause, params } = dateFilter(from, to, account_id, strategy_ids, req.userId, 't.date')
 
     const orderExpr = xDef.orderBy.includes('value') ? yExpr : xDef.orderBy
     const orderDir  = xDef.orderBy.includes('DESC') ? 'DESC' : ''

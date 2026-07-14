@@ -36,7 +36,7 @@ export default function EquityCurveWidget({ config }) {
     statsApi.equityCurve(apiParams)
       .then(d => setEquity(d))
       .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id])
+  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
 
   if (loading) return <div className="h-56 flex items-center justify-center"><ChartSkeleton /></div>
   if (!equity.length) return <EmptyState />

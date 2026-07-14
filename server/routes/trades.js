@@ -12,7 +12,7 @@ const TAG_AGG = `
 router.get('/', async (req, res) => {
   try {
     const {
-      start_date, end_date, ticker, direction, strategy_id,
+      start_date, end_date, ticker, direction, strategy_id, strategy_ids,
       status, tag, confluence, pd_array, bias, smt_divergence, search, account_id,
       sort_by = 'date', sort_dir = 'desc',
       page = 1, limit = 50,
@@ -30,6 +30,17 @@ router.get('/', async (req, res) => {
     if (ticker)      w.push(`t.ticker ILIKE $${p.push('%' + ticker + '%')}`)
     if (direction)   w.push(`t.direction = $${p.push(direction)}`)
     if (strategy_id) w.push(`t.strategy_id = $${p.push(strategy_id)}`)
+    // Multi-strategy filter: comma-separated ids, may include 'null' for unassigned trades;
+    // an empty selection (no valid tokens) matches nothing.
+    if (strategy_ids !== undefined && strategy_ids !== '') {
+      const tokens      = String(strategy_ids).split(',').filter(Boolean)
+      const includeNull = tokens.includes('null')
+      const ids         = tokens.filter(t => t !== 'null').map(Number).filter(Number.isFinite)
+      const conds = []
+      if (ids.length)  conds.push(`t.strategy_id = ANY($${p.push(ids)}::int[])`)
+      if (includeNull) conds.push(`t.strategy_id IS NULL`)
+      w.push(conds.length ? `(${conds.join(' OR ')})` : '1=0')
+    }
     if (status)      w.push(`t.status = $${p.push(status)}`)
     if (search) {
       const s = `%${search}%`

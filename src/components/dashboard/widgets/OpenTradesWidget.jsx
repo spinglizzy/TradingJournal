@@ -14,10 +14,11 @@ export default function OpenTradesWidget({ config }) {
     tradesApi.list({
       status: 'open', sort_by: 'date', sort_dir: 'desc', limit: 50,
       ...(apiParams.account_id ? { account_id: apiParams.account_id } : {}),
+      ...(apiParams.strategy_ids ? { strategy_ids: apiParams.strategy_ids } : {}),
     })
       .then(d => setTrades(d.data ?? []))
       .finally(() => setLoading(false))
-  }, [apiParams.account_id])
+  }, [apiParams.account_id, apiParams.strategy_ids])
 
   return (
     <div className="flex flex-col h-full">

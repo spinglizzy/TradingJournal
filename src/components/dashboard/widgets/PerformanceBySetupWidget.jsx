@@ -31,7 +31,7 @@ export default function PerformanceBySetupWidget({ config }) {
     analyticsApi.bySetup(apiParams)
       .then(d => setData(d))
       .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id])
+  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
 
   if (loading) return <div className="h-52 animate-pulse bg-gray-800/30 rounded-lg" />
 

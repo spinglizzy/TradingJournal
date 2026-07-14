@@ -22,10 +22,14 @@ export default function CalendarHeatmapWidget({ config }) {
     setLoading(true)
     const from = apiParams.from ?? format(subMonths(new Date(), 11), 'yyyy-MM-dd')
     const to   = apiParams.to   ?? format(new Date(), 'yyyy-MM-dd')
-    statsApi.calendar({ from, to, ...(apiParams.account_id ? { account_id: apiParams.account_id } : {}) })
+    statsApi.calendar({
+      from, to,
+      ...(apiParams.account_id ? { account_id: apiParams.account_id } : {}),
+      ...(apiParams.strategy_ids ? { strategy_ids: apiParams.strategy_ids } : {}),
+    })
       .then(d => setAllData(d))
       .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id])
+  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
 
   // Filter data to current view month
   const dataMap = useMemo(() => {

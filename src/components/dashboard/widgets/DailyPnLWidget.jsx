@@ -34,7 +34,7 @@ export default function DailyPnLWidget({ config }) {
     statsApi.equityCurve(apiParams)
       .then(d => setData(d))
       .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id])
+  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
 
   if (loading) return <div className="h-52 animate-pulse bg-gray-800/30 rounded-lg" />
   if (!data.length) return <div className="h-52 flex items-center justify-center text-gray-600 text-sm">No trade data yet</div>
