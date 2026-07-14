@@ -734,13 +734,14 @@ export default function TradeFormPage() {
                 <option value="short">Short</option>
               </select>
             </Field>
-            <Field label="Timeframe" optional>
-              <select {...register('timeframe')} className={inputCls}>
+            <Field label="Strategy" error={errors.strategy_id?.message}>
+              <select {...register('strategy_id', { required: 'Required' })} data-testid="strategy-select" className={inputCls}>
                 <option value="">Select...</option>
-                {['30s','1m','2m','3m','4m','5m','15m','30m','1h','4h','daily','weekly'].map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
+                {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+              {strategies.length === 0 && (
+                <p className="text-xs text-gray-600 mt-1">No strategies yet — create one in the Playbook first</p>
+              )}
             </Field>
           </div>
 
@@ -855,10 +856,12 @@ export default function TradeFormPage() {
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Strategy" optional>
-              <select {...register('strategy_id')} className={inputCls}>
-                <option value="">None</option>
-                {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <Field label="Timeframe" optional>
+              <select {...register('timeframe')} className={inputCls}>
+                <option value="">Select...</option>
+                {['30s','1m','2m','3m','4m','5m','15m','30m','1h','4h','daily','weekly'].map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
               </select>
             </Field>
             <Field label="Bias" optional>
