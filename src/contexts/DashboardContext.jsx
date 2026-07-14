@@ -22,8 +22,7 @@ export function periodToRange(period, today = new Date()) {
 }
 
 // Strategy filter: null = all strategies (no filtering, new strategies included
-// automatically); otherwise an array of tokens — strategy ids plus 'null' for
-// trades with no strategy. An empty array means "show nothing".
+// automatically); otherwise a non-empty array of strategy ids to show.
 const STRATEGY_FILTER_KEY = 'dashboard_strategy_filter'
 
 function loadStrategyFilter() {
@@ -31,7 +30,11 @@ function loadStrategyFilter() {
     const saved = localStorage.getItem(STRATEGY_FILTER_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed)) return parsed
+      // Drop legacy 'null' (unassigned) tokens; an empty selection means "all"
+      if (Array.isArray(parsed)) {
+        const ids = parsed.filter(t => t !== 'null')
+        if (ids.length) return ids
+      }
     }
   } catch {}
   return null
@@ -56,12 +59,11 @@ export function DashboardProvider({ children }) {
 
   // apiParams merges the date range with the currently selected account
   // Widgets pass apiParams to all API calls to get automatic account + date + strategy filtering.
-  // strategy_ids: comma-separated ids ('null' = unassigned); 'none' matches nothing.
   const apiParams = useMemo(() => ({
     ...dateRange,
     ...(selectedAccountId != null ? { account_id: selectedAccountId } : {}),
-    ...(strategyFilter != null
-      ? { strategy_ids: strategyFilter.length ? strategyFilter.join(',') : 'none' }
+    ...(strategyFilter != null && strategyFilter.length
+      ? { strategy_ids: strategyFilter.join(',') }
       : {}),
   }), [dateRange, selectedAccountId, strategyFilter])
 

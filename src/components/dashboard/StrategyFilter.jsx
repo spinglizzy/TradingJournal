@@ -3,9 +3,6 @@ import { Target, ChevronDown, X, Check } from 'lucide-react'
 import { useDashboard } from '../../contexts/DashboardContext.jsx'
 import { strategiesApi } from '../../api/strategies.js'
 
-// Token for trades that have no strategy assigned
-const NO_STRATEGY = 'null'
-
 export default function StrategyFilter() {
   const { strategyFilter, setStrategyFilter } = useDashboard()
   const [open, setOpen]             = useState(false)
@@ -34,8 +31,7 @@ export default function StrategyFilter() {
     return () => document.removeEventListener('mousedown', handle)
   }, [open])
 
-  // All selectable tokens: every strategy id + the "no strategy" bucket
-  const allTokens = [...strategies.map(s => String(s.id)), NO_STRATEGY]
+  const allTokens = strategies.map(s => String(s.id))
 
   // null = everything selected (no filtering)
   const isAll = strategyFilter == null
@@ -55,21 +51,18 @@ export default function StrategyFilter() {
     } else {
       next = [...selected, token]
     }
-    // If every option ends up checked, collapse back to "all" so
-    // strategies created later are included automatically.
-    if (allTokens.every(t => next.includes(t))) setStrategyFilter(null)
+    // Empty or complete selections collapse back to "all" so strategies
+    // created later are included automatically and nothing is ever hidden.
+    if (next.length === 0 || allTokens.every(t => next.includes(t))) setStrategyFilter(null)
     else setStrategyFilter(next)
   }
 
-  function selectAll()  { setStrategyFilter(null) }
-  function selectNone() { setStrategyFilter([]) }
+  function selectAll() { setStrategyFilter(null) }
 
   const hasFilter = !isAll
   const activeLabel = (() => {
-    if (isAll) return 'All strategies'
-    if (selected.length === 0) return 'No strategies'
+    if (isAll || selected.length === 0) return 'All strategies'
     if (selected.length === 1) {
-      if (selected[0] === NO_STRATEGY) return 'No strategy'
       const s = strategies.find(st => String(st.id) === selected[0])
       return s?.name ?? '1 strategy'
     }
@@ -103,75 +96,46 @@ export default function StrategyFilter() {
 
       {open && (
         <div className="absolute right-0 top-full mt-1 z-40 w-72 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
-          {/* All / None quick actions */}
-          <div className="flex items-center gap-2 p-2 border-b border-gray-700">
-            <button
-              onClick={selectAll}
-              className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-gray-700/50 text-gray-300 hover:bg-gray-700 transition-colors"
-            >
-              Select all
-            </button>
-            <button
-              onClick={selectNone}
-              className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-gray-700/50 text-gray-300 hover:bg-gray-700 transition-colors"
-            >
-              Select none
-            </button>
-          </div>
+          {hasFilter && (
+            <div className="p-2 border-b border-gray-700">
+              <button
+                onClick={selectAll}
+                className="w-full py-1.5 rounded-lg text-xs font-medium bg-gray-700/50 text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                Show all strategies
+              </button>
+            </div>
+          )}
 
           {/* Strategy checklist */}
           <div className="p-2 max-h-72 overflow-y-auto">
             {loading ? (
               <div className="px-3 py-2 text-sm text-gray-500">Loading strategies…</div>
+            ) : strategies.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500">
+                No strategies yet — create one in the Playbook
+              </div>
             ) : (
-              <>
-                {strategies.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => toggle(String(s.id))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      isChecked(String(s.id))
-                        ? 'text-gray-200 hover:bg-gray-700'
-                        : 'text-gray-500 hover:bg-gray-700'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 flex items-center justify-center rounded border transition-colors ${
-                      isChecked(String(s.id))
-                        ? 'bg-indigo-600 border-indigo-500'
-                        : 'bg-gray-900 border-gray-600'
-                    }`}>
-                      {isChecked(String(s.id)) && <Check className="w-3 h-3 text-white" />}
-                    </span>
-                    <span className="truncate text-left flex-1">{s.name}</span>
-                  </button>
-                ))}
-                {strategies.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-gray-500">
-                    No strategies yet — create one in the Playbook
-                  </div>
-                )}
-
-                {/* Unassigned trades bucket */}
-                <div className="border-t border-gray-700 mt-1 pt-1">
-                  <button
-                    onClick={() => toggle(NO_STRATEGY)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      isChecked(NO_STRATEGY)
-                        ? 'text-gray-200 hover:bg-gray-700'
-                        : 'text-gray-500 hover:bg-gray-700'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 flex items-center justify-center rounded border transition-colors ${
-                      isChecked(NO_STRATEGY)
-                        ? 'bg-indigo-600 border-indigo-500'
-                        : 'bg-gray-900 border-gray-600'
-                    }`}>
-                      {isChecked(NO_STRATEGY) && <Check className="w-3 h-3 text-white" />}
-                    </span>
-                    <span className="truncate text-left flex-1 italic">No strategy assigned</span>
-                  </button>
-                </div>
-              </>
+              strategies.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => toggle(String(s.id))}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    isChecked(String(s.id))
+                      ? 'text-gray-200 hover:bg-gray-700'
+                      : 'text-gray-500 hover:bg-gray-700'
+                  }`}
+                >
+                  <span className={`w-4 h-4 flex items-center justify-center rounded border transition-colors ${
+                    isChecked(String(s.id))
+                      ? 'bg-indigo-600 border-indigo-500'
+                      : 'bg-gray-900 border-gray-600'
+                  }`}>
+                    {isChecked(String(s.id)) && <Check className="w-3 h-3 text-white" />}
+                  </span>
+                  <span className="truncate text-left flex-1">{s.name}</span>
+                </button>
+              ))
             )}
           </div>
         </div>
