@@ -21,6 +21,7 @@ import goalsRouter        from './routes/goals.js'
 import accountsRouter     from './routes/accounts.js'
 import importExportRouter from './routes/importexport.js'
 import alpacaRouter       from './routes/alpaca.js'
+import wheelRouter        from './routes/wheel.js'
 
 const app = express()
 
@@ -64,6 +65,7 @@ app.use('/api/accounts',   accountsRouter)
 app.use('/api/import',     importExportRouter)
 app.use('/api/export',     importExportRouter)
 app.use('/api/alpaca',     alpacaRouter)
+app.use('/api/wheel',      wheelRouter)
 app.use('/api/brokers',      brokersRouter)
 app.use('/api/tradier',      tradierRouter)
 app.use('/api/schwab',       schwabRouter)

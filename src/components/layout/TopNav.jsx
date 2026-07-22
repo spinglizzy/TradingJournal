@@ -9,6 +9,7 @@ import { PulseJournalLogo } from '../ui/PulseJournalLogo.jsx'
 const mainLinks = [
   { to: '/dashboard',  label: 'Dashboard',  end: true },
   { to: '/trades',     label: 'Trades' },
+  { to: '/wheel',      label: 'Wheel' },
   { to: '/analytics',  label: 'Analytics' },
   { to: '/journal',    label: 'Journal' },
   { to: '/playbook',   label: 'Playbook' },

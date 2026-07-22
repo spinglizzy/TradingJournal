@@ -191,6 +191,15 @@ router.put('/:id', async (req, res) => {
     )
     if (!existingResult.rows[0]) return res.status(404).json({ error: 'Trade not found' })
 
+    // Wheel legs carry option fields and cycle links that this generic update
+    // path knows nothing about — writing through it would recompute pnl with
+    // calcPnl and leave the cycle's basis line silently wrong.
+    if (existingResult.rows[0].strategy_tag === 'wheel') {
+      return res.status(409).json({
+        error: 'This is a wheel option leg — edit it from the Wheel tab so the cycle basis stays correct.',
+      })
+    }
+
     const { tags = [], ...fields } = req.body
     const merged = { ...existingResult.rows[0], ...fields }
 
@@ -329,10 +338,15 @@ router.delete('/:id/executions/:execId', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const r = await pool.query(
-      'SELECT id FROM trades WHERE id = $1 AND user_id = $2',
+      'SELECT id, strategy_tag FROM trades WHERE id = $1 AND user_id = $2',
       [req.params.id, req.userId]
     )
     if (!r.rows[0]) return res.status(404).json({ error: 'Trade not found' })
+    if (r.rows[0].strategy_tag === 'wheel') {
+      return res.status(409).json({
+        error: 'This is a wheel option leg — delete it from the Wheel tab so its cycle is recomputed.',
+      })
+    }
     await pool.query('DELETE FROM trades WHERE id = $1 AND user_id = $2', [req.params.id, req.userId])
     res.json({ success: true })
   } catch (err) {

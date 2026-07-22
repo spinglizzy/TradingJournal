@@ -26,6 +26,7 @@ const Accounts        = lazy(() => import('./pages/Accounts.jsx'))
 const ImportExport    = lazy(() => import('./pages/ImportExport.jsx'))
 const Settings        = lazy(() => import('./pages/Settings.jsx'))
 const Calculator      = lazy(() => import('./pages/Calculator.jsx'))
+const Wheel           = lazy(() => import('./pages/Wheel.jsx'))
 
 const PageLoader = () => (
   <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -47,6 +48,7 @@ const router = createBrowserRouter([
       { path: '/trades/new',         element: <TradeFormPage /> },
       { path: '/trades/:id',         element: <TradeDetailPage /> },
       { path: '/trades/:id/edit',    element: <TradeFormPage /> },
+      { path: '/wheel',              element: <Wheel /> },
       { path: '/analytics',          element: <Analytics /> },
       { path: '/journal',            element: <Journal /> },
       { path: '/psychology',         element: <Psychology /> },

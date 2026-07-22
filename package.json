@@ -10,6 +10,7 @@
     "seed": "node server/seed.js",
     "build": "vite build",
     "preview": "vite preview",
+    "test:wheel": "node wheel-tests.mjs",
     "test:e2e": "npx playwright test",
     "test:e2e:ui": "npx playwright test --ui",
     "test:e2e:headed": "npx playwright test --headed"

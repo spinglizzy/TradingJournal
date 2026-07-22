@@ -10,6 +10,7 @@ npm run dev:server    # Backend only
 npm run dev:client    # Frontend only
 npm run build         # Production Vite build
 npm run seed          # Load sample trade data into the database
+npm run test:wheel    # Wheel basis engine + strike calculator unit tests (no DB)
 ```
 
 The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`.
@@ -25,8 +26,18 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 4. The Express middleware `server/middleware/auth.js` validates the token using the Supabase **service role key** and attaches `req.userId` to every request
 5. All DB queries filter by `req.userId` — there is no cross-user data access
 
+### Wheel tracker (`/wheel`)
+- Wheel option legs live in the **same `trades` table** as every other trade, tagged `strategy_tag = 'wheel'`. There is no separate leg table — the tag is the only boundary, so futures/ICT trades never appear in the Wheel tab.
+- `wheel_cycles` holds one row per run on a ticker (first CSP while flat → flat again). `share_lots` records assignments.
+- `server/lib/wheelEngine.js` is the pure basis engine: `B = avg_assigned_strike − net_premium / shares`. `src/lib/strikeCalc.js` is the pure strike-comparison math and **consumes** `B` — it never recomputes basis.
+- Cycle fields (`shares`, `avg_assigned_strike`, `net_premium`) are **cached derived values**, recomputed by `recomputeCycle()` on every mutation from lots + legs + the `shares_exited` / `premium_attributed` accumulators.
+- `premium` is the TOTAL dollars for a leg (credit positive); `close_cost` is the buy-to-close debit. A leg's realised premium is `premium − close_cost − fees`.
+- Wheel legs are rejected by the generic `PUT`/`DELETE /api/trades/:id` handlers (409) — editing them there would recompute `pnl` with `calcPnl` and leave the basis wrong.
+- Main dashboard P&L counts **option premium only**; the share gain/loss on assignment→call-away is booked to the cycle and reported in the Wheel history.
+
 ### Database
 - Schema lives in `supabase_migration.sql` — run this in the Supabase SQL editor to set up or reset tables
+- `wheel_migration.sql` adds the wheel tracker tables and columns — additive and idempotent, run it in the same editor
 - The backend connects via `pg` pool using `DATABASE_URL` from `.env`
 - P&L calculation logic is centralised in `server/db.js` → `calcPnl(direction, entryPrice, exitPrice, positionSize, fees, stopLoss)` — returns `{ pnl, pnlPct, rMultiple }`
 - All tables have RLS policies enforcing `user_id = auth.uid()`
