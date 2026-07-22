@@ -73,6 +73,26 @@ group('Conventions', () => {
   check('basis is null, never 0', effectiveBasis({ shares: 0, avgAssignedStrike: 17, netPremium: 0 }), null)
 })
 
+group('Commissions are part of the cost basis — confirmed requirement, do not "simplify" away', () => {
+  // Sam's real CORZ entry: 3 contracts, $20 strike, $18.00 gross credit, $1.55 fees.
+  const legs = [{ premium: 18, fees: 1.55 }]
+  check('net premium is stated after fees', sumLegPremium(legs), 16.45)
+
+  const withFees    = effectiveBasis({ shares: 300, avgAssignedStrike: 20, netPremium: sumLegPremium(legs) })
+  const ignoringFees = effectiveBasis({ shares: 300, avgAssignedStrike: 20, netPremium: 18 })
+
+  check('basis including commissions', withFees, 19.945166666666665)
+  check('basis if commissions were ignored', ignoringFees, 19.94)
+  // The direction is the point: commissions are a real cost, so they push the
+  // break-even UP. Dropping them would understate the line — always in the
+  // direction that makes a marginal strike look safer than it is.
+  check('commissions RAISE the break-even', withFees > ignoringFees, true)
+
+  // Same rule has to survive a roll: fees on both legs, not just the opener.
+  const rolled = [{ premium: 40, fees: 1.30 }, { premium: 60, close_cost: 90, fees: 1.30 }]
+  check('fees accumulate across every leg', sumLegPremium(rolled), 7.4)
+})
+
 group('Losing wheel books a loss', () => {
   // Assigned 100 @ 30, collected 200 premium, called away at 25.
   check('negative realized P&L',

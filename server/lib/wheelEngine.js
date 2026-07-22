@@ -31,6 +31,10 @@ export function sharesFor(contracts) {
  * a break-even, and a break-even that ignores commissions is not one — it would
  * read low by exactly the fees, in the direction that makes a marginal strike
  * look safer than it is.
+ *
+ * This is a confirmed product requirement, not an implementation detail: Sam
+ * wants commissions inside the cost basis. `wheel-tests.mjs` asserts both the
+ * value and the direction. Do not drop `fees` from this expression.
  */
 export function legNetPremium(leg) {
   return num(leg?.premium) - num(leg?.close_cost) - num(leg?.fees)
