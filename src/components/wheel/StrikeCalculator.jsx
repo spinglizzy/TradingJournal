@@ -190,8 +190,9 @@ export default function StrikeCalculator({ ticker, basis, shares, defaultExpiry,
                   )}
                 </div>
                 <DatePicker
+                  compact
                   value={row.expiry} onChange={val => setRow(i, { expiry: val })}
-                  placeholder="Expiry"
+                  placeholder="Expiry" ariaLabel={`Candidate ${i + 1} expiry`}
                 />
                 <input
                   type="number" step="0.01" inputMode="decimal" placeholder="0.30"

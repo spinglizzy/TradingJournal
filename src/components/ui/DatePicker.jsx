@@ -4,7 +4,16 @@ import { CalendarIcon } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { Calendar } from './Calendar'
 
-export function DatePicker({ value, onChange, placeholder = 'Pick a date', className = '', error }) {
+/**
+ * `compact` matches the tighter input sizing some dense grids use (py-1.5 rather
+ * than py-2) — without it the picker sits taller than the plain inputs beside it.
+ * `ariaLabel` is for the same case: repeated pickers in a row, where the visible
+ * column header is the only label and screen readers get nothing.
+ */
+export function DatePicker({
+  value, onChange, placeholder = 'Pick a date', className = '', error,
+  compact = false, ariaLabel,
+}) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const buttonRef = useRef(null)
@@ -54,7 +63,9 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', class
     }
   }, [open])
 
-  const inputCls = `w-full bg-gray-800 border ${error ? 'border-red-500' : 'border-gray-700'} rounded-lg px-3 py-2 text-sm transition-colors
+  const inputCls = `w-full bg-gray-800 border ${error ? 'border-red-500' : 'border-gray-700'} rounded-lg ${
+    compact ? 'px-2.5 py-1.5 gap-2' : 'px-3 py-2'
+  } text-sm transition-colors
     flex items-center justify-between cursor-pointer
     hover:border-gray-600 focus:outline-none focus:border-indigo-500`
 
@@ -65,6 +76,7 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', class
         type="button"
         onClick={handleOpen}
         className={inputCls}
+        aria-label={ariaLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
       >

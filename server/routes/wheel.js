@@ -332,14 +332,34 @@ router.get('/history', async (req, res) => {
 
     const closedTotal = enriched.reduce((s, c) => s + Number(c.realized_pnl), 0)
 
+    /*
+     * Premium this tab counts that the journal deliberately does not.
+     *
+     * A leg opened with `already_logged` carries its premium (the basis needs it)
+     * but stores `pnl = NULL`, because the same credit is already booked against
+     * the original trade in the Trade Log. That makes this tab's lifetime figure
+     * exceed the Playbook's "Wheel Play" total by exactly this amount — an
+     * intentional gap, but one the user has to be told about or the two screens
+     * look like they disagree. `status = 'closed' AND pnl IS NULL` is unique to
+     * these legs: `resolveLeg` always writes a pnl, and open legs are not closed.
+     */
+    const { rows: excludedLegs } = await pool.query(
+      `SELECT ${LEG_COLS} FROM trades
+        WHERE user_id = $1 AND strategy_tag = 'wheel'
+          AND status = 'closed' AND pnl IS NULL`, [req.userId]
+    )
+    const excludedPremium = sumLegPremium(excludedLegs)
+
     res.json({
       cycles: enriched,
       by_ticker: Object.values(byTicker)
         .sort((a, b) => (b.realized_pnl + b.banked_premium) - (a.realized_pnl + a.banked_premium)),
       total: closedTotal,
       banked_premium: bankedTotal,
-      // Matches the Playbook's "Wheel Play" P&L — every settled wheel leg.
+      // Matches the Playbook's "Wheel Play" P&L — every settled wheel leg —
+      // less `excluded_premium`, which the journal is counting on another row.
       lifetime_total: closedTotal + bankedTotal,
+      excluded_premium: excludedPremium,
     })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })

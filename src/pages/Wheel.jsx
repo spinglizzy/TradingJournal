@@ -557,6 +557,7 @@ function HistoryTab({ history }) {
 
   const banked   = Number(history?.banked_premium ?? 0)
   const lifetime = Number(history?.lifetime_total ?? history?.total ?? 0)
+  const excluded = Number(history?.excluded_premium ?? 0)
 
   if (!history || (history.cycles.length === 0 && !banked)) {
     return (
@@ -584,8 +585,15 @@ function HistoryTab({ history }) {
           by the share component shown below.
           {banked !== 0 && (
             <> <strong>{signed(banked)}</strong> of this is premium already settled on legs inside cycles
-            that are still running, so it has no share P&amp;L against it yet. Lifetime realised here matches
-            the Playbook&apos;s <strong>Wheel Play</strong> total.</>
+            that are still running, so it has no share P&amp;L against it yet.
+            {excluded === 0 && <> Lifetime realised here matches the Playbook&apos;s{' '}
+            <strong>Wheel Play</strong> total.</>}</>
+          )}
+          {excluded !== 0 && (
+            <> <strong>{signed(excluded)}</strong> of the premium above sits on assignments you marked
+            as already logged in your Trade Log, so the journal books it against that original trade
+            instead. That is why this figure runs {signed(excluded)} ahead of the Playbook&apos;s{' '}
+            <strong>Wheel Play</strong> total — the credit is counted once, not twice.</>
           )}
         </span>
       </div>
