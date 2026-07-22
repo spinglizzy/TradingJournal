@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import {
-  Plus, Calculator, TriangleAlert, Info, Trash2, CircleDollarSign, ChevronRight,
+  Plus, Calculator, TriangleAlert, Info, Trash2, CircleDollarSign, ChevronRight, PackagePlus,
 } from 'lucide-react'
 import { wheelApi } from '../api/wheel.js'
 import Modal from '../components/ui/Modal.jsx'
@@ -11,6 +11,7 @@ import WheelCalendar from '../components/wheel/WheelCalendar.jsx'
 import { LEG_STATUS, legLabel } from '../components/wheel/constants.js'
 import StrikeCalculator from '../components/wheel/StrikeCalculator.jsx'
 import LegForm from '../components/wheel/LegForm.jsx'
+import SeedPositionForm from '../components/wheel/SeedPositionForm.jsx'
 import LegActions, { SellSharesModal } from '../components/wheel/LegActions.jsx'
 import { valueAtExpiry } from '../lib/strikeCalc.js'
 
@@ -39,6 +40,7 @@ export default function Wheel() {
   const [selectedDate, setSelectedDate] = useState(null)
 
   const [showLogLeg, setShowLogLeg] = useState(false)
+  const [showSeed, setShowSeed]     = useState(false)
   const [legPrefill, setLegPrefill] = useState(null)
   const [calcCycle, setCalcCycle]   = useState(null)
   const [sellCycle, setSellCycle]   = useState(null)
@@ -92,13 +94,23 @@ export default function Wheel() {
             next strike choice honest.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => { setLegPrefill(null); setShowLogLeg(true) }}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Log wheel leg
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowSeed(true)}
+            title="Already hold assigned shares whose put was never logged here?"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
+          >
+            <PackagePlus className="w-4 h-4" /> Add assigned shares
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLegPrefill(null); setShowLogLeg(true) }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Log wheel leg
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -172,6 +184,18 @@ export default function Wheel() {
           snapshot={legPrefill?.snapshot}
           onSaved={() => { setShowLogLeg(false); setLegPrefill(null); refresh() }}
           onCancel={() => { setShowLogLeg(false); setLegPrefill(null) }}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={showSeed}
+        onClose={() => setShowSeed(false)}
+        title="Add already-assigned shares"
+        size="md"
+      >
+        <SeedPositionForm
+          onSaved={() => { setShowSeed(false); setTab('holdings'); refresh() }}
+          onCancel={() => setShowSeed(false)}
         />
       </Modal>
 

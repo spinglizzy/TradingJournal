@@ -28,6 +28,8 @@ export const wheelApi = {
   roll:      (id, body)      => api.post(`/wheel/legs/${id}/roll`, body),
   close:     (id, body)      => api.post(`/wheel/legs/${id}/close`, body),
 
+  // Open a cycle from shares assigned before the Wheel tab existed
+  createCycle: (body)          => api.post('/wheel/cycles', body),
   sellShares:  (cycleId, body) => api.post(`/wheel/cycles/${cycleId}/sell-shares`, body),
   deleteCycle: (cycleId)       => api.delete(`/wheel/cycles/${cycleId}`),
 }

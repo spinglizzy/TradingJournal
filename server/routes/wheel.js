@@ -335,6 +335,74 @@ router.post('/legs', async (req, res) => tx(res, async (client) => {
   return { leg: row, cycle: updated }
 }))
 
+/**
+ * Seed a cycle from shares you were ALREADY assigned — before you started using
+ * this tab, or on a run whose put was never logged here.
+ *
+ * Rather than special-casing a share-only cycle, this reconstructs the put that
+ * must have existed: a leg at the assignment strike, already marked `assigned`,
+ * carrying whatever premium you collected on it. That is exactly the row the
+ * tab would hold had you used it from the start, so every downstream
+ * calculation — basis, rollups, call-away, history — works unchanged.
+ *
+ * Without this there is no way to write a covered call against pre-existing
+ * shares: the covered-call guard correctly refuses a call with no shares behind
+ * it, which leaves an honest position permanently unrecordable.
+ */
+router.post('/cycles', async (req, res) => tx(res, async (client) => {
+  const {
+    ticker, shares, assigned_strike, assigned_at = today(),
+    premium_collected = 0, fees = 0, notes = null, account_id = null,
+  } = req.body
+
+  if (!ticker)                        throw badRequest('Ticker is required')
+  if (!(Number(assigned_strike) > 0)) throw badRequest('Assignment strike is required')
+  const qty = Math.round(Number(shares))
+  if (!(qty > 0))                     throw badRequest('Share count is required')
+  if (qty % SHARES_PER_CONTRACT !== 0) {
+    throw badRequest(`Assignment comes in round lots — ${qty} is not a multiple of ${SHARES_PER_CONTRACT}.`)
+  }
+
+  const sym = String(ticker).trim().toUpperCase()
+  const { rows: [clash] } = await client.query(
+    `SELECT id FROM wheel_cycles WHERE user_id = $1 AND ticker = $2 AND status = 'active'`,
+    [req.userId, sym]
+  )
+  if (clash) {
+    throw badRequest(`There is already an active ${sym} cycle (#${clash.id}). Record the assignment against that cycle instead of starting a second one.`)
+  }
+
+  const { rows: [cycle] } = await client.query(`
+    INSERT INTO wheel_cycles (ticker, status, opened_at, account_id, user_id, notes)
+    VALUES ($1, 'active', $2, $3, $4, $5) RETURNING *
+  `, [sym, assigned_at, account_id, req.userId,
+      notes ?? 'Opened from an existing assigned position.'])
+
+  const contracts = qty / SHARES_PER_CONTRACT
+  const total     = Number(premium_collected) || 0
+
+  const { rows: [leg] } = await client.query(`
+    INSERT INTO trades (
+      date, ticker, direction, entry_price, position_size, fees, notes, account_id,
+      status, entry_mode, instrument_type, strategy_tag, option_type, strike, expiry,
+      premium, contracts, leg_status, wheel_cycle_id, pnl, user_id
+    ) VALUES ($1,$2,'short',$3,$4,$5,$6,$7,'closed','wheel_option','option','wheel',
+              'put',$8,$1,$9,$10,'assigned',$11,$12,$13)
+    RETURNING *
+  `, [assigned_at, sym, total / qty, qty, fees,
+      'Assignment recorded retrospectively — this put predates the Wheel tab.',
+      account_id, Number(assigned_strike), total, contracts, cycle.id,
+      total - Number(fees || 0), req.userId])
+
+  await client.query(`
+    INSERT INTO share_lots (wheel_cycle_id, ticker, shares, assigned_strike, assigned_at, trade_id, user_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7)
+  `, [cycle.id, sym, qty, Number(assigned_strike), assigned_at, leg.id, req.userId])
+
+  const updated = await recomputeCycle(client, cycle.id, { eventDate: assigned_at })
+  return { cycle: updated, leg }
+}))
+
 /** Edit an unresolved leg's details. */
 router.put('/legs/:id', async (req, res) => tx(res, async (client) => {
   const leg = await getOwnedLeg(client, req.params.id, req.userId)
