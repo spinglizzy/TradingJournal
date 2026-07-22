@@ -32,4 +32,7 @@ trading_journal.db-shm
 trading_journal.db-wal
 public/uploads/*
 !public/uploads/.gitkeep
+# Snapshots taken before wheel data migrations — contain real position data
 wheel-backfill-backup-*.json
+wheel-backfill2-backup-*.json
+hl-rebuild-backup-*.json
