@@ -261,7 +261,7 @@ function DashboardTab({ dashboard, onRefresh, onCalc, cycles }) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-300">Needs attention</h2>
           <span className="text-xs text-gray-600">
-            open legs expiring within {dashboard?.window_days ?? 7} days, plus anything flagged
+            open legs expiring within {dashboard?.window_days ?? 14} days, plus anything flagged
           </span>
         </div>
 

@@ -196,7 +196,7 @@ router.get('/cycles', async (req, res) => {
  */
 router.get('/dashboard', async (req, res) => {
   try {
-    const days = Math.max(0, Number(req.query.days ?? 7))
+    const days = Math.max(0, Number(req.query.days ?? 14))
     const t = today()
 
     const { rows: cycles } = await pool.query(
