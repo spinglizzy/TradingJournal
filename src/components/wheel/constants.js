@@ -13,6 +13,14 @@ export const LEG_STATUS = {
   closed:      { label: 'Bought back', dot: 'bg-violet-400',  chip: 'bg-violet-500/15 text-violet-300 border-violet-500/30' },
 }
 
-/** Compact contract label, e.g. "HL 17.5P". */
-export const legLabel = (leg) =>
-  `${leg.ticker} ${Number(leg.strike).toFixed(2).replace(/\.00$/, '')}${leg.option_type === 'put' ? 'P' : 'C'}`
+/**
+ * Compact contract label, e.g. "HL 17.5P".
+ *
+ * Legs backfilled from the old trade log have no strike or option type — those
+ * rows only ever stored a net P&L figure. Say so plainly rather than rendering
+ * a fabricated "0.00C".
+ */
+export const legLabel = (leg) => {
+  if (leg.strike == null || leg.option_type == null) return `${leg.ticker} (imported)`
+  return `${leg.ticker} ${Number(leg.strike).toFixed(2).replace(/\.00$/, '')}${leg.option_type === 'put' ? 'P' : 'C'}`
+}

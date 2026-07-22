@@ -32,3 +32,4 @@ trading_journal.db-shm
 trading_journal.db-wal
 public/uploads/*
 !public/uploads/.gitkeep
+wheel-backfill-backup-*.json
