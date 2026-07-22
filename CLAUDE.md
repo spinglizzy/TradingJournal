@@ -34,6 +34,8 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 - `premium` is the TOTAL dollars for a leg (credit positive); `close_cost` is the buy-to-close debit. A leg's realised premium is `premium − close_cost − fees`.
 - Wheel legs are rejected by the generic `PUT`/`DELETE /api/trades/:id` handlers (409) — editing them there would recompute `pnl` with `calcPnl` and leave the basis wrong.
 - Main dashboard P&L counts **option premium only**; the share gain/loss on assignment→call-away is booked to the cycle and reported in the Wheel history.
+- A wheel leg is counted **once** in dashboard/analytics P&L, via its `trades.pnl`. The one double-count risk is `POST /wheel/cycles` ("Add assigned shares"), which back-fills a put that predates the tab and may already exist in the Trade Log — pass `already_logged: true` and the leg is stored with `pnl = NULL`. Every stats query either `SUM(pnl)` (skips NULL) or filters `pnl IS NOT NULL`, so it drops out of dashboard totals while `premium` still feeds the basis engine and the Wheel tab's own totals.
+- Premium/cost fields in the wheel **entry** forms are labelled `$ / contract` and take the broker's quote (0.30 → $30 per contract). `StrikeCalculator` deliberately keeps `$ / share` — the same number, but every figure it computes (weekly-equivalent floor, value at expiry, the chart) is per-share.
 
 ### Database
 - Schema lives in `supabase_migration.sql` — run this in the Supabase SQL editor to set up or reset tables

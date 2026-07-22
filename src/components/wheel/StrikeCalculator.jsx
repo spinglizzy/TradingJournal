@@ -4,6 +4,7 @@ import {
   ReferenceLine, ResponsiveContainer, Legend,
 } from 'recharts'
 import { Info, TriangleAlert, Check, Plus, Trash2, PenLine } from 'lucide-react'
+import { DatePicker } from '../ui/DatePicker.jsx'
 import {
   analyseStrikes, buildSnapshot,
   DEFAULT_THRESHOLD_PCT, DEFAULT_MIN_WEEKLY_PREM,
@@ -171,7 +172,13 @@ export default function StrikeCalculator({ ticker, basis, shares, defaultExpiry,
                       className={`${inputCls} pr-16`} aria-label={`Candidate ${i + 1} premium per share`}
                     />
                     {/* Persistent unit label — not a placeholder. Per-share vs
-                        per-contract is the likeliest data-entry error here. */}
+                        per-contract is the likeliest data-entry error here.
+                        This panel stays per-share on purpose: every figure it
+                        computes below (weekly-equivalent floor, value at expiry,
+                        the chart) is per-share, so a "/contract" label here would
+                        make its own comparison lines read against the wrong unit.
+                        The number is identical to what the log form calls
+                        "$ / contract" — only the word differs. */}
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 pointer-events-none">
                       $ / share
                     </span>
@@ -182,10 +189,9 @@ export default function StrikeCalculator({ ticker, basis, shares, defaultExpiry,
                     </p>
                   )}
                 </div>
-                <input
-                  type="date"
-                  value={row.expiry} onChange={e => setRow(i, { expiry: e.target.value })}
-                  className={inputCls} aria-label={`Candidate ${i + 1} expiry`}
+                <DatePicker
+                  value={row.expiry} onChange={val => setRow(i, { expiry: val })}
+                  placeholder="Expiry"
                 />
                 <input
                   type="number" step="0.01" inputMode="decimal" placeholder="0.30"

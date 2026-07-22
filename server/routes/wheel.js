@@ -417,11 +417,21 @@ router.post('/legs', async (req, res) => tx(res, async (client) => {
  * Without this there is no way to write a covered call against pre-existing
  * shares: the covered-call guard correctly refuses a call with no shares behind
  * it, which leaves an honest position permanently unrecordable.
+ *
+ * `already_logged` guards the one place this feature can double-count P&L. The
+ * put being reconstructed predates the Wheel tab, so it is very likely already
+ * in the Trade Log as an ordinary trade carrying its own `pnl`. Writing a second
+ * row with the same premium would add that credit to the dashboard total twice.
+ * When the flag is set the leg is stored with `pnl = NULL`: every stats query
+ * either sums `pnl` (NULL is skipped) or filters on `pnl IS NOT NULL`, so the
+ * premium disappears from the dashboard while `premium` — which is what the
+ * basis engine reads — stays intact and the Wheel tab's own totals are unchanged.
  */
 router.post('/cycles', async (req, res) => tx(res, async (client) => {
   const {
     ticker, shares, assigned_strike, assigned_at = today(),
     premium_collected = 0, fees = 0, notes = null, account_id = null,
+    already_logged = false,
   } = req.body
 
   if (!ticker)                        throw badRequest('Ticker is required')
@@ -449,6 +459,7 @@ router.post('/cycles', async (req, res) => tx(res, async (client) => {
 
   const contracts = qty / SHARES_PER_CONTRACT
   const total     = Number(premium_collected) || 0
+  const dupe      = Boolean(already_logged)
 
   const { rows: [leg] } = await client.query(`
     INSERT INTO trades (
@@ -459,9 +470,12 @@ router.post('/cycles', async (req, res) => tx(res, async (client) => {
               'put',$8,$1,$9,$10,'assigned',$11,$12,$13,$14)
     RETURNING *
   `, [assigned_at, sym, total / qty, qty, fees,
-      'Assignment recorded retrospectively — this put predates the Wheel tab.',
+      dupe
+        ? 'Assignment recorded retrospectively — this put predates the Wheel tab and is already logged in the Trade Log, so its premium is excluded from dashboard P&L to avoid double-counting.'
+        : 'Assignment recorded retrospectively — this put predates the Wheel tab.',
       account_id, Number(assigned_strike), total, contracts, cycle.id,
-      total - Number(fees || 0), await wheelStrategyId(client, req.userId), req.userId])
+      dupe ? null : total - Number(fees || 0),
+      await wheelStrategyId(client, req.userId), req.userId])
 
   await client.query(`
     INSERT INTO share_lots (wheel_cycle_id, ticker, shares, assigned_strike, assigned_at, trade_id, user_id)

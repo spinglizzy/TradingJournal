@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Flag, TriangleAlert } from 'lucide-react'
 import Modal from '../ui/Modal.jsx'
+import { DatePicker } from '../ui/DatePicker.jsx'
 import { wheelApi } from '../../api/wheel.js'
 import { SHARES_PER_CONTRACT } from './constants.js'
 
@@ -118,7 +119,7 @@ export default function LegActions({ leg, onDone, compact }) {
   )
 }
 
-/** Per-share cost input that shows the total, mirroring the premium entry rule. */
+/** Quoted-contract-price input that shows the total, mirroring the premium entry rule. */
 function CostField({ label, value, onChange, shares, hint }) {
   const per = Number(value)
   const total = value !== '' && Number.isFinite(per) ? per * shares : null
@@ -129,10 +130,10 @@ function CostField({ label, value, onChange, shares, hint }) {
         <input
           type="number" step="0.01" min="0" required inputMode="decimal" placeholder="0.12"
           value={value} onChange={e => onChange(e.target.value)}
-          className={`${inputCls} pr-20`}
+          className={`${inputCls} pr-24`}
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-500 pointer-events-none">
-          $ / share
+          $ / contract
         </span>
       </div>
       {total != null && (
@@ -151,6 +152,8 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
   const [premium, setPremium]     = useState('')
   const [date, setDate]           = useState(todayStr())
 
+  const [dateError, setDateError] = useState(null)
+
   const debit  = Number(closeCost) * shares
   const credit = Number(premium) * shares
   const net    = (Number.isFinite(credit) ? credit : 0) - (Number.isFinite(debit) ? debit : 0)
@@ -161,6 +164,10 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
       <form
         onSubmit={(e) => {
           e.preventDefault()
+          // DatePicker is a button, not an <input required> — guard here instead.
+          if (!expiry) return setDateError('New expiry is required')
+          if (!date)   return setDateError('Date rolled is required')
+          setDateError(null)
           onSubmit({
             close_cost: Number(closeCost) * shares,
             strike: Number(strike),
@@ -193,14 +200,13 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
             </div>
             <div>
               <label className="block text-xs text-gray-400 font-medium mb-1.5">New expiry</label>
-              <input type="date" required value={expiry}
-                onChange={e => setExpiry(e.target.value)} className={inputCls} />
+              <DatePicker value={expiry} onChange={setExpiry} placeholder="Pick expiry" />
             </div>
           </div>
           <CostField label="New premium received" value={premium} onChange={setPremium} shares={shares} />
           <div>
             <label className="block text-xs text-gray-400 font-medium mb-1.5">Date rolled</label>
-            <input type="date" required value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+            <DatePicker value={date} onChange={setDate} />
           </div>
         </div>
 
@@ -216,9 +222,9 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
           </div>
         )}
 
-        {error && (
+        {(error || dateError) && (
           <div className="flex gap-2 px-3 py-2 bg-red-900/20 border border-red-800/40 rounded-lg text-xs text-red-400">
-            <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />{error}
+            <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />{error || dateError}
           </div>
         )}
 
@@ -241,13 +247,20 @@ function CloseModal({ open, leg, busy, error, onClose, onSubmit }) {
   const shares = (leg.contracts || 0) * SHARES_PER_CONTRACT
   const [closeCost, setCloseCost] = useState('')
   const [date, setDate] = useState(todayStr())
+  const [dateError, setDateError] = useState(null)
 
   const kept = Number(leg.premium) - Number(closeCost) * shares
 
   return (
     <Modal isOpen={open} onClose={onClose} title={`Buy back ${leg.ticker} ${leg.strike} ${leg.option_type === 'put' ? 'put' : 'call'}`} size="sm">
       <form
-        onSubmit={(e) => { e.preventDefault(); onSubmit({ close_cost: Number(closeCost) * shares, date }) }}
+        onSubmit={(e) => {
+          e.preventDefault()
+          // DatePicker is a button, not an <input required> — guard here instead.
+          if (!date) return setDateError('Date closed is required')
+          setDateError(null)
+          onSubmit({ close_cost: Number(closeCost) * shares, date })
+        }}
         className="space-y-4"
       >
         <CostField label="Buy-to-close cost" value={closeCost} onChange={setCloseCost} shares={shares} />
@@ -268,12 +281,12 @@ function CloseModal({ open, leg, busy, error, onClose, onSubmit }) {
 
         <div>
           <label className="block text-xs text-gray-400 font-medium mb-1.5">Date closed</label>
-          <input type="date" required value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+          <DatePicker value={date} onChange={setDate} />
         </div>
 
-        {error && (
+        {(error || dateError) && (
           <div className="flex gap-2 px-3 py-2 bg-red-900/20 border border-red-800/40 rounded-lg text-xs text-red-400">
-            <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />{error}
+            <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />{error || dateError}
           </div>
         )}
 
@@ -308,6 +321,8 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
 
   async function submit(e) {
     e.preventDefault()
+    // DatePicker is a button, not an <input required> — guard here instead.
+    if (!date) return setError('Date sold is required')
     setBusy(true); setError(null)
     try {
       await wheelApi.sellShares(cycle.id, { price: Number(price), date })
@@ -355,7 +370,7 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
 
         <div>
           <label className="block text-xs text-gray-400 font-medium mb-1.5">Date sold</label>
-          <input type="date" required value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+          <DatePicker value={date} onChange={setDate} />
         </div>
 
         {error && (

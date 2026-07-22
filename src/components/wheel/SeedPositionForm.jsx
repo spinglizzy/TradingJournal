@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { TriangleAlert, Info } from 'lucide-react'
 import { wheelApi } from '../../api/wheel.js'
+import { DatePicker } from '../ui/DatePicker.jsx'
 import { SHARES_PER_CONTRACT } from './constants.js'
 
 const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white
@@ -27,6 +28,12 @@ function Field({ label, hint, children }) {
  * are required. Premium is optional: if you can't reconstruct what you
  * collected, leaving it at zero gives a basis equal to the assignment strike,
  * which is conservative — it will never flatter a strike choice.
+ *
+ * `already_logged` exists because this form back-fills a put that by definition
+ * predates the Wheel tab — which means it is very likely already sitting in the
+ * Trade Log. Booking its premium again would count the same credit twice in the
+ * dashboard's total P&L. Ticking the box keeps the premium in the basis math
+ * (where it belongs) but leaves the leg's `pnl` NULL so the dashboard ignores it.
  */
 export default function SeedPositionForm({ prefill = {}, onSaved, onCancel }) {
   const [form, setForm] = useState({
@@ -36,6 +43,7 @@ export default function SeedPositionForm({ prefill = {}, onSaved, onCancel }) {
     assigned_at:       prefill.assigned_at       ?? todayStr(),
     premium_collected: prefill.premium_collected ?? '',
     fees:              prefill.fees              ?? 0,
+    already_logged:    prefill.already_logged    ?? false,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState(null)
@@ -52,6 +60,8 @@ export default function SeedPositionForm({ prefill = {}, onSaved, onCancel }) {
 
   async function submit(e) {
     e.preventDefault()
+    // DatePicker is a button, not an <input required> — guard here instead.
+    if (!form.assigned_at) return setError('Date assigned is required')
     setSaving(true); setError(null)
     try {
       const { cycle } = await wheelApi.createCycle({
@@ -61,6 +71,7 @@ export default function SeedPositionForm({ prefill = {}, onSaved, onCancel }) {
         assigned_at:       form.assigned_at,
         premium_collected: premium,
         fees,
+        already_logged:    form.already_logged,
       })
       onSaved?.(cycle)
     } catch (err) {
@@ -112,10 +123,9 @@ export default function SeedPositionForm({ prefill = {}, onSaved, onCancel }) {
           />
         </Field>
         <Field label="Date assigned">
-          <input
-            type="date" required value={form.assigned_at}
-            onChange={e => set({ assigned_at: e.target.value })}
-            className={inputCls}
+          <DatePicker
+            value={form.assigned_at}
+            onChange={val => set({ assigned_at: val })}
           />
         </Field>
       </div>
@@ -139,6 +149,27 @@ export default function SeedPositionForm({ prefill = {}, onSaved, onCancel }) {
           />
         </Field>
       </div>
+
+      {/*
+        This put predates the tab, so it is very likely already in the Trade Log.
+        Without this, its premium lands in the dashboard's total P&L a second
+        time — the same credit counted twice.
+      */}
+      <label className="flex gap-3 px-3 py-2.5 rounded-lg border border-gray-700 bg-gray-800/40 cursor-pointer hover:border-gray-600 transition-colors">
+        <input
+          type="checkbox" checked={form.already_logged}
+          onChange={e => set({ already_logged: e.target.checked })}
+          className="mt-0.5 w-4 h-4 shrink-0 accent-indigo-500 cursor-pointer"
+        />
+        <span className="text-xs text-gray-300 leading-relaxed">
+          I already logged this put in my Trade Log
+          <span className="block text-[11px] text-gray-500 mt-0.5">
+            {form.already_logged
+              ? 'Its premium still sets your basis here, but it won\'t be added to your dashboard P&L again.'
+              : 'Tick this to keep the premium out of your dashboard P&L — it\'s already counted by the original trade.'}
+          </span>
+        </span>
+      </label>
 
       {basis != null && (
         <div className="px-3 py-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/25">
