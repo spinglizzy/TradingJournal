@@ -50,7 +50,8 @@ export default function Wheel() {
     setError(null)
     try {
       const [d, c, h] = await Promise.all([
-        wheelApi.dashboard({ days: 7 }),
+        // No `days` — the server owns the default window, so it is defined once.
+        wheelApi.dashboard(),
         wheelApi.cycles(),
         wheelApi.history(),
       ])
