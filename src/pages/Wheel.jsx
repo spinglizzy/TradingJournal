@@ -555,7 +555,10 @@ function HoldingsTab({ cycles, onCalc, onSell, onRefresh, onLog, onDeleteCycle }
 function HistoryTab({ history }) {
   const [expanded, setExpanded] = useState(null)
 
-  if (!history || history.cycles.length === 0) {
+  const banked   = Number(history?.banked_premium ?? 0)
+  const lifetime = Number(history?.lifetime_total ?? history?.total ?? 0)
+
+  if (!history || (history.cycles.length === 0 && !banked)) {
     return (
       <div className="px-4 py-8 bg-gray-900 border border-gray-800 rounded-xl text-sm text-gray-500 text-center">
         No closed cycles yet. A cycle books its P&amp;L when you're flat on the ticker again.
@@ -565,9 +568,10 @@ function HistoryTab({ history }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <SummaryCard label="Lifetime realised P&L" value={signed(history.total)} big
-          positive={history.total >= 0} />
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <SummaryCard label="Lifetime realised P&L" value={signed(lifetime)} big
+          positive={lifetime >= 0} />
+        <SummaryCard label="Banked in open cycles" value={signed(banked)} />
         <SummaryCard label="Closed cycles" value={history.cycles.length} />
         <SummaryCard label="Tickers wheeled" value={history.by_ticker.length} />
       </div>
@@ -578,6 +582,11 @@ function HistoryTab({ history }) {
           These totals blend option premium with share gains — the number the broker never shows in one
           place. Your main dashboard P&amp;L counts the <strong>option premium only</strong>; the two differ
           by the share component shown below.
+          {banked !== 0 && (
+            <> <strong>{signed(banked)}</strong> of this is premium already settled on legs inside cycles
+            that are still running, so it has no share P&amp;L against it yet. Lifetime realised here matches
+            the Playbook&apos;s <strong>Wheel Play</strong> total.</>
+          )}
         </span>
       </div>
 
@@ -591,23 +600,33 @@ function HistoryTab({ history }) {
                 <th className="text-right font-medium px-4 py-2.5">Cycles</th>
                 <th className="text-right font-medium px-4 py-2.5">Premium</th>
                 <th className="text-right font-medium px-4 py-2.5">Share P&amp;L</th>
+                <th className="text-right font-medium px-4 py-2.5" title="Premium settled on legs inside a cycle that is still running">
+                  Banked (open)
+                </th>
                 <th className="text-right font-medium px-4 py-2.5">Lifetime</th>
               </tr>
             </thead>
             <tbody className="font-mono">
-              {history.by_ticker.map(t => (
-                <tr key={t.ticker} className="border-b border-gray-800/60 last:border-0">
-                  <td className="px-4 py-2.5 font-sans font-medium text-white">{t.ticker}</td>
-                  <td className="px-4 py-2.5 text-right text-gray-400">{t.cycles}</td>
-                  <td className="px-4 py-2.5 text-right text-gray-300">{signed(t.gross_premium)}</td>
-                  <td className={`px-4 py-2.5 text-right ${t.share_pnl >= 0 ? 'text-gray-300' : 'text-red-400'}`}>
-                    {signed(t.share_pnl)}
-                  </td>
-                  <td className={`px-4 py-2.5 text-right font-semibold ${t.realized_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {signed(t.realized_pnl)}
-                  </td>
-                </tr>
-              ))}
+              {history.by_ticker.map(t => {
+                const tickerBanked = Number(t.banked_premium ?? 0)
+                const tickerTotal  = Number(t.realized_pnl) + tickerBanked
+                return (
+                  <tr key={t.ticker} className="border-b border-gray-800/60 last:border-0">
+                    <td className="px-4 py-2.5 font-sans font-medium text-white">{t.ticker}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-400">{t.cycles}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-300">{signed(t.gross_premium)}</td>
+                    <td className={`px-4 py-2.5 text-right ${t.share_pnl >= 0 ? 'text-gray-300' : 'text-red-400'}`}>
+                      {signed(t.share_pnl)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-gray-400">
+                      {tickerBanked ? signed(tickerBanked) : <span className="text-gray-700">—</span>}
+                    </td>
+                    <td className={`px-4 py-2.5 text-right font-semibold ${tickerTotal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {signed(tickerTotal)}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

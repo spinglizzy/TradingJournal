@@ -12,6 +12,33 @@ const LEG_COLS = `id, date, ticker, option_type, strike, expiry, premium, close_
   contracts, leg_status, wheel_cycle_id, rolled_from_id, needs_roll, notes, fees,
   status, pnl, account_id, strike_selection_snapshot`
 
+/** The playbook entry every wheel leg is filed under. */
+const WHEEL_STRATEGY = 'Wheel Play'
+
+/**
+ * Resolve — creating if absent — the user's "Wheel Play" playbook strategy, and
+ * return its id so every leg this router writes is filed under it.
+ *
+ * Legs carry two independent markers: `strategy_tag = 'wheel'`, which is what
+ * the Wheel tab filters on, and `strategy_id`, which is what the Playbook and
+ * the per-strategy stats filter on. Setting only the first is what made the
+ * Playbook's "Wheel Play" totals drift away from the Wheel tab's — legs entered
+ * through the Wheel form were invisible to the Playbook. Keep both in sync.
+ */
+async function wheelStrategyId(client, userId) {
+  const { rows } = await client.query(
+    `SELECT id FROM strategies WHERE user_id = $1 AND lower(name) = lower($2) LIMIT 1`,
+    [userId, WHEEL_STRATEGY]
+  )
+  if (rows[0]) return rows[0].id
+
+  const { rows: [made] } = await client.query(
+    `INSERT INTO strategies (name, description, user_id) VALUES ($1, $2, $3) RETURNING id`,
+    [WHEEL_STRATEGY, 'Cash-secured puts → assignment → covered calls. Managed from the Wheel tab.', userId]
+  )
+  return made.id
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Core state machinery
 // ─────────────────────────────────────────────────────────────────────────────
@@ -262,17 +289,57 @@ router.get('/history', async (req, res) => {
 
     const byTicker = {}
     for (const c of enriched) {
-      const b = byTicker[c.ticker] ||= { ticker: c.ticker, cycles: 0, realized_pnl: 0, gross_premium: 0, share_pnl: 0 }
+      const b = byTicker[c.ticker] ||= { ticker: c.ticker, cycles: 0, realized_pnl: 0, gross_premium: 0, share_pnl: 0, banked_premium: 0 }
       b.cycles        += 1
       b.realized_pnl  += Number(c.realized_pnl)
       b.gross_premium += c.gross_premium
       b.share_pnl     += c.share_pnl
     }
 
+    /*
+     * Premium already banked inside cycles that are still running.
+     *
+     * A long roll chain can settle a dozen legs and collect real money years
+     * before the cycle itself goes flat. Counting only closed cycles hides all
+     * of it: HL had $569.30 of settled premium sitting invisible because the
+     * shares were still held. That is what made this tab disagree with the
+     * Playbook's "Wheel Play" total, and the Playbook was the one telling the
+     * truth.
+     *
+     * Only legs whose outcome is settled (`status = 'closed'`) count. An open
+     * leg's premium is not yours yet — it can still be bought back at a loss —
+     * and excluding it is also what keeps this total equal to the Playbook's,
+     * which counts closed trades only.
+     */
+    const { rows: openCycles } = await pool.query(
+      `SELECT * FROM wheel_cycles WHERE user_id = $1 AND status = 'active' ORDER BY ticker`, [req.userId]
+    )
+    let bankedTotal = 0
+    if (openCycles.length) {
+      const { rows: openLegs } = await pool.query(
+        `SELECT ${LEG_COLS} FROM trades
+          WHERE wheel_cycle_id = ANY($1::int[]) AND status = 'closed' ORDER BY id`,
+        [openCycles.map(c => c.id)]
+      )
+      for (const c of openCycles) {
+        const banked = sumLegPremium(openLegs.filter(l => l.wheel_cycle_id === c.id))
+        if (!banked) continue
+        bankedTotal += banked
+        const b = byTicker[c.ticker] ||= { ticker: c.ticker, cycles: 0, realized_pnl: 0, gross_premium: 0, share_pnl: 0, banked_premium: 0 }
+        b.banked_premium += banked
+      }
+    }
+
+    const closedTotal = enriched.reduce((s, c) => s + Number(c.realized_pnl), 0)
+
     res.json({
       cycles: enriched,
-      by_ticker: Object.values(byTicker).sort((a, b) => b.realized_pnl - a.realized_pnl),
-      total: enriched.reduce((s, c) => s + Number(c.realized_pnl), 0),
+      by_ticker: Object.values(byTicker)
+        .sort((a, b) => (b.realized_pnl + b.banked_premium) - (a.realized_pnl + a.banked_premium)),
+      total: closedTotal,
+      banked_premium: bankedTotal,
+      // Matches the Playbook's "Wheel Play" P&L — every settled wheel leg.
+      lifetime_total: closedTotal + bankedTotal,
     })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -316,19 +383,21 @@ router.post('/legs', async (req, res) => tx(res, async (client) => {
     throw badRequest(`${contracts} contract(s) covers ${qty} shares but only ${cycle.shares} are held.`)
   }
 
+  const strategyId = await wheelStrategyId(client, req.userId)
+
   const { rows: [row] } = await client.query(`
     INSERT INTO trades (
       date, ticker, direction, entry_price, position_size, fees, notes, account_id,
       status, entry_mode, instrument_type, strategy_tag, option_type, strike, expiry,
       premium, contracts, leg_status, wheel_cycle_id, rolled_from_id,
-      strike_selection_snapshot, user_id
+      strike_selection_snapshot, strategy_id, user_id
     ) VALUES ($1,$2,'short',$3,$4,$5,$6,$7,'open','wheel_option','option','wheel',
-              $8,$9,$10,$11,$12,'open',$13,$14,$15,$16)
+              $8,$9,$10,$11,$12,'open',$13,$14,$15,$16,$17)
     RETURNING *
   `, [
     date, sym, total / qty, qty, fees, notes, account_id ?? cycle.account_id,
     option_type, Number(strike), expiry, total, Math.round(Number(contracts)),
-    cycle.id, rolled_from_id, strike_selection_snapshot, req.userId,
+    cycle.id, rolled_from_id, strike_selection_snapshot, strategyId, req.userId,
   ])
 
   const updated = await recomputeCycle(client, cycle.id, { eventDate: date })
@@ -385,14 +454,14 @@ router.post('/cycles', async (req, res) => tx(res, async (client) => {
     INSERT INTO trades (
       date, ticker, direction, entry_price, position_size, fees, notes, account_id,
       status, entry_mode, instrument_type, strategy_tag, option_type, strike, expiry,
-      premium, contracts, leg_status, wheel_cycle_id, pnl, user_id
+      premium, contracts, leg_status, wheel_cycle_id, pnl, strategy_id, user_id
     ) VALUES ($1,$2,'short',$3,$4,$5,$6,$7,'closed','wheel_option','option','wheel',
-              'put',$8,$1,$9,$10,'assigned',$11,$12,$13)
+              'put',$8,$1,$9,$10,'assigned',$11,$12,$13,$14)
     RETURNING *
   `, [assigned_at, sym, total / qty, qty, fees,
       'Assignment recorded retrospectively — this put predates the Wheel tab.',
       account_id, Number(assigned_strike), total, contracts, cycle.id,
-      total - Number(fees || 0), req.userId])
+      total - Number(fees || 0), await wheelStrategyId(client, req.userId), req.userId])
 
   await client.query(`
     INSERT INTO share_lots (wheel_cycle_id, ticker, shares, assigned_strike, assigned_at, trade_id, user_id)
@@ -594,13 +663,13 @@ router.post('/legs/:id/roll', async (req, res) => tx(res, async (client) => {
     INSERT INTO trades (
       date, ticker, direction, entry_price, position_size, fees, account_id,
       status, entry_mode, instrument_type, strategy_tag, option_type, strike, expiry,
-      premium, contracts, leg_status, wheel_cycle_id, rolled_from_id, user_id
+      premium, contracts, leg_status, wheel_cycle_id, rolled_from_id, strategy_id, user_id
     ) VALUES ($1,$2,'short',$3,$4,0,$5,'open','wheel_option','option','wheel',
-              $6,$7,$8,$9,$10,'open',$11,$12,$13)
+              $6,$7,$8,$9,$10,'open',$11,$12,$13,$14)
     RETURNING *
   `, [date, leg.ticker, total / qty, qty, leg.account_id, leg.option_type,
       Number(strike), expiry, total, Math.round(Number(contracts)),
-      leg.wheel_cycle_id, leg.id, req.userId])
+      leg.wheel_cycle_id, leg.id, await wheelStrategyId(client, req.userId), req.userId])
 
   const cycle = await recomputeCycle(client, leg.wheel_cycle_id, { eventDate: date })
   return { leg: row, cycle }
