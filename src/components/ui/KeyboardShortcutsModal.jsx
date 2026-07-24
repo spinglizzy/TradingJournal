@@ -16,20 +16,8 @@ const SHORTCUTS = [
     section: 'Actions',
     items: [
       { keys: ['n'], description: 'New trade' },
-      { keys: ['Shift', 'G'], description: 'Pre-Entry Gate' },
       { keys: ['Esc'], description: 'Close modal / go back' },
       { keys: ['/'], description: 'Focus search (Trade Log)' },
-    ],
-  },
-  {
-    section: 'Pre-Entry Gate',
-    items: [
-      { keys: ['1', '…'], description: 'Toggle instant kills' },
-      { keys: ['q', 'w', 'e'], description: 'Toggle confluences' },
-      { keys: ['a', '…'], description: 'Toggle contested factors' },
-      { keys: ['z'], description: 'Cycle premarket zone' },
-      { keys: ['/'], description: 'Free-text contested factor' },
-      { keys: ['x'], description: 'Save and start another check' },
     ],
   },
   {

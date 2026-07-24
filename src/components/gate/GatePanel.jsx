@@ -1,26 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ShieldAlert, ChevronDown, ChevronRight, EyeOff, Plus } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { ShieldAlert, ChevronDown, ChevronRight, EyeOff, Plus, Trash2 } from 'lucide-react'
 import { gateApi } from '../../api/gate.js'
 import { useGate } from '../../contexts/GateContext.jsx'
-import { GateBody } from './PreEntryGate.jsx'
+import { labelFor } from '../../lib/gateFactors.js'
+import PreEntryGate from './PreEntryGate.jsx'
 
 /**
- * The Pre-Entry Gate as a section inside the premarket plan.
+ * The Pre-Entry Gate as a widget inside the premarket plan.
  *
- * This is the primary way the gate gets used: the plan is what's already open on
+ * This is the only way the gate is used: the plan is what's already open on
  * screen through the session, so the check lives where his eyes already are and
- * costs one glance instead of a context switch. The Shift+G overlay stays as the
- * fallback for when the plan isn't open.
+ * costs one glance instead of a context switch.
  *
- * Two things it does that the overlay can't:
- *   * Zones come from the plan being edited right now, including levels added
- *     minutes ago and not yet saved.
- *   * Checks already run today are listed underneath, so mid-session he can see
- *     what he has already assessed and what he decided.
- *
- * Hotkeys are ARMED, not always-on: the plan is full of text inputs and a live
- * `1` key would be a landmine. Clicking anywhere in the panel arms it, clicking
- * outside disarms it, and the state is shown in the header.
+ * Scenarios logged today are listed underneath and expand on click to show
+ * exactly what was ticked — that's the record he goes back to after the session,
+ * alongside the timestamp, to pull the bar up in replay.
  */
 
 /** NY trading date — must match the server's session_date bucketing. */
@@ -30,50 +24,153 @@ function nySessionDate() {
   }).format(new Date())
 }
 
-function VerdictChip({ check }) {
-  const no = check.verdict === 'NO_TRADE'
+function VerdictChip({ verdict, grade }) {
+  const no = verdict === 'NO_TRADE'
   return (
     <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${
       no ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
          : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
     }`}>
-      {no ? 'No trade' : `Enter ${check.grade}`}
+      {no ? 'No trade' : `Enter ${grade}`}
     </span>
   )
 }
 
-export default function GatePanel({ zones = [], onHide }) {
+/** What he did, which is not the same thing as what the gate said. */
+function DecisionChip({ took }) {
+  if (took == null) return null
+  return (
+    <span className={`text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${
+      took ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+           : 'bg-gray-800 text-gray-400 border-gray-700'
+    }`}>
+      {took ? 'Took it' : 'Passed'}
+    </span>
+  )
+}
+
+/** One group of ticked factors in the expanded detail. */
+function TickedList({ title, keys, kind, factors, tone }) {
+  if (!keys?.length) return null
+  const chip = {
+    rose:    'bg-rose-500/10 text-rose-300 border-rose-500/25',
+    emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
+    amber:   'bg-amber-500/10 text-amber-300 border-amber-500/25',
+  }[tone]
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-gray-500 font-medium mb-1.5">{title}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {keys.map(k => (
+          <span key={k} className={`px-2 py-0.5 rounded text-[11px] border ${chip}`}>
+            {labelFor(factors, kind, k)}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CheckRow({ check, factors, onDelete }) {
+  const [open, setOpen] = useState(false)
+  const no = check.verdict === 'NO_TRADE'
+  // Taken against a NO TRADE verdict — the thing this whole feature exists to count.
+  const rulebreak = no && check.took_trade === true
+
+  return (
+    <div className={`rounded-lg border transition-colors ${
+      rulebreak ? 'border-rose-500/40 bg-rose-500/5' : 'border-gray-800 bg-gray-900/60'
+    }`}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left"
+      >
+        {open
+          ? <ChevronDown  className="w-3 h-3 text-gray-600 shrink-0" />
+          : <ChevronRight className="w-3 h-3 text-gray-600 shrink-0" />}
+        <span className="text-[11px] font-mono text-gray-500 shrink-0">
+          {new Date(check.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+        <span className="text-[11px] font-mono font-bold text-gray-300 shrink-0">{check.instrument}</span>
+        <VerdictChip verdict={check.verdict} grade={check.grade} />
+        <DecisionChip took={check.took_trade} />
+        {rulebreak && (
+          <span className="text-[10px] font-bold uppercase tracking-wide text-rose-400 shrink-0">rulebreak</span>
+        )}
+        <span className="text-[11px] text-gray-600 truncate">{check.reason}</span>
+        {check.linked_trade_id && (
+          <span className="ml-auto text-[10px] text-gray-500 shrink-0" title="Linked to a logged trade">
+            {check.linked_ticker || 'linked'}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 pt-1 space-y-3 border-t border-gray-800/60">
+          <div className="flex items-center gap-3 text-[11px] text-gray-500 pt-2">
+            <span className="font-mono">
+              {new Date(check.created_at).toLocaleString([], {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',
+              })}
+            </span>
+            <span>net score <span className="font-mono text-gray-300">{check.net_score > 0 ? `+${check.net_score}` : check.net_score}</span></span>
+            <button
+              type="button"
+              onClick={() => onDelete(check)}
+              className="ml-auto flex items-center gap-1 text-gray-600 hover:text-rose-400 transition-colors"
+              title="Delete this logged scenario"
+            >
+              <Trash2 className="w-3 h-3" /> Delete
+            </button>
+          </div>
+
+          <p className={`text-xs ${no ? 'text-rose-300' : 'text-emerald-300'}`}>{check.reason}</p>
+
+          <TickedList title="Instant kills"  keys={check.kills}       kind="kill"       factors={factors} tone="rose" />
+          <TickedList title="Confluences"    keys={check.confluences} kind="confluence" factors={factors} tone="emerald" />
+          <TickedList title="Contested"      keys={check.contested}   kind="contested"  factors={factors} tone="amber" />
+
+          {check.note && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-gray-500 font-medium mb-1">Your note</p>
+              <p className="text-xs text-gray-300 whitespace-pre-wrap">{check.note}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function GatePanel({ onHide }) {
   const { factors, refreshFactors } = useGate()
   const [collapsed, setCollapsed] = useState(false)
-  const [armed,     setArmed]     = useState(false)
   const [checks,    setChecks]    = useState([])
-  const panelRef = useRef(null)
 
   const loadChecks = useCallback(() => {
-    gateApi.list({ session_date: nySessionDate(), limit: 20 })
+    gateApi.list({ session_date: nySessionDate(), limit: 30 })
       .then(setChecks)
       .catch(() => {})
   }, [])
 
   useEffect(() => { loadChecks() }, [loadChecks])
 
-  // Arm on click inside, disarm on click outside. mousedown so the arm state is
-  // already correct by the time a keystroke could land.
-  useEffect(() => {
-    function onDown(e) { setArmed(!!panelRef.current?.contains(e.target)) }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [])
+  const handleDelete = useCallback(async (check) => {
+    try {
+      await gateApi.remove(check.id)
+      loadChecks()
+    } catch (err) {
+      console.error('Could not delete scenario:', err)
+      alert(`Couldn't delete that scenario: ${err?.message || 'unknown error'}`)
+    }
+  }, [loadChecks])
 
-  const noTradeCount = checks.filter(c => c.verdict === 'NO_TRADE').length
+  const noTradeCount  = checks.filter(c => c.verdict === 'NO_TRADE').length
+  const rulebreakCount = checks.filter(c => c.verdict === 'NO_TRADE' && c.took_trade === true).length
 
   return (
-    <div
-      ref={panelRef}
-      className={`rounded-xl border bg-gray-900/60 transition-colors ${
-        armed ? 'border-rose-500/40' : 'border-gray-800'
-      }`}
-    >
+    <div className="rounded-xl border border-gray-800 bg-gray-900/60">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3">
         <button
@@ -90,69 +187,41 @@ export default function GatePanel({ zones = [], onHide }) {
 
         {checks.length > 0 && (
           <span className="text-[11px] text-gray-600">
-            {checks.length} today
+            {checks.length} logged today
             {noTradeCount > 0 && <span className="text-rose-400/80 ml-1.5">{noTradeCount} no trade</span>}
+            {rulebreakCount > 0 && <span className="text-rose-400 ml-1.5 font-medium">{rulebreakCount} rulebreak</span>}
           </span>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
-          <span
-            className={`text-[10px] px-1.5 py-0.5 rounded border ${
-              armed
-                ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                : 'bg-gray-800 text-gray-500 border-gray-700'
-            }`}
-            title={armed ? 'Number and letter keys toggle gate items' : 'Click the panel to enable keyboard shortcuts'}
+        {onHide && (
+          <button
+            type="button"
+            onClick={onHide}
+            className="ml-auto text-gray-600 hover:text-gray-300 p-1 rounded hover:bg-gray-800 transition-colors"
+            title="Hide this section"
           >
-            {armed ? 'keys live' : 'click to arm keys'}
-          </span>
-          {onHide && (
-            <button
-              type="button"
-              onClick={onHide}
-              className="text-gray-600 hover:text-gray-300 p-1 rounded hover:bg-gray-800 transition-colors"
-              title="Hide this section"
-            >
-              <EyeOff className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+            <EyeOff className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {!collapsed && (
         <div className="px-4 pb-4 space-y-4">
-          <GateBody
-            variant="inline"
-            active
-            hotkeys={armed}
+          <PreEntryGate
             factors={factors}
-            zones={zones}
             onSaved={loadChecks}
             onFactorsChanged={refreshFactors}
           />
 
-          {/* Checks already run today */}
+          {/* Scenarios logged today — click one to see what was ticked */}
           {checks.length > 0 && (
             <div className="pt-3 border-t border-gray-800">
               <p className="text-[10px] uppercase tracking-wide text-gray-500 font-medium mb-2">
-                Today's checks
+                Today's log <span className="normal-case tracking-normal text-gray-600">— click a row to see what you ticked</span>
               </p>
               <div className="space-y-1">
                 {checks.map(c => (
-                  <div key={c.id} className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg bg-gray-900/60 border border-gray-800">
-                    <span className="text-[11px] font-mono text-gray-500 shrink-0">
-                      {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span className="text-[11px] font-mono font-bold text-gray-300 shrink-0">{c.instrument}</span>
-                    <VerdictChip check={c} />
-                    {c.zone_label && <span className="text-[11px] text-indigo-300/70 shrink-0">{c.zone_label}</span>}
-                    <span className="text-[11px] text-gray-600 truncate">{c.reason}</span>
-                    {c.linked_trade_id && (
-                      <span className="ml-auto text-[10px] text-gray-500 shrink-0" title="Linked to a logged trade">
-                        {c.linked_ticker || 'linked'}
-                      </span>
-                    )}
-                  </div>
+                  <CheckRow key={c.id} check={c} factors={factors} onDelete={handleDelete} />
                 ))}
               </div>
             </div>

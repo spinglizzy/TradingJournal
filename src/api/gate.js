@@ -13,10 +13,7 @@ export const gateApi = {
   addFactor:  (body)            => api.post('/gate/factors', body),
   delFactor:  (id)              => api.delete(`/gate/factors/${id}`),
 
-  // Premarket levels for a date, used to pre-tick the level-based kills
-  zones:      (date)            => api.get(`/gate/zones${qs({ date })}`),
-
-  // Checks — created on the first tick, updated on every tick after that
+  // Scenarios — written only when "Log scenario" is pressed, never auto-saved
   create:     (body)            => api.post('/gate/checks', body),
   update:     (id, body)        => api.put(`/gate/checks/${id}`, body),
   remove:     (id)              => api.delete(`/gate/checks/${id}`),

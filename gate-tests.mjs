@@ -11,7 +11,7 @@ import { evaluateGate, verdictHeadline, GATE_THRESHOLD, MAX_CONTESTED } from './
 
 const FACTORS = [
   { key: 'cisd',      label: 'CISD',                required: true,  kind: 'confluence', sort_order: 10 },
-  { key: 'key_level', label: 'Key level tap (1hr)', required: true,  kind: 'confluence', sort_order: 20 },
+  { key: 'key_level', label: 'Key PD Array Manipulated', required: true, kind: 'confluence', sort_order: 20 },
   { key: 'resweep',   label: 'Resweep',             required: false, kind: 'confluence', sort_order: 30 },
 
   { key: 'choppy',            label: 'Choppy conditions',                  kind: 'kill', sort_order: 10 },
@@ -102,7 +102,15 @@ test('missing CISD names CISD, not the score', () => {
 test('missing both required names both', () => {
   const v = run({ confluences: ['resweep'], contested: [], kills: [] })
   assert.match(v.reason, /CISD/)
-  assert.match(v.reason, /Key level tap/)
+  assert.match(v.reason, /Key PD Array Manipulated/)
+})
+
+test('renaming a label never orphans a stored check', () => {
+  // Checks store the KEY, so the label change from "Key level tap (1hr)" to
+  // "Key PD Array Manipulated" leaves historical rows resolving correctly.
+  const v = run({ confluences: ['cisd', 'key_level'], contested: [], kills: [] })
+  assert.equal(v.verdict, 'ENTER')
+  assert.equal(v.net_score, 2)
 })
 
 test('a non-required confluence missing is fine', () => {

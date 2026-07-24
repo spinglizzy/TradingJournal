@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { format, subDays } from 'date-fns'
-import { ShieldAlert, ShieldCheck, TriangleAlert, Clock } from 'lucide-react'
+import { ShieldCheck, TriangleAlert, Clock } from 'lucide-react'
 import { useFlushNavigate } from '../../hooks/useFlushNavigate.js'
 import { gateApi } from '../../api/gate.js'
-import { useGate } from '../../contexts/GateContext.jsx'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 
 /**
@@ -97,7 +96,6 @@ function OutcomeCard({ title, group, tone, note }) {
 
 export default function GateReview() {
   const navigate = useFlushNavigate()
-  const { openGate } = useGate()
   const [range,   setRange]   = useState('30')
   const [review,  setReview]  = useState(null)
   const [checks,  setChecks]  = useState([])
@@ -142,34 +140,24 @@ export default function GateReview() {
 
   return (
     <div className="space-y-5">
-      {/* Range + launch */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex rounded-lg bg-gray-900 border border-gray-800 p-0.5">
-          {RANGES.map(r => (
-            <button
-              key={r.key}
-              onClick={() => setRange(r.key)}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                range === r.key ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={openGate}
-          className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          <ShieldAlert className="w-4 h-4" />
-          Run a Gate Check
-          <kbd className="px-1.5 py-0.5 rounded bg-black/25 text-[10px] font-mono">⇧G</kbd>
-        </button>
+      {/* Range */}
+      <div className="flex rounded-lg bg-gray-900 border border-gray-800 p-0.5 w-fit">
+        {RANGES.map(r => (
+          <button
+            key={r.key}
+            onClick={() => setRange(r.key)}
+            className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
+              range === r.key ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            {r.label}
+          </button>
+        ))}
       </div>
 
       {t.total === 0 ? (
         <div className="py-16 text-center text-gray-600 text-sm border border-dashed border-gray-800 rounded-xl">
-          No gate checks in this period — hit <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 text-xs font-mono">⇧G</kbd> before your next entry.
+          No gate checks in this period — the gate lives in your premarket plan.
         </div>
       ) : (
         <>
@@ -183,6 +171,13 @@ export default function GateReview() {
                   icon={TriangleAlert} />
             <Stat label="Trades with no check" value={review.ungated_trades} tone={review.ungated_trades > 0 ? 'amber' : 'gray'}
                   sub="gate skipped entirely" />
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Stat label="Logged as taken" value={t.taken} sub={`${t.total - t.taken} passed or unstated`} />
+            <Stat label="Linked to a trade" value={t.linked}
+                  sub={t.taken > t.linked ? `${t.taken - t.linked} taken but not linked yet` : 'all taken checks linked'}
+                  tone={t.taken > t.linked ? 'amber' : 'gray'} />
           </div>
 
           {/* R outcomes, split */}
@@ -201,9 +196,8 @@ export default function GateReview() {
             />
           </div>
 
-          {/* Kill frequency + zones */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
+          {/* Kill frequency */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
               <h4 className="text-sm font-semibold text-white mb-3">Kill factors, most frequent</h4>
               {review.kills.length === 0 ? (
                 <p className="text-xs text-gray-600 italic">No kills ticked in this period.</p>
@@ -232,26 +226,6 @@ export default function GateReview() {
                   })}
                 </div>
               )}
-            </div>
-
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-glow">
-              <h4 className="text-sm font-semibold text-white mb-3">Checks by zone</h4>
-              {review.zones.length === 0 ? (
-                <p className="text-xs text-gray-600 italic">No zones recorded.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {review.zones.map(z => (
-                    <div key={z.zone} className="flex justify-between text-xs">
-                      <span className="text-gray-400">{z.zone}</span>
-                      <span className="font-mono text-gray-500">
-                        {z.count}
-                        <span className="text-rose-400/80 ml-2">{z.no_trade} no trade</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Every check — timestamp + instrument are the replay handle */}
@@ -265,7 +239,7 @@ export default function GateReview() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-800">
-                    {['Time','Instr','Zone','Verdict','Score','Reason','Trade'].map(h => (
+                    {['Time','Instr','Verdict','Score','Reason','Trade'].map(h => (
                       <th key={h} className="text-left text-xs font-medium text-gray-500 uppercase tracking-wide px-3 py-2.5">{h}</th>
                     ))}
                   </tr>
@@ -280,7 +254,6 @@ export default function GateReview() {
                           {format(new Date(c.created_at), 'MMM d HH:mm:ss')}
                         </td>
                         <td className="px-3 py-2.5 text-xs font-mono font-bold text-white">{c.instrument}</td>
-                        <td className="px-3 py-2.5 text-xs text-gray-500">{c.zone_label || '—'}</td>
                         <td className="px-3 py-2.5">
                           <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
                             no ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'

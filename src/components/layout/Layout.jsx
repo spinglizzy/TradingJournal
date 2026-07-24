@@ -7,8 +7,7 @@ import { AccountProvider } from '../../contexts/AccountContext.jsx'
 import { ThemeProvider } from '../../contexts/ThemeContext.jsx'
 import KeyboardShortcutsModal from '../ui/KeyboardShortcutsModal.jsx'
 import OnboardingModal, { isOnboarded } from '../onboarding/OnboardingModal.jsx'
-import PreEntryGate from '../gate/PreEntryGate.jsx'
-import { GateProvider, useGate } from '../../contexts/GateContext.jsx'
+import { GateProvider } from '../../contexts/GateContext.jsx'
 import { statsApi } from '../../api/stats.js'
 
 export default function Layout() {
@@ -25,7 +24,6 @@ export default function Layout() {
 
 function LayoutInner() {
   const navigate = useNavigate()
-  const { isOpen: gateOpen, openGate, closeGate, factors: gateFactors, refreshFactors } = useGate()
   const [showShortcuts,  setShowShortcuts]  = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const keyBuffer = useRef([])
@@ -49,13 +47,6 @@ function LayoutInner() {
       setShowShortcuts(prev => !prev)
       return
     }
-    // Shift+G — Pre-Entry Gate, from anywhere. Distinct from the bare `g`
-    // go-to prefix below because e.key reports 'G' when shift is held.
-    if (e.key === 'G' && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault()
-      openGate()
-      return
-    }
     if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
       flushSync(() => navigate('/trades/new'))
       return
@@ -75,7 +66,7 @@ function LayoutInner() {
         clearTimeout(keyTimer.current)
       }
     }
-  }, [navigate, openGate])
+  }, [navigate])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -101,9 +92,6 @@ function LayoutInner() {
       {/* ── Modals (z-50 via their own styles) ── */}
       <KeyboardShortcutsModal isOpen={showShortcuts}  onClose={() => setShowShortcuts(false)} />
       <OnboardingModal        isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
-
-      {/* ── Pre-Entry Gate (z-70 — sits above the journal editor drawer) ── */}
-      <PreEntryGate isOpen={gateOpen} onClose={closeGate} factors={gateFactors} onFactorsChanged={refreshFactors} />
 
       {/* Floating shortcuts hint */}
       <button

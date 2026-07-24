@@ -103,43 +103,13 @@ router.delete('/factors/:id', async (req, res) => {
   }
 })
 
-// ── Premarket zones for a date ───────────────────────────────────────────────
-// Pulled from the day's premarket plan (journal_entries.plan_data -> 'zones').
-// Selecting a zone in the gate pre-ticks its level-based kills.
-router.get('/zones', async (req, res) => {
-  try {
-    const date = req.query.date || nySessionDate()
-    const r = await pool.query(`
-      SELECT plan_data
-      FROM journal_entries
-      WHERE user_id = $1 AND date = $2 AND entry_type = 'premarket_plan'
-      ORDER BY updated_at DESC NULLS LAST, id DESC
-      LIMIT 1
-    `, [req.userId, date])
-
-    const zones = r.rows[0]?.plan_data?.zones
-    res.json({
-      date,
-      zones: Array.isArray(zones)
-        ? zones
-            .filter(z => z && String(z.label ?? '').trim() !== '')
-            .map(z => ({
-              id:    z.id ?? z.label,
-              label: String(z.label).trim(),
-              price: z.price ?? null,
-              note:  z.note ?? '',
-              kills: asArray(z.kills),
-            }))
-        : [],
-    })
-  } catch (err) {
-    console.error(err); res.status(500).json({ error: err.message })
-  }
-})
-
-// ── Create a check ───────────────────────────────────────────────────────────
-// Written on the first tick, then PUT on every subsequent change. There is no
-// submit step, so the row exists from the first interaction onward.
+// ── Log a scenario ───────────────────────────────────────────────────────────
+// Explicit, not auto-saved. Ticking boxes shows a live verdict but writes
+// nothing; the row lands only when "Log scenario" is pressed. That keeps the
+// day's log to the setups he actually assessed rather than every stray click.
+//
+// `took_trade` records what he did in the face of the verdict, and `note` is his
+// reason in his own words — the two things the tick-list can't infer.
 router.post('/checks', async (req, res) => {
   try {
     const factors = await loadFactors(req.userId)
@@ -151,7 +121,7 @@ router.post('/checks', async (req, res) => {
     const r = await pool.query(`
       INSERT INTO gate_checks
         (user_id, instrument, session_date, confluences, contested, kills,
-         net_score, grade, verdict, reason, zone_label, note)
+         net_score, grade, verdict, reason, note, took_trade)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING *
     `, [
@@ -160,8 +130,8 @@ router.post('/checks', async (req, res) => {
       nySessionDate(),
       confluences, contested, kills,
       v.net_score, v.grade, v.verdict, v.reason,
-      req.body.zone_label || null,
       req.body.note || null,
+      typeof req.body.took_trade === 'boolean' ? req.body.took_trade : null,
     ])
     res.status(201).json(r.rows[0])
   } catch (err) {
@@ -169,7 +139,9 @@ router.post('/checks', async (req, res) => {
   }
 })
 
-// ── Update a check (auto-save on every tick) ─────────────────────────────────
+// ── Edit a logged scenario ───────────────────────────────────────────────────
+// For fixing a mis-click after the fact. created_at is deliberately never
+// updated — it is the replay timestamp.
 router.put('/checks/:id', async (req, res) => {
   try {
     const own = await pool.query('SELECT id FROM gate_checks WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
@@ -181,20 +153,19 @@ router.put('/checks/:id', async (req, res) => {
     const kills       = asArray(req.body.kills)
     const v = evaluateGate({ confluences, contested, kills }, factors)
 
-    // created_at is deliberately never updated — it is the replay timestamp.
     const r = await pool.query(`
       UPDATE gate_checks
       SET instrument=$1, confluences=$2, contested=$3, kills=$4,
           net_score=$5, grade=$6, verdict=$7, reason=$8,
-          zone_label=$9, note=$10, updated_at=NOW()
+          note=$9, took_trade=$10, updated_at=NOW()
       WHERE id=$11 AND user_id=$12
       RETURNING *
     `, [
       (req.body.instrument || 'NQ').toUpperCase(),
       confluences, contested, kills,
       v.net_score, v.grade, v.verdict, v.reason,
-      req.body.zone_label || null,
       req.body.note || null,
+      typeof req.body.took_trade === 'boolean' ? req.body.took_trade : null,
       req.params.id, req.userId,
     ])
     res.json(r.rows[0])
@@ -289,17 +260,18 @@ router.get('/review', async (req, res) => {
     if (to)   w.push(`g.session_date <= $${p.push(to)}`)
     const where = w.join(' AND ')
 
-    const [verdictsR, killsR, outcomesR, unlinkedR, zonesR] = await Promise.all([
+    const [verdictsR, killsR, outcomesR, unlinkedR] = await Promise.all([
       pool.query(`
         SELECT g.verdict, g.grade, COUNT(*)::int AS count,
-               COUNT(g.linked_trade_id)::int AS linked
+               COUNT(g.linked_trade_id)::int                        AS linked,
+               COUNT(*) FILTER (WHERE g.took_trade IS TRUE)::int     AS took
         FROM gate_checks g WHERE ${where}
         GROUP BY g.verdict, g.grade
       `, p),
 
       pool.query(`
         SELECT k AS kill_key, COUNT(*)::int AS count,
-               COUNT(g.linked_trade_id)::int AS taken_anyway
+               COUNT(*) FILTER (WHERE g.took_trade IS TRUE)::int AS taken_anyway
         FROM gate_checks g
         CROSS JOIN LATERAL unnest(g.kills) AS k
         WHERE ${where}
@@ -332,29 +304,31 @@ router.get('/review', async (req, res) => {
           ${from ? `AND t.date >= $2` : ''} ${to ? `AND t.date <= $${from ? 3 : 2}` : ''}
           AND NOT EXISTS (SELECT 1 FROM gate_checks g WHERE g.linked_trade_id = t.id)
       `, [req.userId, ...(from ? [from] : []), ...(to ? [to] : [])]),
-
-      pool.query(`
-        SELECT COALESCE(g.zone_label, '—') AS zone, COUNT(*)::int AS count,
-               COUNT(*) FILTER (WHERE g.verdict = 'NO_TRADE')::int AS no_trade
-        FROM gate_checks g WHERE ${where}
-        GROUP BY 1 ORDER BY count DESC LIMIT 8
-      `, p),
     ])
 
     const factors  = await loadFactors(req.userId)
     const killName = (key) => factors.find(f => f.kind === 'kill' && f.key === key)?.label ?? key
 
-    const totals = { total: 0, enter: 0, no_trade: 0, a_plus: 0, a: 0, taken: 0, rulebreaks: 0 }
+    // `taken`/`rulebreaks` come from took_trade — what he said he did when he
+    // logged it. `linked_*` come from an actual trade row being attached, which
+    // is what the R outcomes below are grouped by. The two can differ: a taken
+    // trade he never got round to linking counts in the first pair, not the second.
+    const totals = {
+      total: 0, enter: 0, no_trade: 0, a_plus: 0, a: 0,
+      taken: 0, rulebreaks: 0, linked: 0, linked_rulebreaks: 0,
+    }
     for (const row of verdictsR.rows) {
-      totals.total += row.count
-      totals.taken += row.linked
+      totals.total  += row.count
+      totals.taken  += row.took
+      totals.linked += row.linked
       if (row.verdict === 'ENTER') {
         totals.enter += row.count
         if (row.grade === 'A+') totals.a_plus += row.count
         if (row.grade === 'A')  totals.a      += row.count
       } else {
-        totals.no_trade   += row.count
-        totals.rulebreaks += row.linked   // taken against a NO TRADE verdict
+        totals.no_trade          += row.count
+        totals.rulebreaks        += row.took     // taken against a NO TRADE verdict
+        totals.linked_rulebreaks += row.linked
       }
     }
 
@@ -378,7 +352,6 @@ router.get('/review', async (req, res) => {
       kills: killsR.rows.map(r => ({ ...r, label: killName(r.kill_key) })),
       outcomes: { rulebreak: group(true), passed: group(false) },
       ungated_trades: unlinkedR.rows[0]?.count ?? 0,
-      zones: zonesR.rows,
     })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })

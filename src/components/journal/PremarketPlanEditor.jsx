@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, X, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Minus, Trash2, ImagePlus, Camera, Check, Ban, ShieldAlert } from 'lucide-react'
+import { Plus, X, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Minus, Trash2, ImagePlus, Camera, Check, Ban } from 'lucide-react'
 import { DatePicker } from '../ui/DatePicker.jsx'
 import TipTapEditor from './TipTapEditor.jsx'
-import PremarketZones from './PremarketZones.jsx'
 import GatePanel, { GatePanelPlaceholder } from '../gate/GatePanel.jsx'
 import { strategiesApi } from '../../api/strategies.js'
-import { useGate } from '../../contexts/GateContext.jsx'
 import { supabase } from '../../lib/supabase.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -55,7 +53,6 @@ function emptyPlan() {
     bias: 'neutral',             // overall day bias
     market_images: [],           // [{ id, image_path }]
     market_notes: '',
-    zones: [],                 // levels being watched; feeds the Pre-Entry Gate
     gate_enabled: true,        // the gate section is on by default — it's the point
     tickers: [emptyTicker()],
     annotations: [],
@@ -686,7 +683,6 @@ export default function PremarketPlanEditor({
   })
   const [setups, setSetups] = useState([])
   const [lightbox, setLightbox] = useState(null)
-  const { openGate } = useGate()
 
   useEffect(() => {
     strategiesApi.list().then(setSetups).catch(() => setSetups([]))
@@ -752,26 +748,13 @@ export default function PremarketPlanEditor({
             {isNew ? 'New Plan' : 'Edit Plan'}
           </h2>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Same overlay Shift+G opens — one click from inside the plan. */}
-          <button
-            type="button"
-            onClick={openGate}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-rose-600/90 hover:bg-rose-600 text-white rounded-lg transition-colors font-medium"
-            title="Open the Pre-Entry Gate (Shift+G)"
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            Gate
-            <kbd className="ml-0.5 px-1 py-px rounded bg-black/25 text-[9px] font-mono">⇧G</kbd>
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Body */}
@@ -819,23 +802,12 @@ export default function PremarketPlanEditor({
           </div>
         </div>
 
-        {/* Levels & zones — pre-fills the gate's level-based kills */}
-        <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
-          <PremarketZones
-            zones={plan.zones || []}
-            onChange={z => patchPlan({ zones: z })}
-          />
-        </div>
-
-        {/* Pre-Entry Gate — sits directly under the zones that feed it, so the
-            check is on the same screen he already has open through the session. */}
+        {/* Pre-Entry Gate — a widget in the plan, since the plan is what's open
+            on screen through the session. */}
         {plan.gate_enabled === false ? (
           <GatePanelPlaceholder onAdd={() => patchPlan({ gate_enabled: true })} />
         ) : (
-          <GatePanel
-            zones={(plan.zones || []).filter(z => (z.label || '').trim() !== '')}
-            onHide={() => patchPlan({ gate_enabled: false })}
-          />
+          <GatePanel onHide={() => patchPlan({ gate_enabled: false })} />
         )}
 
         {/* Tickers */}
@@ -946,13 +918,6 @@ function normalisePlan(raw) {
       image_path: img.image_path ?? '',
     })).filter(img => img.image_path),
     market_notes: raw.market_notes ?? '',
-    zones: (raw.zones ?? []).map(z => ({
-      id:    z.id ?? newId(),
-      label: z.label ?? '',
-      price: z.price ?? '',
-      note:  z.note ?? '',
-      kills: Array.isArray(z.kills) ? z.kills : [],
-    })),
     // Plans written before the gate existed have no flag — show it rather than
     // making him go and find it.
     gate_enabled: raw.gate_enabled !== false,
