@@ -11,6 +11,7 @@ npm run dev:client    # Frontend only
 npm run build         # Production Vite build
 npm run seed          # Load sample trade data into the database
 npm run test:wheel    # Wheel basis engine + strike calculator unit tests (no DB)
+npm run test:gate     # Pre-Entry Gate verdict engine unit tests (no DB)
 ```
 
 The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`.
@@ -37,9 +38,21 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 - A wheel leg is counted **once** in dashboard/analytics P&L, via its `trades.pnl`. The one double-count risk is `POST /wheel/cycles` ("Add assigned shares"), which back-fills a put that predates the tab and may already exist in the Trade Log — pass `already_logged: true` and the leg is stored with `pnl = NULL`. Every stats query either `SUM(pnl)` (skips NULL) or filters `pnl IS NOT NULL`, so it drops out of dashboard totals while `premium` still feeds the basis engine and the Wheel tab's own totals.
 - Premium/cost fields in the wheel **entry** forms are labelled `$ / contract` and take the broker's quote (0.30 → $30 per contract). `StrikeCalculator` deliberately keeps `$ / share` — the same number, but every figure it computes (weekly-equivalent floor, value at expiry, the chart) is per-share.
 
+### Pre-Entry Gate (Shift+G from anywhere)
+- A pre-trade check for NQ/ICT discretionary entries. Opens as a single full-screen overlay mounted in `Layout.jsx`; state lives in `GateContext`, which also **prefetches the factor config on app load** so the gate never waits on I/O at trigger time.
+- `server/lib/gateVerdict.js` is the pure verdict engine and is imported by **both** the client overlay and `server/routes/gate.js`. The client needs it for a same-frame verdict; the server re-derives on every write so a stale or tampered client can't persist a verdict the rules don't produce. Do not fork it into a second copy.
+- Verdict rules are strictly ordered and the **first** failing one is reported: kill → missing required confluence → more than 2 contested → net score < 2 → A+ → A. `net_score = confluences − contested`. `gate-tests.mjs` asserts the ordering, not just the outcomes — a kill on an otherwise perfect setup must name the kill.
+- The kill and contested lists are **config-driven** in the `gate_factors` table, not hardcoded in components. Adding a row makes it appear in the gate with an auto-assigned hotkey. `src/lib/gateFactors.js` holds a fallback mirror of the seed used only when `/gate/factors` fails — never a second source of truth.
+- Contested factors deliberately share the trade form's vocabulary: the form's "Contested Factors" field writes `trades.pd_arrays`, and the migration seeds each user's tick-list from their top 12 historical values. Free text typed in the gate is added to `gate_factors` so it becomes a tick next time.
+- Level-based kills (HTF level / equal highs-lows / LRL at the stop) are pre-filled from premarket. Zones live in `journal_entries.plan_data.zones` — no table of their own — and picking a zone in the gate pre-ticks the kills marked against it.
+- **A rulebreak is derived, never stored:** `gate_checks.linked_trade_id IS NOT NULL AND verdict = 'NO_TRADE'`. `gateInfoFor()` in `server/routes/trades.js` attaches `is_rulebreak` as a separate query rather than a join, so the trade queries stay unchanged and a database without `gate_migration.sql` degrades to "no gate info" instead of breaking the trade log.
+- "Same session" for linking a trade to a check = the same **NY calendar day**. `gate_checks.session_date` is set server-side in `America/New_York` to line up with `trades.date`; trades carry no entry time, so the day is as fine-grained as the data allows.
+- The gate is **advisory**. It never blocks a save and never demands override text.
+
 ### Database
 - Schema lives in `supabase_migration.sql` — run this in the Supabase SQL editor to set up or reset tables
 - `wheel_migration.sql` adds the wheel tracker tables and columns — additive and idempotent, run it in the same editor
+- `gate_migration.sql` adds `gate_checks` + `gate_factors` — additive and idempotent. Apply it through `DATABASE_URL` as one `pool.query(wholeFile)`, **not** the Supabase SQL editor, which reports "Success" while executing only the leading comment block
 - The backend connects via `pg` pool using `DATABASE_URL` from `.env`
 - P&L calculation logic is centralised in `server/db.js` → `calcPnl(direction, entryPrice, exitPrice, positionSize, fees, stopLoss)` — returns `{ pnl, pnlPct, rMultiple }`
 - All tables have RLS policies enforcing `user_id = auth.uid()`

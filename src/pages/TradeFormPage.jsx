@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { flushSync, createPortal } from 'react-dom'
-import { ArrowLeft, Calculator, GitMerge, Lightbulb, X, ImagePlus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Calculator, GitMerge, Lightbulb, X, ImagePlus, Trash2, ShieldAlert } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { tradesApi } from '../api/trades.js'
+import { gateApi } from '../api/gate.js'
 import { strategiesApi } from '../api/strategies.js'
 import { tagsApi } from '../api/tags.js'
 import { psychologyApi } from '../api/psychology.js'
@@ -14,6 +15,7 @@ import { BouncingDots } from '../components/ui/BouncingDots.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import { DatePicker } from '../components/ui/DatePicker.jsx'
 import PositionCalculator from '../components/calculator/PositionCalculator.jsx'
+import GateCheckPicker from '../components/gate/GateCheckPicker.jsx'
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
 function Lightbox({ src, onClose }) {
@@ -459,6 +461,11 @@ export default function TradeFormPage() {
   const [pdArrays,              setPdArrays]              = useState([])
   const [pdArraySuggestions,    setPdArraySuggestions]    = useState([])
 
+  // Pre-Entry Gate link. `initialGateCheckId` is what the trade already points at,
+  // so a save only touches the link when it actually changed.
+  const [gateCheckId,        setGateCheckId]        = useState(null)
+  const [initialGateCheckId, setInitialGateCheckId] = useState(null)
+
   const [showCalc, setShowCalc] = useState(false)
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm({
@@ -480,6 +487,7 @@ export default function TradeFormPage() {
   const watchedValues = watch(['direction', 'entry_price', 'exit_price', 'position_size', 'fees', 'stop_loss'])
   const watchedDirectPnl = watch('direct_pnl')
   const watchedDirectR = watch('direct_r_multiple')
+  const watchedDate = watch('date')
 
   // Live P&L preview
   useEffect(() => {
@@ -556,6 +564,8 @@ export default function TradeFormPage() {
       try { setRulesBroken(JSON.parse(trade.rules_broken || '[]')) } catch { setRulesBroken([]) }
       setConfluences(Array.isArray(trade.confluences) ? trade.confluences : [])
       setPdArrays(Array.isArray(trade.pd_arrays) ? trade.pd_arrays : [])
+      setGateCheckId(trade.gate_check_id ?? null)
+      setInitialGateCheckId(trade.gate_check_id ?? null)
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -623,10 +633,22 @@ export default function TradeFormPage() {
           rules_broken:      JSON.stringify(rulesBroken),
         }
       }
-      if (isEdit) {
-        await tradesApi.update(id, payload)
-      } else {
-        await tradesApi.create(payload)
+      const saved = isEdit
+        ? await tradesApi.update(id, payload)
+        : await tradesApi.create(payload)
+
+      // Link the gate check only when the selection changed. Failing here must
+      // not lose the trade — surface it and let him re-link from the trade page.
+      if (gateCheckId !== initialGateCheckId) {
+        const tradeId = saved?.id ?? id
+        try {
+          if (gateCheckId != null)          await gateApi.link(gateCheckId, tradeId)
+          else if (initialGateCheckId != null) await gateApi.link(initialGateCheckId, null)
+        } catch (linkErr) {
+          console.error('Gate check link failed:', linkErr)
+          setSubmitError(`Trade saved, but linking the gate check failed: ${linkErr.message}`)
+          return
+        }
       }
       success = true
     } catch (err) {
@@ -938,6 +960,20 @@ export default function TradeFormPage() {
             suggestions={pdArraySuggestions}
             color="amber"
           />
+        </div>
+
+        {/* Pre-Entry Gate link */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-rose-400" />
+            <h2 className="text-sm font-semibold text-gray-300">
+              Pre-Entry Gate <span className="text-gray-600 font-normal">(optional)</span>
+            </h2>
+          </div>
+          <p className="text-xs text-gray-600">
+            Checks you ran on {watchedDate || 'this date'}. Link the one this trade came from.
+          </p>
+          <GateCheckPicker date={watchedDate} value={gateCheckId} onChange={setGateCheckId} />
         </div>
 
         {/* Psychology section */}

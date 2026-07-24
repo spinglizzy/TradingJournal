@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns'
 import { DirectionBadge, PnlBadge, StatusBadge } from '../ui/Badge.jsx'
 import Badge from '../ui/Badge.jsx'
-import { ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react'
+import { ChevronUp, ChevronDown, Pencil, Trash2, TriangleAlert } from 'lucide-react'
 
 const COLS = [
   { key: 'date',          label: 'Date',      sortable: true },
@@ -64,7 +64,18 @@ export default function TradeTable({ trades, sort, onSort, onEdit, onDelete, onV
                 <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">
                   {format(parseISO(trade.date), 'MMM d, yyyy')}
                 </td>
-                <td className="px-4 py-3 font-semibold text-white">{trade.ticker}</td>
+                <td className="px-4 py-3 font-semibold text-white">
+                  <span className="inline-flex items-center gap-1.5">
+                    {trade.ticker}
+                    {/* Taken against a NO TRADE verdict from the Pre-Entry Gate. */}
+                    {trade.is_rulebreak && (
+                      <TriangleAlert
+                        className="w-3.5 h-3.5 text-rose-400 shrink-0"
+                        aria-label="Rulebreak — taken against a NO TRADE gate verdict"
+                      />
+                    )}
+                  </span>
+                </td>
                 <td className="px-4 py-3"><DirectionBadge direction={trade.direction} /></td>
                 <td className="px-4 py-3 font-mono text-gray-300 text-xs">${trade.entry_price.toFixed(2)}</td>
                 <td className="px-4 py-3 font-mono text-gray-300 text-xs">

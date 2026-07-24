@@ -89,7 +89,10 @@ router.get('/', async (req, res) => {
       LIMIT $${limitN} OFFSET $${offsetN}
     `, p)
 
-    res.json({ data: tradesResult.rows.map(formatTrade), total, page: Number(page), limit: Number(limit) })
+    const gates = await gateInfoFor(tradesResult.rows.map(r => r.id), req.userId)
+    const data  = tradesResult.rows.map(r => ({ ...formatTrade(r), ...(gates.get(r.id) ?? NO_GATE) }))
+
+    res.json({ data, total, page: Number(page), limit: Number(limit) })
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
   }
@@ -373,7 +376,46 @@ async function getTradeById(id, userId) {
     WHERE t.id = $1 AND t.user_id = $2
     GROUP BY t.id, s.name
   `, [id, userId])
-  return formatTrade(result.rows[0])
+  const trade = formatTrade(result.rows[0])
+  if (!trade) return null
+  const gates = await gateInfoFor([trade.id], userId)
+  return { ...trade, ...(gates.get(trade.id) ?? NO_GATE) }
+}
+
+// ── Pre-Entry Gate link ───────────────────────────────────────────────────────
+// A trade is a rulebreak when it is linked to a gate check whose verdict was
+// NO_TRADE. That is derived here rather than stored on `trades`, so the flag can
+// never drift from the link that produced it.
+//
+// Run as a separate query, not a join, for two reasons: the trade queries above
+// stay byte-for-byte unchanged, and a database that has not had
+// gate_migration.sql applied yet degrades to "no gate info" instead of breaking
+// the trade log outright.
+const NO_GATE = { gate_check_id: null, gate_verdict: null, gate_grade: null, gate_checked_at: null, is_rulebreak: false }
+
+async function gateInfoFor(tradeIds, userId) {
+  const map = new Map()
+  if (!tradeIds.length) return map
+  try {
+    const r = await pool.query(`
+      SELECT linked_trade_id, id, verdict, grade, created_at
+      FROM gate_checks
+      WHERE user_id = $1 AND linked_trade_id = ANY($2::int[])
+    `, [userId, tradeIds])
+    for (const g of r.rows) {
+      map.set(g.linked_trade_id, {
+        gate_check_id:   g.id,
+        gate_verdict:    g.verdict,
+        gate_grade:      g.grade,
+        gate_checked_at: g.created_at,
+        is_rulebreak:    g.verdict === 'NO_TRADE',
+      })
+    }
+  } catch (err) {
+    // undefined_table — gate_migration.sql has not been applied on this database.
+    if (err.code !== '42P01') throw err
+  }
+  return map
 }
 
 function formatTrade(t) {

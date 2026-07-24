@@ -15,6 +15,7 @@ import JournalList from '../components/journal/JournalList.jsx'
 import TipTapEditor from '../components/journal/TipTapEditor.jsx'
 import TradePicker from '../components/journal/TradePicker.jsx'
 import PremarketPlanEditor from '../components/journal/PremarketPlanEditor.jsx'
+import GateReview from '../components/gate/GateReview.jsx'
 import TagInput from '../components/journal/TagInput.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
@@ -753,7 +754,7 @@ export default function Journal() {
   const [deleteId, setDeleteId] = useState(null)
 
   // View
-  const [view,     setView]     = useState('calendar')  // 'calendar' | 'list'
+  const [view,     setView]     = useState('calendar')  // 'calendar' | 'list' | 'missed' | 'gate'
   const [month,    setMonth]    = useState(new Date())
   const [selDate,  setSelDate]  = useState(null)        // selected calendar day
 
@@ -909,6 +910,9 @@ export default function Journal() {
     return true
   })
 
+  // Calendar and list share the entry editor; missed and gate are standalone views.
+  const isEntryView = view === 'calendar' || view === 'list'
+
   // ── Render ──
   return (
     <div className="space-y-5">
@@ -921,7 +925,7 @@ export default function Journal() {
         <div className="flex items-center gap-2">
           {/* View tabs */}
           <div className="flex rounded-lg bg-gray-900 border border-gray-800 p-0.5">
-            {['calendar','list','missed'].map(v => (
+            {['calendar','list','missed','gate'].map(v => (
               <button key={v} onClick={() => setView(v)}
                 className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors capitalize ${
                   view === v ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
@@ -932,8 +936,8 @@ export default function Journal() {
             ))}
           </div>
 
-          {/* New Entry dropdown — hidden on missed tab */}
-          {view !== 'missed' && (
+          {/* New Entry dropdown — only on the entry views */}
+          {isEntryView && (
             <div className="relative" ref={menuRef}>
               <div className="flex">
                 <button
@@ -984,10 +988,13 @@ export default function Journal() {
       {/* Missed Trades view */}
       {view === 'missed' && <MissedSection />}
 
+      {/* Pre-Entry Gate review */}
+      {view === 'gate' && <GateReview />}
+
       {/* Main content */}
-      {view !== 'missed' && loading ? (
+      {isEntryView && loading ? (
         <LoadingSpinner className="h-64" />
-      ) : view !== 'missed' && (
+      ) : isEntryView && (
         <div className={`grid gap-5 ${isEditorOpen ? 'grid-cols-1 lg:grid-cols-5' : 'grid-cols-1'}`}>
 
           {/* Left: Calendar or List */}
