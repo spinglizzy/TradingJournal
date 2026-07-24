@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Check, RotateCcw, Save } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Plus, RotateCcw, Save } from 'lucide-react'
 import { gateApi } from '../../api/gate.js'
 import { groupFactors, slugify, DEFAULT_FACTORS } from '../../lib/gateFactors.js'
 import { evaluateGate, verdictHeadline, GATE_THRESHOLD, MAX_CONTESTED } from '../../../server/lib/gateVerdict.js'
@@ -79,6 +79,14 @@ export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsC
   const [saving,      setSaving]      = useState(false)
   const [saveError,   setSaveError]   = useState(null)
 
+  // Curating the contested list — separate from logging a scenario, and it is
+  // the only thing in this component that writes outside the log buttons.
+  const [listBusy,  setListBusy]  = useState(false)
+  const [listError, setListError] = useState(null)
+  const [justSaved, setJustSaved] = useState(null)
+  const savedTimer = useRef(null)
+  useEffect(() => () => clearTimeout(savedTimer.current), [])
+
   const verdict = useMemo(
     () => evaluateGate({ confluences, contested, kills }, factors),
     [confluences, contested, kills, factors]
@@ -90,7 +98,7 @@ export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsC
 
   const clear = useCallback(() => {
     setKills([]); setConfluences([]); setContested([])
-    setFreeText(''); setNote(''); setSaveError(null)
+    setFreeText(''); setNote(''); setSaveError(null); setListError(null)
   }, [])
 
   /**
@@ -128,33 +136,62 @@ export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsC
   const toggleConfluence = useMemo(() => toggle(setConfluences), [toggle])
   const toggleContested  = useMemo(() => toggle(setContested),   [toggle])
 
-  function addFreeText() {
-    const text = freeText.trim()
-    if (!text) return
-    const key = slugify(text) || text
-    if (!contested.includes(key)) setContested(prev => [...prev, key])
-    setFreeText('')
-    // Grow the tick-list so this is one click next time rather than typing again.
-    gateApi.addFactor({ label: text, kind: 'contested' })
-      .then(() => onFactorsChanged?.())
-      .catch(() => {})
-  }
+  /**
+   * Save a contested factor onto the tick-list permanently.
+   *
+   * It is deliberately NOT ticked for the current check. Curating the list and
+   * assessing a setup are two different jobs, and the earlier behaviour — type,
+   * Enter, and it counts against you — meant adding six factors before the open
+   * dragged the score to −6 and the verdict to NO TRADE. The new tile lands in
+   * the grid immediately, so ticking it is one click if it happens to be live.
+   *
+   * Note this is the only write outside the two log buttons: it edits the config,
+   * not the day's log, so "nothing is saved until you log it" still holds.
+   */
+  const saveFactor = useCallback(async () => {
+    const label = freeText.trim()
+    if (!label || listBusy) return
+    if (!slugify(label)) { setListError('That needs at least one letter or digit.'); return }
+    setListBusy(true)
+    setListError(null)
+    try {
+      await gateApi.addFactor({ label, kind: 'contested' })
+      setFreeText('')
+      setJustSaved(label)
+      clearTimeout(savedTimer.current)
+      savedTimer.current = setTimeout(() => setJustSaved(null), 5000)
+      onFactorsChanged?.()
+    } catch (err) {
+      // Same reasoning as a failed log: a silent failure here is worse than an
+      // error, because he'd carry on believing the factor is on the list.
+      console.error('Could not save contested factor:', err)
+      setListError(err?.message || 'Could not save that — try again.')
+    } finally {
+      setListBusy(false)
+    }
+  }, [freeText, listBusy, onFactorsChanged])
 
   /**
    * Drop a contested factor off the tick-list for good.
    *
-   * The list is seeded from `trades.pd_arrays`, which is labelled "Contested
-   * Factors" in the trade form but historically holds PD arrays and timeframes
-   * too. Pruning it matters: every tile that isn't a real reason to stand down
-   * is a tile to scan past.
+   * Every contested row is user-owned by design (see gate_migration_03.sql) —
+   * that is what makes the list his to chop and change rather than a fixed set.
    */
-  function removeFactor(f) {
-    if (!f.id || !f.user_id) return          // system defaults aren't deletable here
+  const removeFactor = useCallback(async (f) => {
+    if (!f.id || !f.user_id || listBusy) return   // system rows aren't deletable here
+    setListBusy(true)
+    setListError(null)
     setContested(prev => prev.filter(k => k !== f.key))
-    gateApi.delFactor(f.id)
-      .then(() => onFactorsChanged?.())
-      .catch(err => console.error('Could not remove factor:', err))
-  }
+    try {
+      await gateApi.delFactor(f.id)
+      onFactorsChanged?.()
+    } catch (err) {
+      console.error('Could not remove factor:', err)
+      setListError(err?.message || `Could not remove "${f.label}" — try again.`)
+    } finally {
+      setListBusy(false)
+    }
+  }, [listBusy, onFactorsChanged])
 
   const pass = verdict.verdict === 'ENTER'
   const dim  = killed ? 'opacity-25 pointer-events-none transition-opacity' : 'transition-opacity'
@@ -293,7 +330,8 @@ export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsC
               </p>
             )}
 
-            {/* Free-text items added this check but not yet on the list */}
+            {/* Ticked keys with no tile — a check restored or a list not yet
+                refreshed. Kept so a stored key is never invisible. */}
             {contested.filter(k => !grouped.contested.some(f => f.key === k)).length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {contested.filter(k => !grouped.contested.some(f => f.key === k)).map(k => (
@@ -305,16 +343,38 @@ export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsC
               </div>
             )}
 
-            {/* Type anything here and it is ticked for this check AND added to
-                the list above, so the vocabulary grows by being used. */}
-            <input
-              value={freeText}
-              onChange={e => setFreeText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFreeText() } }}
-              onBlur={addFreeText}
-              placeholder="Add a contested factor — Enter to save it to the list…"
-              className="w-full mt-2 bg-gray-900 border border-gray-800 rounded px-2.5 py-1.5 text-xs text-white placeholder-gray-700 focus:outline-none focus:border-amber-500/60"
-            />
+            {/* Curate the list. Save persists the factor as a default for every
+                future check; there is no auto-save on blur, so a half-typed
+                thought that gets abandoned never becomes a permanent tile. */}
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                value={freeText}
+                onChange={e => { setFreeText(e.target.value); setListError(null) }}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveFactor() } }}
+                placeholder="Add a contested factor…"
+                className="flex-1 min-w-0 bg-gray-900 border border-gray-800 rounded px-2.5 py-1.5 text-xs text-white placeholder-gray-700 focus:outline-none focus:border-amber-500/60"
+              />
+              <button
+                type="button"
+                onClick={saveFactor}
+                disabled={!freeText.trim() || listBusy}
+                title="Save this to your contested list for every future check"
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/70 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-amber-500/40 transition-colors"
+              >
+                <Plus className="w-3 h-3" /> {listBusy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+            {listError ? (
+              <p className="mt-1 text-[11px] text-rose-400">{listError}</p>
+            ) : justSaved ? (
+              <p className="mt-1 text-[11px] text-amber-400">
+                “{justSaved}” saved — it’s on the list for every future check. Click it to tick it now.
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-gray-600">
+                Saved factors stay on this list as your default. Hover a tile and press × to drop one.
+              </p>
+            )}
           </section>
         </div>
 

@@ -12,12 +12,25 @@ export const DEFAULT_FACTORS = [
   { key: 'key_level', label: 'Key PD Array Manipulated', required: true, kind: 'confluence', sort_order: 20 },
   { key: 'resweep',   label: 'Resweep',             required: false, kind: 'confluence', sort_order: 30 },
 
-  { key: 'choppy',            label: 'Choppy conditions',                  kind: 'kill', sort_order: 10, required: false },
-  { key: 'htf_level_at_stop', label: 'HTF key level at stop loss',         kind: 'kill', sort_order: 20, required: false },
-  { key: 'eqh_eql_at_stop',   label: 'Equal highs/lows at stop loss',      kind: 'kill', sort_order: 30, required: false },
-  { key: 'lrl_at_stop',       label: 'LRL at stop loss',                   kind: 'kill', sort_order: 40, required: false },
-  { key: 'against_bias',      label: 'Entry not aligned with bias',        kind: 'kill', sort_order: 50, required: false },
-  { key: 'be_taken',          label: 'Breakeven level taken before entry', kind: 'kill', sort_order: 60, required: false },
+  { key: 'choppy',            label: 'Choppy Conditions',                  kind: 'kill', sort_order: 10, required: false },
+  { key: 'htf_level_at_stop', label: 'HTF Key Level At Stop Loss',         kind: 'kill', sort_order: 20, required: false },
+  { key: 'eqh_eql_at_stop',   label: 'Equal Highs/Lows At Stop Loss',      kind: 'kill', sort_order: 30, required: false },
+  { key: 'lrl_at_stop',       label: 'LRL At Stop Loss',                   kind: 'kill', sort_order: 40, required: false },
+  { key: 'against_bias',      label: 'Entry Not Aligned With Bias',        kind: 'kill', sort_order: 50, required: false },
+  { key: 'be_taken',          label: 'Breakeven Level Taken Before Entry', kind: 'kill', sort_order: 60, required: false },
+
+  // The contested defaults (gate_migration_03.sql). Unlike the kills and
+  // confluences these are seeded per-user, not as system rows, so that the
+  // hover-× can prune them — see the migration for why. That means the real
+  // list is whatever /gate/factors returns; these are only the shape it starts in.
+  { key: '5m_ith_itl',  label: '5m, ITH, ITL',  kind: 'contested', sort_order: 10, required: false },
+  { key: '15m_ith_itl', label: '15m, ITH, ITL', kind: 'contested', sort_order: 20, required: false },
+  { key: '1hr_ith_itl', label: '1hr, ITH, ITL', kind: 'contested', sort_order: 30, required: false },
+  { key: '4hr_ith_itl', label: '4hr, ITH, ITL', kind: 'contested', sort_order: 40, required: false },
+  { key: 'data_high',   label: 'Data High',     kind: 'contested', sort_order: 50, required: false },
+  { key: 'data_low',    label: 'Data Low',      kind: 'contested', sort_order: 60, required: false },
+  { key: 'pdh',         label: 'PDH',           kind: 'contested', sort_order: 70, required: false },
+  { key: 'pdl',         label: 'PDL',           kind: 'contested', sort_order: 80, required: false },
 ]
 
 /** Slugify free text into a stable key. Mirrors slugify() in server/routes/gate.js. */
