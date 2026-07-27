@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ShieldAlert, ChevronDown, ChevronRight, EyeOff, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ShieldAlert, ChevronDown, ChevronRight, EyeOff, Pencil, Plus, Trash2 } from 'lucide-react'
 import { gateApi } from '../../api/gate.js'
 import { useGate } from '../../contexts/GateContext.jsx'
 import { labelFor } from '../../lib/gateFactors.js'
@@ -14,7 +14,9 @@ import PreEntryGate from './PreEntryGate.jsx'
  *
  * Scenarios logged today are listed underneath and expand on click to show
  * exactly what was ticked — that's the record he goes back to after the session,
- * alongside the timestamp, to pull the bar up in replay.
+ * alongside the timestamp, to pull the bar up in replay. Each one can be reopened
+ * in the gate above and saved back over itself, because the note explaining why a
+ * setup was stood down or taken anyway is usually written properly after the fact.
  */
 
 /** NY trading date — must match the server's session_date bucketing. */
@@ -71,7 +73,7 @@ function TickedList({ title, keys, kind, factors, tone }) {
   )
 }
 
-function CheckRow({ check, factors, onDelete }) {
+function CheckRow({ check, factors, onDelete, onEdit, isEditing }) {
   const [open, setOpen] = useState(false)
   const no = check.verdict === 'NO_TRADE'
   // Taken against a NO TRADE verdict — the thing this whole feature exists to count.
@@ -79,7 +81,8 @@ function CheckRow({ check, factors, onDelete }) {
 
   return (
     <div className={`rounded-lg border transition-colors ${
-      rulebreak ? 'border-rose-500/40 bg-rose-500/5' : 'border-gray-800 bg-gray-900/60'
+      isEditing ? 'border-indigo-500/60 bg-indigo-500/5'
+        : rulebreak ? 'border-rose-500/40 bg-rose-500/5' : 'border-gray-800 bg-gray-900/60'
     }`}>
       <button
         type="button"
@@ -115,14 +118,26 @@ function CheckRow({ check, factors, onDelete }) {
               })}
             </span>
             <span>net score <span className="font-mono text-gray-300">{check.net_score > 0 ? `+${check.net_score}` : check.net_score}</span></span>
-            <button
-              type="button"
-              onClick={() => onDelete(check)}
-              className="ml-auto flex items-center gap-1 text-gray-600 hover:text-rose-400 transition-colors"
-              title="Delete this logged scenario"
-            >
-              <Trash2 className="w-3 h-3" /> Delete
-            </button>
+            <div className="ml-auto flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onEdit(check)}
+                className={`flex items-center gap-1 transition-colors ${
+                  isEditing ? 'text-indigo-300' : 'text-gray-600 hover:text-indigo-400'
+                }`}
+                title="Reopen this scenario in the gate above and save it again"
+              >
+                <Pencil className="w-3 h-3" /> {isEditing ? 'Editing' : 'Edit'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(check)}
+                className="flex items-center gap-1 text-gray-600 hover:text-rose-400 transition-colors"
+                title="Delete this logged scenario"
+              >
+                <Trash2 className="w-3 h-3" /> Delete
+              </button>
+            </div>
           </div>
 
           <p className={`text-xs ${no ? 'text-rose-300' : 'text-emerald-300'}`}>{check.reason}</p>
@@ -147,6 +162,8 @@ export default function GatePanel({ onHide }) {
   const { factors, refreshFactors } = useGate()
   const [collapsed, setCollapsed] = useState(false)
   const [checks,    setChecks]    = useState([])
+  const [editing,   setEditing]   = useState(null)
+  const gateRef = useRef(null)
 
   const loadChecks = useCallback(() => {
     gateApi.list({ session_date: nySessionDate(), limit: 30 })
@@ -159,12 +176,21 @@ export default function GatePanel({ onHide }) {
   const handleDelete = useCallback(async (check) => {
     try {
       await gateApi.remove(check.id)
+      // Deleting the row that's open in the form has to drop edit mode too,
+      // otherwise saving would PUT to an id that no longer exists.
+      setEditing(cur => cur?.id === check.id ? null : cur)
       loadChecks()
     } catch (err) {
       console.error('Could not delete scenario:', err)
       alert(`Couldn't delete that scenario: ${err?.message || 'unknown error'}`)
     }
   }, [loadChecks])
+
+  /** Reopen a logged scenario in the gate above, which is where the form is. */
+  const handleEdit = useCallback((check) => {
+    setEditing(check)
+    gateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [])
 
   const noTradeCount  = checks.filter(c => c.verdict === 'NO_TRADE').length
   const rulebreakCount = checks.filter(c => c.verdict === 'NO_TRADE' && c.took_trade === true).length
@@ -207,11 +233,15 @@ export default function GatePanel({ onHide }) {
 
       {!collapsed && (
         <div className="px-4 pb-4 space-y-4">
-          <PreEntryGate
-            factors={factors}
-            onSaved={loadChecks}
-            onFactorsChanged={refreshFactors}
-          />
+          <div ref={gateRef}>
+            <PreEntryGate
+              factors={factors}
+              onSaved={loadChecks}
+              onFactorsChanged={refreshFactors}
+              editing={editing}
+              onCancelEdit={() => setEditing(null)}
+            />
+          </div>
 
           {/* Scenarios logged today — click one to see what was ticked */}
           {checks.length > 0 && (
@@ -221,7 +251,14 @@ export default function GatePanel({ onHide }) {
               </p>
               <div className="space-y-1">
                 {checks.map(c => (
-                  <CheckRow key={c.id} check={c} factors={factors} onDelete={handleDelete} />
+                  <CheckRow
+                    key={c.id}
+                    check={c}
+                    factors={factors}
+                    onDelete={handleDelete}
+                    onEdit={handleEdit}
+                    isEditing={editing?.id === c.id}
+                  />
                 ))}
               </div>
             </div>

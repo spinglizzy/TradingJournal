@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Plus, RotateCcw, Save } from 'lucide-react'
+import { Check, Pencil, Plus, RotateCcw, Save, X } from 'lucide-react'
 import { gateApi } from '../../api/gate.js'
 import { groupFactors, slugify, DEFAULT_FACTORS } from '../../lib/gateFactors.js'
 import { evaluateGate, verdictHeadline, GATE_THRESHOLD, MAX_CONTESTED } from '../../../server/lib/gateVerdict.js'
@@ -15,6 +15,12 @@ import { evaluateGate, verdictHeadline, GATE_THRESHOLD, MAX_CONTESTED } from '..
  * two log buttons, which is also where the decision gets recorded: he can log a
  * setup he passed on and a setup he took, and the difference between the verdict
  * and the decision is the whole point of the review view.
+ *
+ * Pass `editing` (a logged check) and the same form reopens over that row: the
+ * two log buttons become saves against its id, and the note — his reason in his
+ * own words — is the thing most likely to need a second pass once the session is
+ * over. The verdict is always re-derived, so an edited tick-list can flip
+ * NO TRADE to ENTER and the review follows.
  *
  * It renders as a widget inside the premarket plan — the thing already open on
  * screen through the session. There is no overlay and no keyboard shortcut; the
@@ -65,8 +71,10 @@ function ScoreMeter({ net, ceiling, pass }) {
  * @param {object[]} factors            the config-driven lists, from GateContext
  * @param {function} onSaved            called after every successful save, so a parent list can refresh
  * @param {function} onFactorsChanged   called when the contested list itself is edited
+ * @param {object}   [editing]          a logged check to reopen; null for a fresh check
+ * @param {function} [onCancelEdit]     drop out of edit mode without writing
  */
-export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsChanged }) {
+export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsChanged, editing, onCancelEdit }) {
   const factors = factorsProp?.length ? factorsProp : DEFAULT_FACTORS
   const grouped = useMemo(() => groupFactors(factors), [factors])
 
@@ -102,31 +110,54 @@ export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsC
   }, [])
 
   /**
+   * Load a logged check into the form, or reset when edit mode ends.
+   *
+   * Keyed on the check object, which is a piece of the parent's state and so is
+   * identity-stable across its re-renders — a refreshed list never stamps over
+   * ticks made since the row was opened.
+   */
+  useEffect(() => {
+    if (!editing) { clear(); return }
+    setKills(editing.kills ?? [])
+    setConfluences(editing.confluences ?? [])
+    setContested(editing.contested ?? [])
+    setInstrument(editing.instrument || 'NQ')
+    setNote(editing.note ?? '')
+    setFreeText(''); setSaveError(null); setListError(null)
+  }, [editing, clear])
+
+  /**
    * Write the scenario. `took` is what he actually did, which is deliberately
    * separate from the verdict — logging a taken trade against a NO TRADE is the
    * rulebreak, and the gate has to make that easy to record rather than awkward.
    */
   const logScenario = useCallback(async (took) => {
-    if (!touched || saving) return
+    if ((!touched && !editing) || saving) return
     setSaving(true)
     setSaveError(null)
     try {
-      const row = await gateApi.create({
+      const body = {
         instrument, confluences, contested, kills,
         note: note.trim() || null,
         took_trade: took,
-      })
+      }
+      // The server re-derives the verdict on both paths, so an edit that changes
+      // the tick-list changes the verdict with it.
+      const row = editing
+        ? await gateApi.update(editing.id, body)
+        : await gateApi.create(body)
       onSaved?.(row)
       clear()
+      if (editing) onCancelEdit?.()
     } catch (err) {
       // Surface it — a scenario that silently failed to save is worse than no
       // gate, because the review would under-count exactly the entries that matter.
-      console.error('Log scenario failed:', err)
-      setSaveError(err?.message || 'Could not log this scenario')
+      console.error(editing ? 'Save edit failed:' : 'Log scenario failed:', err)
+      setSaveError(err?.message || (editing ? 'Could not save your changes' : 'Could not log this scenario'))
     } finally {
       setSaving(false)
     }
-  }, [touched, saving, instrument, confluences, contested, kills, note, onSaved, clear])
+  }, [touched, saving, editing, instrument, confluences, contested, kills, note, onSaved, onCancelEdit, clear])
 
   // ── Toggles ────────────────────────────────────────────────────────────────
   const toggle = useCallback((setter) => (key) => {
@@ -207,16 +238,35 @@ export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsC
           className="w-20 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-xs font-mono font-bold text-white uppercase focus:outline-none focus:border-indigo-500"
           aria-label="Instrument"
         />
-        <span className="text-[11px] text-gray-600">nothing is saved until you log it</span>
-        <button
-          type="button"
-          onClick={clear}
-          disabled={!touched}
-          className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 border border-gray-800 hover:border-gray-700 rounded transition-colors"
-          title="Clear without logging"
-        >
-          <RotateCcw className="w-3 h-3" /> Clear
-        </button>
+        {editing ? (
+          <span className="flex items-center gap-1.5 text-[11px] text-indigo-300 font-medium">
+            <Pencil className="w-3 h-3" />
+            Editing the {new Date(editing.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} log
+          </span>
+        ) : (
+          <span className="text-[11px] text-gray-600">nothing is saved until you log it</span>
+        )}
+
+        {editing ? (
+          <button
+            type="button"
+            onClick={() => onCancelEdit?.()}
+            className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-gray-400 hover:text-white border border-gray-800 hover:border-gray-700 rounded transition-colors"
+            title="Leave the logged scenario as it was"
+          >
+            <X className="w-3 h-3" /> Cancel edit
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={clear}
+            disabled={!touched}
+            className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 border border-gray-800 hover:border-gray-700 rounded transition-colors"
+            title="Clear without logging"
+          >
+            <RotateCcw className="w-3 h-3" /> Clear
+          </button>
+        )}
       </div>
 
       {/* ── Instant kills — always first, always live ─────────────────────── */}
@@ -423,29 +473,33 @@ export default function PreEntryGate({ factors: factorsProp, onSaved, onFactorsC
           <button
             type="button"
             onClick={() => logScenario(true)}
-            disabled={!touched || saving}
+            disabled={(!touched && !editing) || saving}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white"
           >
             <Save className="w-3.5 h-3.5" />
-            {saving ? 'Logging…' : 'Log — took it'}
+            {saving ? (editing ? 'Saving…' : 'Logging…') : (editing ? 'Save — took it' : 'Log — took it')}
           </button>
           <button
             type="button"
             onClick={() => logScenario(false)}
-            disabled={!touched || saving}
+            disabled={(!touched && !editing) || saving}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors border-gray-700 text-gray-300 hover:border-gray-600 hover:text-white disabled:opacity-30"
           >
             <Save className="w-3.5 h-3.5" />
-            {saving ? 'Logging…' : 'Log — passed'}
+            {saving ? (editing ? 'Saving…' : 'Logging…') : (editing ? 'Save — passed' : 'Log — passed')}
           </button>
           <span className="text-[11px] text-gray-600">
-            {touched
-              ? (!pass ? 'Logging this as taken records it as a rulebreak.' : 'Logged either way — the record is the point.')
-              : 'Tick something first.'}
+            {editing
+              ? 'Saving overwrites that log — the timestamp stays as it was.'
+              : touched
+                ? (!pass ? 'Logging this as taken records it as a rulebreak.' : 'Logged either way — the record is the point.')
+                : 'Tick something first.'}
           </span>
         </div>
         {saveError && (
-          <p className="text-[11px] text-rose-400">{saveError} — nothing was saved, try again.</p>
+          <p className="text-[11px] text-rose-400">
+            {saveError} — {editing ? 'the log is unchanged' : 'nothing was saved'}, try again.
+          </p>
         )}
       </div>
 
