@@ -19,6 +19,7 @@ export const DEFAULT_FACTORS = [
   { key: 'against_bias',      label: 'Entry Not Aligned With Bias',        kind: 'kill', sort_order: 50, required: false },
   { key: 'be_taken',          label: 'Breakeven Level Taken Before Entry', kind: 'kill', sort_order: 60, required: false },
   { key: 'objective_taken',   label: 'Objective Already Taken',            kind: 'kill', sort_order: 70, required: false },
+  { key: 'rr_below_1',        label: 'RR Less than 1',                     kind: 'kill', sort_order: 80, required: false },
 
   // The contested defaults (gate_migration_03.sql). Unlike the kills and
   // confluences these are seeded per-user, not as system rows, so that the

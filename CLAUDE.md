@@ -55,7 +55,7 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 ### Database
 - Schema lives in `supabase_migration.sql` — run this in the Supabase SQL editor to set up or reset tables
 - `wheel_migration.sql` adds the wheel tracker tables and columns — additive and idempotent, run it in the same editor
-- `gate_migration.sql` adds `gate_checks` + `gate_factors`; `gate_migration_02.sql` adds `took_trade` and renames a confluence label; `gate_migration_03.sql` Title Cases the kill labels and reseeds the contested defaults; `gate_migration_04.sql` adds the `objective_taken` kill. All additive and idempotent. Apply them through `DATABASE_URL` as one `pool.query(wholeFile)`, **not** the Supabase SQL editor, which reports "Success" while executing only the leading comment block
+- `gate_migration.sql` adds `gate_checks` + `gate_factors`; `gate_migration_02.sql` adds `took_trade` and renames a confluence label; `gate_migration_03.sql` Title Cases the kill labels and reseeds the contested defaults; `gate_migration_04.sql` adds the `objective_taken` kill; `gate_migration_05.sql` adds the `rr_below_1` kill. All additive and idempotent. Apply them through `DATABASE_URL` as one `pool.query(wholeFile)`, **not** the Supabase SQL editor, which reports "Success" while executing only the leading comment block
 - The backend connects via `pg` pool using `DATABASE_URL` from `.env`
 - P&L calculation logic is centralised in `server/db.js` → `calcPnl(direction, entryPrice, exitPrice, positionSize, fees, stopLoss)` — returns `{ pnl, pnlPct, rMultiple }`
 - All tables have RLS policies enforcing `user_id = auth.uid()`
