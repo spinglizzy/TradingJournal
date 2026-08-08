@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Flag, TriangleAlert } from 'lucide-react'
+import { Flag, Pencil, TriangleAlert } from 'lucide-react'
 import Modal from '../ui/Modal.jsx'
 import { DatePicker } from '../ui/DatePicker.jsx'
 import { wheelApi } from '../../api/wheel.js'
+import LegForm from './LegForm.jsx'
 import { SHARES_PER_CONTRACT } from './constants.js'
 
 const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white
@@ -20,7 +21,7 @@ const btn = 'px-2.5 py-1 text-[11px] font-medium rounded-md border transition-co
 export default function LegActions({ leg, onDone, compact }) {
   const [busy, setBusy]   = useState(null)
   const [error, setError] = useState(null)
-  const [modal, setModal] = useState(null) // 'roll' | 'close'
+  const [modal, setModal] = useState(null) // 'roll' | 'close' | 'edit'
 
   if (leg.leg_status !== 'open') return null
 
@@ -81,6 +82,14 @@ export default function LegActions({ leg, onDone, compact }) {
           Buy to close
         </button>
 
+        <button
+          type="button" disabled={!!busy} onClick={() => { setError(null); setModal('edit') }}
+          title="Fix the details of this leg — including put/call if it was logged as the wrong type"
+          className={`${btn} flex items-center gap-1 border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 disabled:opacity-40`}
+        >
+          <Pencil className="w-3 h-3" /> Edit
+        </button>
+
         {!compact && (
           <button
             type="button" disabled={!!busy}
@@ -115,6 +124,20 @@ export default function LegActions({ leg, onDone, compact }) {
         onClose={() => { setModal(null); setError(null) }}
         onSubmit={(body) => run('close', () => wheelApi.close(leg.id, body))}
       />
+
+      {/* LegForm owns its own saving/error state, so this one just opens and closes. */}
+      <Modal
+        isOpen={modal === 'edit'}
+        onClose={() => setModal(null)}
+        title={`Edit ${leg.ticker} leg`}
+        size="md"
+      >
+        <LegForm
+          leg={leg}
+          onSaved={() => { setModal(null); onDone?.() }}
+          onCancel={() => setModal(null)}
+        />
+      </Modal>
     </>
   )
 }

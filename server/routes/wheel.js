@@ -506,7 +506,15 @@ router.post('/cycles', async (req, res) => tx(res, async (client) => {
   return { cycle: updated, leg }
 }))
 
-/** Edit an unresolved leg's details. */
+/**
+ * Edit an unresolved leg's details, `option_type` included.
+ *
+ * Correcting the type matters more than the other fields: a covered call logged
+ * as a cash-secured put reads as a leg with no shares behind it, and if it is
+ * later marked assigned it manufactures a lot that was never bought. Deleting
+ * and re-entering is the alternative, and it loses the leg's history — so the
+ * type is editable here under exactly the guards `POST /legs` applies.
+ */
 router.put('/legs/:id', async (req, res) => tx(res, async (client) => {
   const leg = await getOwnedLeg(client, req.params.id, req.userId)
   if (leg.leg_status !== 'open') {
@@ -514,21 +522,40 @@ router.put('/legs/:id', async (req, res) => tx(res, async (client) => {
   }
 
   const f = {
-    strike:    req.body.strike    ?? leg.strike,
-    expiry:    req.body.expiry    ?? leg.expiry,
-    premium:   req.body.premium   ?? leg.premium,
-    contracts: req.body.contracts ?? leg.contracts,
-    date:      req.body.date      ?? leg.date,
-    fees:      req.body.fees      ?? leg.fees,
-    notes:     req.body.notes     ?? leg.notes,
+    option_type: req.body.option_type ?? leg.option_type,
+    strike:      req.body.strike      ?? leg.strike,
+    expiry:      req.body.expiry      ?? leg.expiry,
+    premium:     req.body.premium     ?? leg.premium,
+    contracts:   req.body.contracts   ?? leg.contracts,
+    date:        req.body.date        ?? leg.date,
+    fees:        req.body.fees        ?? leg.fees,
+    notes:       req.body.notes       ?? leg.notes,
   }
+  if (!['put', 'call'].includes(f.option_type)) throw badRequest('option_type must be put or call')
+  if (!(Number(f.strike) > 0))                  throw badRequest('Strike must be greater than zero')
+  if (!f.expiry)                                throw badRequest('Expiry is required')
+  if (!(Number(f.contracts) >= 1))              throw badRequest('Contracts must be at least 1')
+  if (f.premium == null || Number.isNaN(Number(f.premium))) throw badRequest('Premium is required')
+
   const qty = sharesFor(f.contracts)
 
+  // Same coverage rule as creation. An open leg holds no lots, so the cycle's
+  // cached share count is already the number this call would be written against.
+  if (f.option_type === 'call' && leg.wheel_cycle_id) {
+    const { rows: [cycle] } = await client.query('SELECT * FROM wheel_cycles WHERE id = $1', [leg.wheel_cycle_id])
+    if (cycle && cycle.shares <= 0) {
+      throw badRequest(`No assigned ${leg.ticker} shares on this cycle — a covered call needs shares behind it. Record the put assignment first, or use "Add assigned shares" if it predates this tab.`)
+    }
+    if (cycle && qty > cycle.shares) {
+      throw badRequest(`${Math.round(Number(f.contracts))} contract(s) covers ${qty} shares but only ${cycle.shares} are held.`)
+    }
+  }
+
   await client.query(`
-    UPDATE trades SET strike=$1, expiry=$2, premium=$3, contracts=$4, date=$5,
-      fees=$6, notes=$7, position_size=$8, entry_price=$9, updated_at=NOW()
-    WHERE id=$10
-  `, [f.strike, f.expiry, f.premium, Math.round(Number(f.contracts)), f.date,
+    UPDATE trades SET option_type=$1, strike=$2, expiry=$3, premium=$4, contracts=$5, date=$6,
+      fees=$7, notes=$8, position_size=$9, entry_price=$10, updated_at=NOW()
+    WHERE id=$11
+  `, [f.option_type, f.strike, f.expiry, f.premium, Math.round(Number(f.contracts)), f.date,
       f.fees, f.notes, qty, Number(f.premium) / qty, leg.id])
 
   const cycle = await recomputeCycle(client, leg.wheel_cycle_id)

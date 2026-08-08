@@ -21,16 +21,43 @@ function Field({ label, hint, children }) {
 }
 
 /**
- * Log a wheel option leg. Writes to the same `trades` table as every other
- * trade, tagged `strategy_tag = 'wheel'` — one entry, one place it lives.
+ * Log a wheel option leg — or, given `leg`, correct one that is still open.
+ *
+ * Writes to the same `trades` table as every other trade, tagged
+ * `strategy_tag = 'wheel'` — one entry, one place it lives.
  *
  * Premium is entered as the quoted contract price (0.30) and stored as the total
  * dollars for the leg (0.30 × 100 × contracts). The unit label is persistent and
  * the computed total is shown live, because misreading that quote is the
  * likeliest data-entry error in the whole feature.
+ *
+ * Editing keeps the ticker fixed: moving a leg to another ticker means moving it
+ * to another cycle, which is a different operation from fixing a typo. Delete and
+ * re-log for that.
  */
-export default function LegForm({ prefill = {}, lockTicker, snapshot, onSaved, onCancel }) {
-  const [form, setForm] = useState({
+export default function LegForm({ leg, prefill = {}, lockTicker, snapshot, onSaved, onCancel }) {
+  const editing = !!leg
+  // Stored premium is the leg TOTAL; the form works in the broker's quoted
+  // contract price, so convert back through the contract count it was saved with.
+  const quotedFromLeg = () => {
+    const shares = (Number(leg.contracts) || 0) * SHARES_PER_CONTRACT
+    if (!(shares > 0)) return ''
+    // Round the division back to a quotable price — 30/100 must read 0.3, not
+    // 0.30000000000000004 in the input the user is about to re-submit.
+    return Math.round((Number(leg.premium) / shares) * 1e4) / 1e4
+  }
+
+  const [form, setForm] = useState(() => editing ? {
+    ticker:      leg.ticker,
+    option_type: leg.option_type ?? 'put',
+    strike:      leg.strike ?? '',
+    expiry:      leg.expiry ?? '',
+    contracts:   leg.contracts ?? 1,
+    premium:     quotedFromLeg(),
+    date:        leg.date ?? todayStr(),
+    fees:        leg.fees ?? 0,
+    notes:       leg.notes ?? '',
+  } : {
     ticker:      prefill.ticker      ?? '',
     option_type: prefill.option_type ?? 'put',
     strike:      prefill.strike      ?? '',
@@ -60,8 +87,7 @@ export default function LegForm({ prefill = {}, lockTicker, snapshot, onSaved, o
     setSaving(true)
     setError(null)
     try {
-      const { leg } = await wheelApi.createLeg({
-        ticker:      String(form.ticker).trim().toUpperCase(),
+      const body = {
         option_type: form.option_type,
         strike:      Number(form.strike),
         expiry:      form.expiry,
@@ -70,12 +96,18 @@ export default function LegForm({ prefill = {}, lockTicker, snapshot, onSaved, o
         date:        form.date,
         fees:        Number(form.fees) || 0,
         notes:       form.notes || null,
-        strike_selection_snapshot: snapshot ?? null,
-      })
-      onSaved?.(leg)
+      }
+      const saved = editing
+        ? await wheelApi.updateLeg(leg.id, body)
+        : await wheelApi.createLeg({
+            ...body,
+            ticker: String(form.ticker).trim().toUpperCase(),
+            strike_selection_snapshot: snapshot ?? null,
+          })
+      onSaved?.(saved.leg)
     } catch (err) {
       // Save failures must surface — never swallow them into a silent no-op.
-      setError(err?.message || 'Failed to save leg')
+      setError(err?.message || (editing ? 'Failed to save changes' : 'Failed to save leg'))
     } finally {
       setSaving(false)
     }
@@ -84,18 +116,23 @@ export default function LegForm({ prefill = {}, lockTicker, snapshot, onSaved, o
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Ticker">
+        <Field label="Ticker" hint={editing ? 'Fixed — the leg belongs to this ticker’s cycle.' : undefined}>
           <input
-            type="text" required value={form.ticker} disabled={!!lockTicker}
+            type="text" required value={form.ticker} disabled={editing || !!lockTicker}
             onChange={e => set({ ticker: e.target.value })}
             placeholder="HL"
             className={`${inputCls} uppercase disabled:opacity-60`}
           />
         </Field>
-        <Field label="Type">
+        <Field
+          label="Type"
+          hint={editing && form.option_type !== leg.option_type
+            ? `Changing ${leg.option_type === 'put' ? 'cash-secured put → covered call' : 'covered call → cash-secured put'}`
+            : undefined}
+        >
           <select
             value={form.option_type} onChange={e => set({ option_type: e.target.value })}
-            className={inputCls}
+            className={`${inputCls} ${editing && form.option_type !== leg.option_type ? 'border-amber-500/60' : ''}`}
           >
             <option value="put">Cash-secured put</option>
             <option value="call">Covered call</option>
@@ -205,7 +242,7 @@ export default function LegForm({ prefill = {}, lockTicker, snapshot, onSaved, o
           type="submit" disabled={saving}
           className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-colors"
         >
-          {saving ? 'Saving…' : 'Log leg'}
+          {saving ? 'Saving…' : editing ? 'Save changes' : 'Log leg'}
         </button>
       </div>
     </form>
