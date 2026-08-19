@@ -131,6 +131,51 @@ group('Partial call-away leaves basis unchanged', () => {
     realizedPnl({ ...before, exitPrice: 22 }))
 })
 
+group('Partial SALE keeps the gain and drops the basis', () => {
+  // Same 200 @ 20 avg, $400 premium position -> B = 18.00. Trim 100 at 22.
+  // Sam trims winners to bring the break-even down on the shares he keeps, so
+  // the gain must stay in the cycle rather than book. Booking it (the call-away
+  // path above) leaves B at 18 and makes the trim pointless in basis terms.
+  const before = { shares: 200, avgAssignedStrike: 20, netPremium: 400 }
+  const exit = bookShareExit(before, { exitPrice: 22, sharesOut: 100, retainGain: true })
+
+  check('nothing books now',        exit.bookedPnl, 0)
+  check('no premium attributed',    exit.premiumAttributed, 0)
+  check('gain retained in cycle',   exit.retainedGain, 200)
+  check('premium carries the gain', exit.netPremium, 600)
+  check('100 shares remain',        exit.shares, 100)
+  check('avg strike untouched',     exit.avgAssignedStrike, 20)
+
+  const after = effectiveBasis({ shares: exit.shares, avgAssignedStrike: exit.avgAssignedStrike, netPremium: exit.netPremium })
+  check('basis drops 20 - 600/100', after, 14)
+  // The closed form the modal previews and the route's docstring both quote.
+  check('B_new = B_old - (out/remaining)(price - B_old)', after, 18 - (100 / 100) * (22 - 18))
+
+  // Deferring is not losing: selling the rest at the same price must still total
+  // what a single 200-share exit would have booked.
+  const rest = bookShareExit(
+    { shares: exit.shares, avgAssignedStrike: exit.avgAssignedStrike, netPremium: exit.netPremium },
+    { exitPrice: 22, sharesOut: 100, retainGain: true }
+  )
+  check('final exit books the carried gain too',
+    exit.bookedPnl + rest.bookedPnl,
+    realizedPnl({ ...before, exitPrice: 22 }))
+  check('cycle goes flat on the last share', rest.flat, true)
+
+  // A trim below the break-even raises the basis — same arithmetic, no special case.
+  // 100 sold at 16 against a $18 break-even carries a -$400 gain: premium goes
+  // to 0 and B climbs back to the assigned strike. 18 - (100/100)(16 - 18) = 20.
+  const loss = bookShareExit(before, { exitPrice: 16, sharesOut: 100, retainGain: true })
+  check('losing trim raises the basis',
+    effectiveBasis({ shares: loss.shares, avgAssignedStrike: loss.avgAssignedStrike, netPremium: loss.netPremium }), 20)
+
+  // Selling everything has no survivors to carry the gain, so retainGain is moot.
+  const whole = bookShareExit(before, { exitPrice: 22, sharesOut: 200, retainGain: true })
+  check('full exit books regardless of retainGain', whole.bookedPnl, realizedPnl({ ...before, exitPrice: 22 }))
+  check('full exit retains nothing', whole.retainedGain, 0)
+  check('full exit is flat', whole.flat, true)
+})
+
 group('Cycle boundary detection', () => {
   check('flat with no shares and no open legs',
     isCycleFlat({ shares: 0, legs: [{ leg_status: 'expired' }] }), true)

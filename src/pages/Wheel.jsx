@@ -229,6 +229,7 @@ export default function Wheel() {
       </Modal>
 
       <SellSharesModal
+        key={sellCycle?.id ?? 'none'}   /* fresh quantity/price fields per position */
         open={!!sellCycle} cycle={sellCycle}
         onClose={() => setSellCycle(null)}
         onDone={refresh}
@@ -511,6 +512,13 @@ function HoldingsTab({ cycles, onCalc, onSell, onRefresh, onLog, onDeleteCycle }
             <p className="px-5 py-2 text-[11px] text-gray-500 border-b border-gray-800 font-mono">
               B = {money(cycle.avg_assigned_strike)} − {money(cycle.net_premium)} / {cycle.shares} = {money(cycle.basis)}
               <span className="font-sans ml-2 text-gray-600">— write calls above this line</span>
+              {/* Net premium is not all option credit once shares have been trimmed —
+                  say so, or the number looks wrong against the leg list. */}
+              {Number(cycle.retained_share_gain) !== 0 && (
+                <span className="font-sans ml-2 text-gray-600">
+                  (includes {signed(cycle.retained_share_gain)} kept from trimmed shares)
+                </span>
+              )}
             </p>
           )}
 

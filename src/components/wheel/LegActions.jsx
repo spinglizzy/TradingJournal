@@ -328,27 +328,58 @@ function CloseModal({ open, leg, busy, error, onClose, onSubmit }) {
   )
 }
 
-/** Sell the shares outright and abandon the wheel. */
+/**
+ * Sell shares — the whole lot (abandon the wheel) or a slice of it.
+ *
+ * A partial sale keeps its gain in the position instead of booking it, so the
+ * effective basis of the shares left behind falls. Mirrors `retainGain` in
+ * server/lib/wheelEngine.js; the server is still the one that computes it, this
+ * only previews the number so the size of the trim can be chosen against it.
+ */
 export function SellSharesModal({ open, cycle, onClose, onDone }) {
-  const [price, setPrice] = useState('')
-  const [date, setDate]   = useState(todayStr())
-  const [busy, setBusy]   = useState(false)
-  const [error, setError] = useState(null)
+  const [price, setPrice]   = useState('')
+  const [shares, setShares] = useState('')
+  const [date, setDate]     = useState(todayStr())
+  const [busy, setBusy]     = useState(false)
+  const [error, setError]   = useState(null)
 
+  // Re-mounted per cycle by the `key` on the call site, so the fields start
+  // empty (= sell everything) each time the modal is opened on a position.
   if (!cycle) return null
 
-  const proceeds = Number(price) * cycle.shares
-  const estimate = price !== '' && Number.isFinite(Number(price))
-    ? cycle.shares * (Number(price) - Number(cycle.avg_assigned_strike)) + Number(cycle.net_premium)
+  const held  = Number(cycle.shares)
+  const strike = Number(cycle.avg_assigned_strike)
+  const netPremium = Number(cycle.net_premium)
+
+  const qtyRaw = shares === '' ? held : Math.round(Number(shares))
+  const qtyOk  = Number.isFinite(qtyRaw) && qtyRaw > 0 && qtyRaw <= held
+  const qty    = qtyOk ? qtyRaw : held
+  const remaining = held - qty
+  const partial   = qtyOk && remaining > 0
+
+  const priceNum = Number(price)
+  const priced   = price !== '' && Number.isFinite(priceNum) && priceNum > 0
+  const proceeds = priceNum * qty
+
+  const basisNow = held > 0 ? strike - netPremium / held : null
+  // Gain on the shares that leave stays with the cycle, so the survivors carry
+  // the whole premium: B_new = strike − (net premium + gain) / remaining.
+  const gain     = qty * (priceNum - strike)
+  const newBasis = priced && partial ? strike - (netPremium + gain) / remaining : null
+
+  // Full exit: everything books, so show the lifetime P&L of the cycle instead.
+  const estimate = priced && !partial
+    ? held * (priceNum - strike) + netPremium
     : null
 
   async function submit(e) {
     e.preventDefault()
     // DatePicker is a button, not an <input required> — guard here instead.
     if (!date) return setError('Date sold is required')
+    if (!qtyOk) return setError(`Shares to sell must be between 1 and ${held}`)
     setBusy(true); setError(null)
     try {
-      await wheelApi.sellShares(cycle.id, { price: Number(price), date })
+      await wheelApi.sellShares(cycle.id, { price: priceNum, shares: qty, date })
       onDone?.()
       onClose()
     } catch (err) {
@@ -359,23 +390,66 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
   }
 
   return (
-    <Modal isOpen={open} onClose={onClose} title={`Sell ${cycle.shares} ${cycle.ticker} shares`} size="sm">
+    <Modal isOpen={open} onClose={onClose} title={`Sell ${cycle.ticker} shares`} size="sm">
       <form onSubmit={submit} className="space-y-4">
         <p className="text-xs text-gray-500 leading-relaxed">
-          This abandons the wheel on {cycle.ticker} and closes the cycle at your sale price. Close or roll
-          any open covered calls first.
+          {partial
+            ? <>Trimming {qty} of {held} shares. The gain stays in the position and pulls your effective
+                basis down on the {remaining} you keep — it books when the cycle finally goes flat.</>
+            : <>Selling all {held} shares abandons the wheel on {cycle.ticker} and closes the cycle at your
+                sale price. Close or roll any open covered calls first.</>}
         </p>
 
-        <div>
-          <label className="block text-xs text-gray-400 font-medium mb-1.5">Sale price per share</label>
-          <input type="number" step="0.01" min="0.01" required inputMode="decimal" placeholder="16.40"
-            value={price} onChange={e => setPrice(e.target.value)} className={inputCls} />
-          {price !== '' && (
-            <p className="text-[11px] text-gray-500 mt-1 font-mono">
-              = {money(proceeds)} proceeds × {cycle.shares} sh
-            </p>
-          )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-gray-400 font-medium mb-1.5">Shares to sell</label>
+            <input type="number" step="1" min="1" max={held} inputMode="numeric" placeholder={String(held)}
+              value={shares} onChange={e => setShares(e.target.value)} className={inputCls} />
+            <div className="flex items-center gap-1.5 mt-1.5">
+              {[0.25, 0.5, 0.75].map(f => {
+                const n = Math.round(held * f / SHARES_PER_CONTRACT) * SHARES_PER_CONTRACT || SHARES_PER_CONTRACT
+                return n < held ? (
+                  <button key={f} type="button" onClick={() => setShares(String(n))}
+                    className="px-1.5 py-0.5 text-[10px] font-mono text-gray-500 hover:text-white border border-gray-700 hover:border-gray-500 rounded transition-colors">
+                    {n}
+                  </button>
+                ) : null
+              })}
+              <button type="button" onClick={() => setShares(String(held))}
+                className="px-1.5 py-0.5 text-[10px] font-mono text-gray-500 hover:text-white border border-gray-700 hover:border-gray-500 rounded transition-colors">
+                all {held}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-400 font-medium mb-1.5">Sale price per share</label>
+            <input type="number" step="0.01" min="0.01" required inputMode="decimal" placeholder="16.40"
+              value={price} onChange={e => setPrice(e.target.value)} className={inputCls} />
+            {priced && (
+              <p className="text-[11px] text-gray-500 mt-1.5 font-mono">
+                = {money(proceeds)} on {qty} sh
+              </p>
+            )}
+          </div>
         </div>
+
+        {newBasis != null && (
+          <div className={`px-3 py-2 rounded-lg border ${
+            newBasis <= basisNow ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'
+          }`}>
+            <span className="text-xs text-gray-400">New effective basis on {remaining} shares</span>
+            <span className={`ml-2 text-sm font-mono font-semibold ${newBasis <= basisNow ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {money(newBasis)}
+            </span>
+            <span className="ml-1.5 text-[11px] font-mono text-gray-500">
+              from {money(basisNow)} ({newBasis <= basisNow ? '−' : '+'}{money(Math.abs(newBasis - basisNow))})
+            </span>
+            <p className="text-[11px] text-gray-500 mt-1 font-mono">
+              B = {money(strike)} − ({money(netPremium)} premium {gain >= 0 ? '+' : '−'} {money(Math.abs(gain))} gain) / {remaining}
+            </p>
+          </div>
+        )}
 
         {estimate != null && (
           <div className={`px-3 py-2 rounded-lg border ${
@@ -386,7 +460,7 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
               {estimate >= 0 ? '+' : ''}{money(estimate)}
             </span>
             <p className="text-[11px] text-gray-500 mt-1 font-mono">
-              {cycle.shares} × ({money(Number(price))} − {money(Number(cycle.avg_assigned_strike))}) + {money(Number(cycle.net_premium))} premium
+              {held} × ({money(priceNum)} − {money(strike)}) + {money(netPremium)} premium
             </p>
           </div>
         )}
@@ -407,9 +481,9 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
             className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
             Cancel
           </button>
-          <button type="submit" disabled={busy}
+          <button type="submit" disabled={busy || !qtyOk}
             className="px-5 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg transition-colors">
-            {busy ? 'Selling…' : 'Sell shares'}
+            {busy ? 'Selling…' : partial ? `Sell ${qty} shares` : `Sell all ${held}`}
           </button>
         </div>
       </form>

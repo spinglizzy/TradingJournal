@@ -2,7 +2,7 @@ import { Router } from 'express'
 import pool from '../db.js'
 import {
   SHARES_PER_CONTRACT, sharesFor, legNetPremium, sumLegPremium,
-  rollupLots, bookShareExit, isCycleFlat, describeCycle, dte,
+  rollupLots, bookShareExit, isCycleFlat, describeCycle, dte, effectiveBasis,
 } from '../lib/wheelEngine.js'
 
 const router = Router()
@@ -64,7 +64,10 @@ async function recomputeCycle(client, cycleId, { eventDate, closeReason, exitPri
 
   const { shares: assigned, avgAssignedStrike } = rollupLots(lots)
   const shares     = assigned - cycle.shares_exited
-  let netPremium   = sumLegPremium(legs) - cycle.premium_attributed
+  // `retained_share_gain` is profit from basis-reducing partial sales that was
+  // deliberately NOT booked — it lives in the running premium so it keeps
+  // pulling the break-even line down. See wheel_migration_02.sql.
+  let netPremium   = sumLegPremium(legs) - cycle.premium_attributed + Number(cycle.retained_share_gain ?? 0)
   let realized     = Number(cycle.realized_pnl)
   let attributed   = Number(cycle.premium_attributed)
   let status       = cycle.status
@@ -748,7 +751,21 @@ router.post('/legs/:id/close', async (req, res) => tx(res, async (client) => {
   return { cycle }
 }))
 
-/** Sell the shares outright — abandon the wheel at the market price. */
+/**
+ * Sell shares at the market price — all of them (abandon the wheel) or part of
+ * the lot.
+ *
+ * A PARTIAL sale keeps its gain in the cycle rather than booking it, which drops
+ * the effective basis of the shares still held:
+ *
+ *     B_new = B_old - (sharesOut / remaining) x (price - B_old)
+ *
+ * That is the point of the trade — Sam trims a winner to bring the break-even
+ * line down on the rest, so the next covered call can be written lower. Booking
+ * the gain instead would leave B exactly where it was and make the sale
+ * pointless in basis terms. Lifetime P&L is unaffected: the carried gain books
+ * when the cycle goes flat.
+ */
 router.post('/cycles/:id/sell-shares', async (req, res) => tx(res, async (client) => {
   const { rows: [cycle] } = await client.query(
     'SELECT * FROM wheel_cycles WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]
@@ -759,36 +776,55 @@ router.post('/cycles/:id/sell-shares', async (req, res) => tx(res, async (client
   const price = Number(req.body.price)
   if (!(price > 0)) throw badRequest('Sale price is required')
   const when = req.body.date || today()
-  const qty  = req.body.shares ? Math.min(Math.round(Number(req.body.shares)), cycle.shares) : cycle.shares
+
+  const asked = req.body.shares == null || req.body.shares === '' ? cycle.shares : Math.round(Number(req.body.shares))
+  if (!Number.isFinite(asked) || asked <= 0) throw badRequest('Shares to sell must be a positive number')
+  if (asked > cycle.shares) throw badRequest(`You hold ${cycle.shares} shares on this cycle.`)
+  const qty = asked
+
+  // Shares pinned under an open covered call are not yours to sell — selling
+  // them leaves the call naked and the position out of sync with reality. This
+  // guards the partial case too, not just a full exit.
+  const { rows: openCalls } = await client.query(
+    `SELECT contracts FROM trades WHERE wheel_cycle_id = $1 AND leg_status = 'open' AND option_type = 'call'`,
+    [cycle.id]
+  )
+  const covered = openCalls.reduce((n, leg) => n + sharesFor(leg.contracts), 0)
+  const free    = cycle.shares - covered
+  if (qty > free) {
+    throw badRequest(
+      `${openCalls.length} covered call(s) cover ${covered} of your ${cycle.shares} shares. ` +
+      `You can sell ${Math.max(free, 0)} without going naked — close or roll a call first.`
+    )
+  }
 
   const exit = bookShareExit(
     { shares: cycle.shares, avgAssignedStrike: cycle.avg_assigned_strike, netPremium: cycle.net_premium },
-    { exitPrice: price, sharesOut: qty }
+    { exitPrice: price, sharesOut: qty, retainGain: true }
   )
-
-  // Any option still open against shares that just left is now naked — surface it
-  // rather than letting the position drift out of sync with reality.
-  const { rows: openLegs } = await client.query(
-    `SELECT id FROM trades WHERE wheel_cycle_id = $1 AND leg_status = 'open' AND option_type = 'call'`,
-    [cycle.id]
-  )
-  if (exit.flat && openLegs.length) {
-    throw badRequest(`${openLegs.length} covered call(s) are still open on this cycle. Close or roll them before selling the shares.`)
-  }
 
   await client.query(`
     UPDATE wheel_cycles SET shares_exited = shares_exited + $1,
       premium_attributed = premium_attributed + $2,
-      realized_pnl = realized_pnl + $3, updated_at = NOW()
-    WHERE id = $4
-  `, [exit.sharesOut, exit.premiumAttributed, exit.bookedPnl, cycle.id])
+      retained_share_gain = retained_share_gain + $3,
+      realized_pnl = realized_pnl + $4, updated_at = NOW()
+    WHERE id = $5
+  `, [exit.sharesOut, exit.premiumAttributed, exit.retainedGain, exit.bookedPnl, cycle.id])
 
   const updated = await recomputeCycle(client, cycle.id, {
     eventDate: when,
     closeReason: exit.flat ? 'sold' : undefined,
     exitPrice:   exit.flat ? price : undefined,
   })
-  return { cycle: updated, booked: exit.bookedPnl, shares_out: exit.sharesOut }
+  return {
+    cycle: updated,
+    booked: exit.bookedPnl,
+    shares_out: exit.sharesOut,
+    retained_gain: exit.retainedGain,
+    basis: updated?.shares > 0
+      ? effectiveBasis({ shares: updated.shares, avgAssignedStrike: updated.avg_assigned_strike, netPremium: updated.net_premium })
+      : null,
+  }
 }))
 
 /** Delete a whole cycle and every leg attached to it. */

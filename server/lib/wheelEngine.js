@@ -89,32 +89,65 @@ export function rollupLots(lots = []) {
 /**
  * Book a share exit — called away at a strike, or sold at a price.
  *
- * Handles the partial case (holding 200, writing 1 call) by attributing premium
- * pro rata to the shares that leave. Because `shares` and `netPremium` are
- * scaled by the same factor, the effective basis B of the remaining shares is
- * unchanged by a partial exit, which is the correct behaviour.
+ * Two treatments of a PARTIAL exit, because they answer different questions:
+ *
+ *   pro rata (default, `retainGain` false) — premium is attributed to the shares
+ *     that leave in proportion to the size of the exit, and the P&L books now.
+ *     `shares` and `netPremium` scale by the same factor, so the effective basis
+ *     B of the remaining shares is unchanged. This is what a partial call-away
+ *     does: the contract took those shares, the run on them is over.
+ *
+ *   retained (`retainGain` true) — nothing books; the full premium stays with
+ *     the cycle and the gain on the departed shares is added to it. The basis of
+ *     the survivors therefore falls to
+ *
+ *         B_new = B_old - (sharesOut / remaining) x (exitPrice - B_old)
+ *
+ *     which is exactly "sell some, keep the profit in the position to bring the
+ *     cost basis down". This is Sam's confirmed intent for a manual partial sale
+ *     (see the `sell-shares` route). Nothing is lost by deferring: when the cycle
+ *     finally goes flat the carried amount books in full, so lifetime P&L is
+ *     identical to the pro-rata path — `wheel-tests.mjs` asserts that identity.
+ *
+ * A full exit ignores `retainGain`: with no shares left there is nothing to carry
+ * the gain, so everything books either way.
  *
  * @returns {{
  *   sharesOut: number, bookedPnl: number, premiumAttributed: number,
- *   shares: number, netPremium: number, avgAssignedStrike: number|null, flat: boolean
+ *   retainedGain: number, shares: number, netPremium: number,
+ *   avgAssignedStrike: number|null, flat: boolean
  * }}
  */
-export function bookShareExit({ shares, avgAssignedStrike, netPremium }, { exitPrice, sharesOut }) {
+export function bookShareExit({ shares, avgAssignedStrike, netPremium }, { exitPrice, sharesOut, retainGain = false }) {
   const held = Math.round(num(shares))
   if (held <= 0) throw new Error('No shares held to exit')
 
-  const out = Math.min(Math.round(num(sharesOut)) || held, held)
-  const fraction = out / held
+  const out       = Math.min(Math.round(num(sharesOut)) || held, held)
+  const remaining = held - out
+  const shareGain = out * (num(exitPrice) - num(avgAssignedStrike))
 
-  const premiumAttributed = num(netPremium) * fraction
-  const shareGain         = out * (num(exitPrice) - num(avgAssignedStrike))
+  if (retainGain && remaining > 0) {
+    return {
+      sharesOut: out,
+      shareGain,
+      premiumAttributed: 0,
+      retainedGain: shareGain,
+      bookedPnl: 0,
+      shares: remaining,
+      netPremium: num(netPremium) + shareGain,
+      avgAssignedStrike: num(avgAssignedStrike),
+      flat: false,
+    }
+  }
+
+  const premiumAttributed = num(netPremium) * (out / held)
   const bookedPnl         = shareGain + premiumAttributed
 
-  const remaining = held - out
   return {
     sharesOut: out,
     shareGain,
     premiumAttributed,
+    retainedGain: 0,
     bookedPnl,
     shares: remaining,
     netPremium: num(netPremium) - premiumAttributed,
