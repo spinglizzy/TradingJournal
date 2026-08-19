@@ -1,11 +1,25 @@
-import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { useOverlay } from './useOverlay.js'
 
+/*
+ * Rendered through a portal on `document.body`, never in place.
+ *
+ * Two things in the app shell break an in-place `position: fixed` overlay:
+ *   1. The Liquid Dark theme puts `backdrop-filter` on every `.bg-gray-900`
+ *      (src/index.css). That makes each card a containing block for fixed
+ *      descendants, so a modal opened from inside one — a Wheel cycle card, a
+ *      "needs attention" row — was sized and positioned against the card
+ *      instead of the viewport, and clipped by the card's `overflow-hidden`.
+ *   2. `<main>` carries `z-index: 10` and TopNav `z-50`, both at the root. A
+ *      z-50 modal inside main is trapped in main's stacking context and can
+ *      never paint above the floating nav pill.
+ *
+ * The portal escapes both: on `body` the fixed positioning is viewport
+ * relative again, and z-100 clears TopNav. It stays under the DatePicker's
+ * own portal (z-9999) so date fields inside a modal still work.
+ */
 export default function Modal({ isOpen, onClose, title, children, size = 'md' }) {
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose() }
-    if (isOpen) document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [isOpen, onClose])
+  useOverlay(isOpen, onClose)
 
   if (!isOpen) return null
 
@@ -16,8 +30,8 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
     xl: 'max-w-5xl',
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative w-full ${sizes[size]} bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
@@ -30,6 +44,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
         </div>
         <div className="overflow-y-auto px-6 py-5 flex-1">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

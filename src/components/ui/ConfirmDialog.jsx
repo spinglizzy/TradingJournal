@@ -1,8 +1,14 @@
+import { createPortal } from 'react-dom'
+import { useOverlay } from './useOverlay.js'
+
+/* Portaled for the same reasons as Modal — see the note there. */
 export default function ConfirmDialog({ isOpen, onConfirm, onCancel, title, message, confirmLabel = 'Delete', danger = true }) {
+  useOverlay(isOpen, onCancel)
+
   if (!isOpen) return null
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
       <div className="relative w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-6">
         <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
@@ -23,6 +29,7 @@ export default function ConfirmDialog({ isOpen, onConfirm, onCancel, title, mess
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
