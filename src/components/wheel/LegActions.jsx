@@ -366,6 +366,7 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
   // the whole premium: B_new = strike − (net premium + gain) / remaining.
   const gain     = qty * (priceNum - strike)
   const newBasis = priced && partial ? strike - (netPremium + gain) / remaining : null
+  const raisesBasis = newBasis != null && newBasis > basisNow
 
   // Full exit: everything books, so show the lifetime P&L of the cycle instead.
   const estimate = priced && !partial
@@ -436,18 +437,32 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
 
         {newBasis != null && (
           <div className={`px-3 py-2 rounded-lg border ${
-            newBasis <= basisNow ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'
+            raisesBasis ? 'border-red-500/40 bg-red-500/10' : 'border-emerald-500/25 bg-emerald-500/5'
           }`}>
             <span className="text-xs text-gray-400">New effective basis on {remaining} shares</span>
-            <span className={`ml-2 text-sm font-mono font-semibold ${newBasis <= basisNow ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <span className={`ml-2 text-sm font-mono font-semibold ${raisesBasis ? 'text-red-400' : 'text-emerald-400'}`}>
               {money(newBasis)}
             </span>
             <span className="ml-1.5 text-[11px] font-mono text-gray-500">
-              from {money(basisNow)} ({newBasis <= basisNow ? '−' : '+'}{money(Math.abs(newBasis - basisNow))})
+              from {money(basisNow)} ({raisesBasis ? '+' : '−'}{money(Math.abs(newBasis - basisNow))})
             </span>
             <p className="text-[11px] text-gray-500 mt-1 font-mono">
               B = {money(strike)} − ({money(netPremium)} premium {gain >= 0 ? '+' : '−'} {money(Math.abs(gain))} gain) / {remaining}
             </p>
+            {/* A trim below the break-even loads its loss onto the shares you keep.
+                That is legitimate — but a mistyped price looks exactly the same, and
+                a $16.60 typo for $26.60 on FIG silently moved the basis $7.63 the
+                wrong way. Say what is happening in words, in red, before it books. */}
+            {raisesBasis && (
+              <p className="flex gap-1.5 text-[11px] text-red-400 mt-1.5 leading-relaxed">
+                <TriangleAlert className="w-3 h-3 shrink-0 mt-px" />
+                <span>
+                  {money(priceNum)} is below your {money(basisNow)} break-even, so this trim
+                  <strong className="font-semibold"> raises</strong> the basis on the shares you keep by
+                  {' '}{money(Math.abs(newBasis - basisNow))}. Check the fill price if that isn't what you meant.
+                </span>
+              </p>
+            )}
           </div>
         )}
 
