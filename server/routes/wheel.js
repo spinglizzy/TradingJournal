@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import pool from '../db.js'
 import {
-  SHARES_PER_CONTRACT, sharesFor, legNetPremium, sumLegPremium, legPnl, settledPremium,
+  SHARES_PER_CONTRACT, sharesFor, legNetPremium, sumLegPremium, cycleJournalPnl, bankedPremium,
   rollupLots, bookShareExit, isCycleFlat, describeCycle, dte, effectiveBasis,
 } from '../lib/wheelEngine.js'
 
@@ -27,9 +27,17 @@ function feeAmount(v, label = 'Fees') {
   }
   return round2(n)
 }
+/**
+ * Rows that are actual contracts, as opposed to the one summary row a closed
+ * cycle carries. The summary row lives in `trades` alongside the legs (so the
+ * journal has exactly one table of trades) and is told apart by a NULL
+ * `leg_status`: every real leg has one. Anything reading legs must say so.
+ */
+const REAL_LEG = `leg_status IS NOT NULL`
+
 const LEG_COLS = `id, date, ticker, option_type, strike, expiry, premium, close_cost,
   contracts, leg_status, wheel_cycle_id, rolled_from_id, needs_roll, notes, fees,
-  status, pnl, account_id, strike_selection_snapshot`
+  status, pnl, account_id, strike_selection_snapshot, premium_already_logged`
 
 /** The playbook entry every wheel leg is filed under. */
 const WHEEL_STRATEGY = 'Wheel Play'
@@ -63,6 +71,63 @@ async function wheelStrategyId(client, userId) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Write, refresh or remove the single journal row that carries a cycle's P&L.
+ *
+ * The legs are the position; this row is the RESULT. It exists only once the run
+ * has gone flat, it is dated the day the run ended — not the day some leg was
+ * opened, which for a cycle that sat on shares for months is a different quarter
+ * — and it holds the whole thing: every leg's premium net of commissions, plus
+ * whatever the shares did. That is the one number the dashboard, the equity
+ * curve and the win rate see for a wheel play.
+ *
+ * It is `entry_mode = 'direct_pnl'` because that is exactly what it is, and the
+ * Trade Log already renders that mode as a result without entry and exit prices.
+ * `fees` is zero on purpose: the cycle's P&L is already net of every commission,
+ * and the win/loss split is taken on `pnl + fees`, so repeating them here would
+ * push marginal losers over the line into wins.
+ *
+ * Removing it when a cycle is no longer closed matters as much as writing it:
+ * deleting a leg can take a cycle back to running, and a stale result row would
+ * keep a P&L on the books for a trade that is open again.
+ */
+async function syncCycleSummary(client, cycle, legs = []) {
+  const { rows: [existing] } = await client.query(
+    `SELECT * FROM trades WHERE wheel_cycle_id = $1 AND leg_status IS NULL`, [cycle.id]
+  )
+  const pnl = cycleJournalPnl(cycle, legs)
+
+  if (pnl == null) {
+    if (existing) await client.query('DELETE FROM trades WHERE id = $1', [existing.id])
+    return null
+  }
+
+  const when  = cycle.closed_at || today()
+  const notes = `The complete ${cycle.ticker} wheel run, ${cycle.opened_at} to ${when}: `
+    + `premium across every leg, net of commissions, plus the gain or loss on the `
+    + `shares. The individual legs carry no P&L of their own — the run is the trade.`
+
+  if (existing) {
+    const { rows: [row] } = await client.query(`
+      UPDATE trades SET date = $1, ticker = $2, pnl = $3, direct_pnl = $3, notes = $4,
+                        account_id = $5, updated_at = NOW()
+      WHERE id = $6 RETURNING *
+    `, [when, cycle.ticker, pnl, notes, cycle.account_id, existing.id])
+    return row
+  }
+
+  const { rows: [row] } = await client.query(`
+    INSERT INTO trades (
+      date, ticker, direction, entry_price, position_size, fees, notes, account_id,
+      status, entry_mode, instrument_type, strategy_tag, pnl, direct_pnl,
+      wheel_cycle_id, strategy_id, user_id
+    ) VALUES ($1,$2,'short',0,0,0,$3,$4,'closed','direct_pnl','option','wheel',$5,$5,$6,$7,$8)
+    RETURNING *
+  `, [when, cycle.ticker, notes, cycle.account_id, pnl, cycle.id,
+      await wheelStrategyId(client, cycle.user_id), cycle.user_id])
+  return row
+}
+
+/**
  * Recompute a cycle's cached fields from its legs, lots and accumulators, then
  * auto-close it if it has gone flat.
  *
@@ -75,24 +140,19 @@ async function recomputeCycle(client, cycleId, { eventDate, closeReason, exitPri
   if (!cycle) return null
 
   const { rows: legs } = await client.query(
-    'SELECT * FROM trades WHERE wheel_cycle_id = $1 ORDER BY id', [cycleId]
+    `SELECT * FROM trades WHERE wheel_cycle_id = $1 AND ${REAL_LEG} ORDER BY id`, [cycleId]
   )
   const { rows: lots } = await client.query(
     'SELECT * FROM share_lots WHERE wheel_cycle_id = $1 ORDER BY id', [cycleId]
   )
 
-  // Leg P&L is DERIVED here, not accumulated at the point of each event, so a
-  // roll chain can never be left booking the wrong number after a leg is edited
-  // or deleted. `legPnl` defers a rolled leg and books the whole chain on the leg
-  // that ends it — see its doc comment for why a roll must not book on its own.
-  const pnlByLeg = legPnl(legs)
-  for (const leg of legs) {
-    const next = pnlByLeg.get(leg.id) ?? null
-    const curr = leg.pnl == null ? null : Number(leg.pnl)
-    if (next === curr) continue
-    await client.query('UPDATE trades SET pnl = $1, updated_at = NOW() WHERE id = $2', [next, leg.id])
-    leg.pnl = next
-  }
+  // No leg ever carries P&L — the cycle books once, on its summary row. Clearing
+  // it on every recompute rather than only at resolve time is what heals rows
+  // written before the cycle became the unit of P&L.
+  await client.query(
+    `UPDATE trades SET pnl = NULL, updated_at = NOW()
+      WHERE wheel_cycle_id = $1 AND ${REAL_LEG} AND pnl IS NOT NULL`, [cycleId])
+  for (const leg of legs) leg.pnl = null
 
   const { shares: assigned, avgAssignedStrike } = rollupLots(lots)
   const shares     = assigned - cycle.shares_exited
@@ -127,6 +187,7 @@ async function recomputeCycle(client, cycleId, { eventDate, closeReason, exitPri
       netPremium, attributed, realized, status, closedAt, reason, exit, cycleId])
 
   const { rows: [updated] } = await client.query('SELECT * FROM wheel_cycles WHERE id = $1', [cycleId])
+  await syncCycleSummary(client, updated, legs)
   return updated
 }
 
@@ -175,16 +236,13 @@ async function getOwnedLeg(client, legId, userId) {
 async function resolveLeg(client, leg, legStatus, { closeCost = null, closeFees = 0 } = {}) {
   const cost = closeCost == null ? leg.close_cost : closeCost
   const fees = round2(Number(leg.fees || 0) + feeAmount(closeFees))
-  // Same figure the cycle's net_premium uses, so the row's P&L and the basis
-  // line can never tell two different stories about the same leg.
-  const pnl  = legStatus === 'rolled'
-    ? null
-    : legNetPremium({ premium: leg.premium, close_cost: cost, fees })
+  // `pnl` is always NULL: resolving a leg is a stage of the run, not a result.
+  // The cycle books once, when it goes flat, on the row `syncCycleSummary` writes.
   await client.query(`
     UPDATE trades SET leg_status = $1, close_cost = $2, status = 'closed',
-                      pnl = $3, fees = $4, needs_roll = false, updated_at = NOW()
-    WHERE id = $5
-  `, [legStatus, cost, pnl, fees, leg.id])
+                      pnl = NULL, fees = $3, needs_roll = false, updated_at = NOW()
+    WHERE id = $4
+  `, [legStatus, cost, fees, leg.id])
 }
 
 /** Run a handler inside a transaction. */
@@ -224,7 +282,8 @@ router.get('/cycles', async (req, res) => {
 
     const ids = cycles.map(c => c.id)
     const { rows: legs } = await pool.query(
-      `SELECT ${LEG_COLS} FROM trades WHERE wheel_cycle_id = ANY($1::int[]) ORDER BY expiry ASC, id ASC`, [ids]
+      `SELECT ${LEG_COLS} FROM trades WHERE wheel_cycle_id = ANY($1::int[]) AND ${REAL_LEG}
+        ORDER BY expiry ASC, id ASC`, [ids]
     )
     const { rows: lots } = await pool.query(
       `SELECT * FROM share_lots WHERE wheel_cycle_id = ANY($1::int[]) ORDER BY id`, [ids]
@@ -319,7 +378,7 @@ router.get('/history', async (req, res) => {
     let legs = []
     if (cycles.length) {
       const { rows } = await pool.query(
-        `SELECT ${LEG_COLS} FROM trades WHERE wheel_cycle_id = ANY($1::int[]) ORDER BY id`,
+        `SELECT ${LEG_COLS} FROM trades WHERE wheel_cycle_id = ANY($1::int[]) AND ${REAL_LEG} ORDER BY id`,
         [cycles.map(c => c.id)]
       )
       legs = rows
@@ -353,23 +412,17 @@ router.get('/history', async (req, res) => {
     /*
      * Premium already banked inside cycles that are still running.
      *
-     * A long roll chain can settle a dozen legs and collect real money years
-     * before the cycle itself goes flat. Counting only closed cycles hides all
-     * of it: HL had $569.30 of settled premium sitting invisible because the
-     * shares were still held. That is what made this tab disagree with the
-     * Playbook's "Wheel Play" total, and the Playbook was the one telling the
-     * truth.
+     * The journal books nothing for a wheel play until the run goes flat, which
+     * is correct — Sam still holds the shares, the trade is still going — but a
+     * run can settle a dozen legs and collect real money long before then. HL
+     * had $569.30 sitting invisible for two months. This is that money: shown
+     * here, deliberately absent from the dashboard.
      *
-     * Only legs whose outcome is settled (`status = 'closed'`) count. An open
-     * leg's premium is not yours yet — it can still be bought back at a loss —
-     * and excluding it is also what keeps this total equal to the Playbook's,
-     * which counts closed trades only.
-     *
-     * `settledPremium` rather than `sumLegPremium` for the same reason: a leg
-     * that has been rolled is settled on paper but its money is not, because the
-     * position continues. Summing raw premium would report the buy-to-close
-     * debit now AND the chain's total again when it ends, and would disagree with
-     * the Playbook, which sees the deferred leg's NULL P&L as nothing.
+     * `bankedPremium` needs the cycle's legs INCLUDING the open ones, because an
+     * open leg is what marks its own roll chain unsettled: the buy-to-close debit
+     * on a rolled leg is paid, but the credit offsetting it sits in a contract
+     * that can still be bought back at any price. Counting the debit alone is the
+     * same lie that had a rolled RGTI put reading as a $193.55 loss.
      */
     const { rows: openCycles } = await pool.query(
       `SELECT * FROM wheel_cycles WHERE user_id = $1 AND status = 'active' ORDER BY ticker`, [req.userId]
@@ -378,11 +431,11 @@ router.get('/history', async (req, res) => {
     if (openCycles.length) {
       const { rows: openLegs } = await pool.query(
         `SELECT ${LEG_COLS} FROM trades
-          WHERE wheel_cycle_id = ANY($1::int[]) AND status = 'closed' ORDER BY id`,
+          WHERE wheel_cycle_id = ANY($1::int[]) AND ${REAL_LEG} ORDER BY id`,
         [openCycles.map(c => c.id)]
       )
       for (const c of openCycles) {
-        const banked = settledPremium(openLegs.filter(l => l.wheel_cycle_id === c.id))
+        const banked = bankedPremium(openLegs.filter(l => l.wheel_cycle_id === c.id))
         if (!banked) continue
         bankedTotal += banked
         const b = byTicker[c.ticker] ||= { ticker: c.ticker, cycles: 0, realized_pnl: 0, gross_premium: 0, share_pnl: 0, banked_premium: 0 }
@@ -395,22 +448,17 @@ router.get('/history', async (req, res) => {
     /*
      * Premium this tab counts that the journal deliberately does not.
      *
-     * A leg opened with `already_logged` carries its premium (the basis needs it)
-     * but stores `pnl = NULL`, because the same credit is already booked against
-     * the original trade in the Trade Log. That makes this tab's lifetime figure
-     * exceed the Playbook's "Wheel Play" total by exactly this amount — an
-     * intentional gap, but one the user has to be told about or the two screens
-     * look like they disagree. `status = 'closed' AND pnl IS NULL` is unique to
-     * these legs once rolled legs are excluded — those are also closed with a
-     * NULL P&L, but theirs is deferred into a live chain rather than journalled
-     * on another row, and counting them here would report money as missing from
-     * the dashboard that is merely not booked yet.
+     * A leg opened with `already_logged` carries its premium, because the basis
+     * engine needs it, but that same credit is already booked against the
+     * original trade in the Trade Log from before the Wheel tab existed. The
+     * cycle summary row subtracts it so the dashboard does not count it twice,
+     * which makes this tab's lifetime figure exceed the journal's wheel total by
+     * exactly this amount — intentional, but it has to be shown or the two
+     * screens look like they disagree.
      */
     const { rows: excludedLegs } = await pool.query(
       `SELECT ${LEG_COLS} FROM trades
-        WHERE user_id = $1 AND strategy_tag = 'wheel'
-          AND status = 'closed' AND pnl IS NULL
-          AND leg_status IS DISTINCT FROM 'rolled'`, [req.userId]
+        WHERE user_id = $1 AND strategy_tag = 'wheel' AND premium_already_logged`, [req.userId]
     )
     const excludedPremium = sumLegPremium(excludedLegs)
 
@@ -418,10 +466,12 @@ router.get('/history', async (req, res) => {
       cycles: enriched,
       by_ticker: Object.values(byTicker)
         .sort((a, b) => (b.realized_pnl + b.banked_premium) - (a.realized_pnl + a.banked_premium)),
+      // `total` is what the journal has booked: one summary row per closed run,
+      // so it equals the Playbook's "Wheel Play" P&L (less `excluded_premium`).
+      // `lifetime_total` adds the premium settled inside runs that are still
+      // going, which the journal is deliberately holding back.
       total: closedTotal,
       banked_premium: bankedTotal,
-      // Matches the Playbook's "Wheel Play" P&L — every settled wheel leg —
-      // less `excluded_premium`, which the journal is counting on another row.
       lifetime_total: closedTotal + bankedTotal,
       excluded_premium: excludedPremium,
     })
@@ -505,12 +555,12 @@ router.post('/legs', async (req, res) => tx(res, async (client) => {
  *
  * `already_logged` guards the one place this feature can double-count P&L. The
  * put being reconstructed predates the Wheel tab, so it is very likely already
- * in the Trade Log as an ordinary trade carrying its own `pnl`. Writing a second
- * row with the same premium would add that credit to the dashboard total twice.
- * When the flag is set the leg is stored with `pnl = NULL`: every stats query
- * either sums `pnl` (NULL is skipped) or filters on `pnl IS NOT NULL`, so the
- * premium disappears from the dashboard while `premium` — which is what the
- * basis engine reads — stays intact and the Wheel tab's own totals are unchanged.
+ * in the Trade Log as an ordinary trade carrying its own `pnl`. The premium has
+ * to stay on the leg — the basis engine reads it — but the cycle's summary row
+ * must not book it a second time, so the flag is persisted on the leg
+ * (`premium_already_logged`, wheel_migration_03) and `cycleJournalPnl` subtracts
+ * it. It used to be inferred from `pnl IS NULL`; that stopped working the moment
+ * every leg started carrying a NULL P&L for its whole life.
  */
 router.post('/cycles', async (req, res) => tx(res, async (client) => {
   const {
@@ -551,16 +601,15 @@ router.post('/cycles', async (req, res) => tx(res, async (client) => {
     INSERT INTO trades (
       date, ticker, direction, entry_price, position_size, fees, notes, account_id,
       status, entry_mode, instrument_type, strategy_tag, option_type, strike, expiry,
-      premium, contracts, leg_status, wheel_cycle_id, pnl, strategy_id, user_id
+      premium, contracts, leg_status, wheel_cycle_id, premium_already_logged, strategy_id, user_id
     ) VALUES ($1,$2,'short',$3,$4,$5,$6,$7,'closed','wheel_option','option','wheel',
               'put',$8,$1,$9,$10,'assigned',$11,$12,$13,$14)
     RETURNING *
   `, [assigned_at, sym, total / qty, qty, seedFees,
       dupe
-        ? 'Assignment recorded retrospectively — this put predates the Wheel tab and is already logged in the Trade Log, so its premium is excluded from dashboard P&L to avoid double-counting.'
+        ? 'Assignment recorded retrospectively — this put predates the Wheel tab and is already logged in the Trade Log, so its premium is subtracted from this run’s booked P&L to avoid double-counting.'
         : 'Assignment recorded retrospectively — this put predates the Wheel tab.',
-      account_id, Number(assigned_strike), total, contracts, cycle.id,
-      dupe ? null : total - seedFees,
+      account_id, Number(assigned_strike), total, contracts, cycle.id, dupe,
       await wheelStrategyId(client, req.userId), req.userId])
 
   await client.query(`
@@ -655,12 +704,15 @@ router.delete('/legs/:id', async (req, res) => tx(res, async (client) => {
   // Holdings forever and block a fresh cycle on the same ticker (the partial
   // unique index allows just one active cycle per ticker).
   const { rows: [remaining] } = await client.query(
-    'SELECT COUNT(*)::int AS legs FROM trades WHERE wheel_cycle_id = $1', [cycleId]
+    `SELECT COUNT(*)::int AS legs FROM trades WHERE wheel_cycle_id = $1 AND ${REAL_LEG}`, [cycleId]
   )
   const { rows: [lots] } = await client.query(
     'SELECT COUNT(*)::int AS lots FROM share_lots WHERE wheel_cycle_id = $1', [cycleId]
   )
   if (remaining.legs === 0 && lots.lots === 0) {
+    // Take the summary row with it, or it outlives the cycle as an orphaned
+    // result in the journal with nothing behind it.
+    await client.query('DELETE FROM trades WHERE wheel_cycle_id = $1 AND leg_status IS NULL', [cycleId])
     await client.query('DELETE FROM wheel_cycles WHERE id = $1 AND user_id = $2', [cycleId, req.userId])
     return { deleted: true, cycle: null, cycle_removed: true }
   }

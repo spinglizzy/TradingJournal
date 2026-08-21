@@ -597,20 +597,19 @@ function HistoryTab({ history }) {
       <div className="flex gap-2 px-4 py-3 bg-gray-800/40 border border-gray-700 rounded-lg text-xs text-gray-400 leading-relaxed">
         <Info className="w-4 h-4 shrink-0 mt-0.5 text-gray-500" />
         <span>
-          These totals blend option premium with share gains — the number the broker never shows in one
-          place. Your main dashboard P&amp;L counts the <strong>option premium only</strong>; the two differ
-          by the share component shown below.
+          A wheel run is one trade. Your journal books it once — option premium and share
+          gain together, on the day you went flat on the ticker — so a run that is still
+          holding shares shows nothing on the dashboard yet, however many legs it has
+          settled.
           {banked !== 0 && (
-            <> <strong>{signed(banked)}</strong> of this is premium already settled on legs inside cycles
-            that are still running, so it has no share P&amp;L against it yet.
-            {excluded === 0 && <> Lifetime realised here matches the Playbook&apos;s{' '}
-            <strong>Wheel Play</strong> total.</>}</>
+            <> <strong>{signed(banked)}</strong> is exactly that: premium already collected
+            inside cycles still running. Real money, counted here, deliberately not on the
+            dashboard until each run ends.</>
           )}
           {excluded !== 0 && (
-            <> <strong>{signed(excluded)}</strong> of the premium above sits on assignments you marked
-            as already logged in your Trade Log, so the journal books it against that original trade
-            instead. That is why this figure runs {signed(excluded)} ahead of the Playbook&apos;s{' '}
-            <strong>Wheel Play</strong> total — the credit is counted once, not twice.</>
+            <> <strong>{signed(excluded)}</strong> of the premium above sits on assignments you
+            marked as already logged in your Trade Log, so the journal books that credit
+            against the original trade instead — counted once, not twice.</>
           )}
         </span>
       </div>

@@ -9,6 +9,15 @@ function safeJson(v) {
 }
 
 // ── Timeframe helpers ─────────────────────────────────────────────────────────
+/**
+ * A closed row carrying no P&L is a stage of something, not a result: a wheel
+ * leg inside a run that is still going, or one whose run books on its own
+ * summary row (see cycleJournalPnl in server/lib/wheelEngine.js). Sums and
+ * win/loss splits skip NULL on their own; trade COUNTS do not, and without this
+ * the Playbook reports 72 "Wheel Play" trades for 29 completed runs.
+ */
+const BOOKED = `NOT (status = 'closed' AND pnl IS NULL)`
+
 function getTimeframeRange(timeframe) {
   const today = new Date().toISOString().split('T')[0]
   const now   = new Date()
@@ -47,14 +56,14 @@ async function computeCurrentJournalStreak(userId) {
 async function computeCurrentValue(metric, from, to, userId) {
   if (metric === 'pnl') {
     const r = await pool.query(
-      `SELECT COALESCE(SUM(pnl),0) as v FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`,
+      `SELECT COALESCE(SUM(pnl),0) as v FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED}`,
       [from, to, userId]
     )
     return Number(r.rows[0].v)
   }
   if (metric === 'win_rate') {
     const r = await pool.query(
-      `SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`,
+      `SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED}`,
       [from, to, userId]
     )
     const { total, wins } = r.rows[0]
@@ -62,7 +71,7 @@ async function computeCurrentValue(metric, from, to, userId) {
   }
   if (metric === 'trade_count') {
     const r = await pool.query(
-      `SELECT COUNT(*) as v FROM trades WHERE date BETWEEN $1 AND $2 AND user_id=$3`,
+      `SELECT COUNT(*) as v FROM trades WHERE date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED}`,
       [from, to, userId]
     )
     return Number(r.rows[0].v)
@@ -264,7 +273,7 @@ router.get('/progress', async (req, res) => {
     const from = days[0], to = days[days.length-1]
 
     const [dailyR, journalR, ruleR] = await Promise.all([
-      pool.query(`SELECT date, SUM(pnl) as pnl, COUNT(*) as trades, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 GROUP BY date`, [from, to, req.userId]),
+      pool.query(`SELECT date, SUM(pnl) as pnl, COUNT(*) as trades, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED} GROUP BY date`, [from, to, req.userId]),
       pool.query(`SELECT DISTINCT date FROM journal_entries WHERE date BETWEEN $1 AND $2 AND user_id=$3`, [from, to, req.userId]),
       pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`, [from, to, req.userId]),
     ])
@@ -339,7 +348,7 @@ function longestStreak(dateSet) { return longestStreakOf(dateSet).longest }
 
 async function checkAndUpsertAchievements(userId) {
   const [tsR, missedR, strategiesR, tradingR, journalR, rulesR] = await Promise.all([
-    pool.query(`SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins, COALESCE(SUM(pnl),0) as pnl FROM trades WHERE status='closed' AND user_id=$1`, [userId]),
+    pool.query(`SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins, COALESCE(SUM(pnl),0) as pnl FROM trades WHERE status='closed' AND user_id=$1 AND ${BOOKED}`, [userId]),
     pool.query(`SELECT COUNT(*) as cnt FROM missed_trades WHERE user_id=$1`, [userId]),
     pool.query(`SELECT COUNT(DISTINCT strategy_id) as cnt FROM trades WHERE strategy_id IS NOT NULL AND user_id=$1`, [userId]),
     pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 GROUP BY date ORDER BY date`, [userId]),

@@ -45,91 +45,77 @@ export function sumLegPremium(legs = []) {
   return legs.reduce((acc, leg) => acc + legNetPremium(leg), 0)
 }
 
-/** Round to cents — leg P&L lands in a money column and 0.1 + 0.2 is not 0.3. */
+/** Round to cents — money columns, and 0.1 + 0.2 is not 0.3. */
 const round2 = (v) => Math.round((num(v) + Number.EPSILON) * 100) / 100
 
 /**
- * Booked P&L for every leg of a cycle, keyed by leg id. `null` means "not an
- * outcome yet — do not count this row".
+ * THE UNIT OF P&L IS THE CYCLE, NOT THE LEG.
  *
- * A ROLL IS NOT AN OUTCOME. The buy-to-close debit and the credit on the
- * replacement leg are two halves of one position that is still running, so
- * booking the debit the moment the roll is entered reports a loss on a trade
- * that has not finished. That is what made a rolled RGTI put read -$193.55 on
- * the dashboard while the position was, across the roll, up $127.35.
+ * Sam's rule, in his words: *"that's why it's called the wheel play — if I've
+ * still got the shares then it's still continuing."* A wheel run is one trade
+ * that happens to be made of many contracts. Selling a put, rolling it,
+ * being assigned, writing calls against the shares and finally letting them go
+ * are stages of that one trade, not separate wins and losses, and the journal
+ * must not claim a result for any of them while the run is still open.
  *
- * So a leg that was rolled INTO a leg that still exists books nothing, and its
- * realised premium is carried forward: whichever leg finally ENDS the chain —
- * expired, assigned, called away, bought back — books the whole chain at once.
- * Lifetime P&L is identical either way. What changes is the timing, and that one
- * roll chain now counts as one trade instead of one per roll.
+ * Booking per leg got this wrong in both directions. A defensive ROLL booked the
+ * buy-to-close debit on its own, so RGTI read -$193.55 while the position was,
+ * across the roll, up $127.35. An ASSIGNMENT booked the put's premium as a win
+ * on the day Sam got handed stock he still owns. And because share P&L was only
+ * ever recorded on the cycle, HL's -$600 call-away loss never reached the
+ * dashboard at all while its $713.20 of premium did.
  *
- * `null` is the marker rather than 0 because 0 is a real, countable outcome: the
- * win/loss split is taken on `pnl + fees`, so a zeroed row still carrying its
- * commissions would be counted as a WIN. NULL is also the convention the
- * `already_logged` seed leg already uses, and every stats query either sums
- * `pnl` (NULL skipped) or filters `pnl IS NOT NULL`.
+ * So: every leg carries `pnl = NULL` for its whole life, and a cycle that has
+ * gone flat books exactly one figure — this one — on a single summary row.
  *
- * Two kinds of leg come back unchanged, so this is idempotent over a whole
- * cycle: legs still open, and legs deliberately left unbooked — a NULL `pnl` on
- * a leg that neither was rolled nor came out of a roll. That combination is the
- * `already_logged` seed leg and nothing else: `resolveLeg` always writes a
- * figure for a standalone outcome, so the only other way a closed leg holds NULL
- * is that it is part of a chain. Booking the seed leg here would double-count a
- * credit the Trade Log has already recorded on its own row.
+ * `already_logged` legs are the one subtraction. That flag marks a put
+ * reconstructed from before the Wheel tab existed, whose premium is already
+ * sitting on its own row in the Trade Log; the basis engine needs the premium,
+ * but counting it here as well would book the same credit twice.
  *
- * A rolled leg whose successor was DELETED is not deferred: with nothing left to
- * carry it into, it books on its own. That is what stops a mis-entered roll from
- * silently losing its premium when the replacement leg is removed.
+ * Returns null for a cycle that is still running — there is no result yet.
  */
-export function legPnl(legs = []) {
-  const byId       = new Map(legs.map(l => [l.id, l]))
-  const rolledInto = new Set(legs.map(l => l.rolled_from_id).filter(id => id != null))
-  const out        = new Map()
-
-  for (const leg of legs) {
-    const unresolved           = leg.leg_status === 'open' || leg.status === 'open'
-    const deliberatelyUnbooked = leg.pnl == null && leg.leg_status !== 'rolled' && leg.rolled_from_id == null
-    if (unresolved || deliberatelyUnbooked) {
-      out.set(leg.id, leg.pnl == null ? null : num(leg.pnl))
-      continue
-    }
-    if (leg.leg_status === 'rolled' && rolledInto.has(leg.id)) { out.set(leg.id, null); continue }
-
-    // Walk back up the roll chain, adding every deferred leg's realised premium.
-    // `seen` guards a self-referential row rather than trusting the data.
-    let total  = legNetPremium(leg)
-    const seen = new Set([leg.id])
-    let prev   = leg.rolled_from_id != null ? byId.get(leg.rolled_from_id) : null
-    while (prev && prev.leg_status === 'rolled' && !seen.has(prev.id)) {
-      seen.add(prev.id)
-      total += legNetPremium(prev)
-      prev = prev.rolled_from_id != null ? byId.get(prev.rolled_from_id) : null
-    }
-    out.set(leg.id, round2(total))
-  }
-  return out
+export function cycleJournalPnl(cycle, legs = []) {
+  if (!cycle || cycle.status !== 'closed') return null
+  const bookedElsewhere = legs
+    .filter(l => l.premium_already_logged)
+    .reduce((acc, l) => acc + legNetPremium(l), 0)
+  return round2(num(cycle.realized_pnl) - bookedElsewhere)
 }
 
 /**
- * Premium a set of legs has actually settled — what the Wheel tab reports as
- * "banked", and the figure that has to agree with the Playbook's "Wheel Play".
+ * Premium a still-running cycle has already settled — real money in the account
+ * that the journal has not booked yet, shown in the Wheel tab so a long run does
+ * not look like it has produced nothing.
  *
- * It reads `pnl` wherever a leg has one, so a roll chain contributes its
- * rolled-up total on the leg that ended it and nothing on the rolls in between.
- * The fallback to `legNetPremium` covers the `already_logged` leg, which carries
- * real premium that the journal books on another row; a leg deferred into a live
- * roll chain contributes zero, because that money is not settled until the chain
- * ends. So does an open leg: its credit can still be bought back at a loss. The
- * callers filter to closed legs already, but the name promises settled money and
- * the function should keep that promise on its own.
+ * A leg that has been rolled into a leg that is STILL OPEN does not count, and
+ * neither does anything further back up that chain. Its buy-to-close debit is
+ * paid, but the credit that offsets it is sitting in a contract that can still
+ * be bought back at any price — reporting the debit alone is the same lie that
+ * made a rolled RGTI put read as a $193.55 loss. Once the chain ends, all of it
+ * counts at once.
+ *
+ * Pass the cycle's legs, open ones included: an open leg is what marks its whole
+ * chain unsettled, so filtering to closed legs first would defeat this.
  */
-export function settledPremium(legs = []) {
-  return legs.reduce((acc, leg) => {
-    if (leg.pnl != null) return acc + num(leg.pnl)
-    if (leg.leg_status === 'rolled' || leg.leg_status === 'open' || leg.status === 'open') return acc
-    return acc + legNetPremium(leg)
-  }, 0)
+export function bankedPremium(legs = []) {
+  const byId      = new Map(legs.map(l => [l.id, l]))
+  const isOpen    = (l) => l.leg_status === 'open' || l.status === 'open'
+  const unsettled = new Set()
+
+  for (const leg of legs) {
+    if (!isOpen(leg)) continue
+    let prev = leg.rolled_from_id != null ? byId.get(leg.rolled_from_id) : null
+    while (prev && !unsettled.has(prev.id)) {
+      unsettled.add(prev.id)
+      prev = prev.rolled_from_id != null ? byId.get(prev.rolled_from_id) : null
+    }
+  }
+
+  return legs.reduce(
+    (acc, leg) => (isOpen(leg) || unsettled.has(leg.id) ? acc : acc + legNetPremium(leg)),
+    0
+  )
 }
 
 /**

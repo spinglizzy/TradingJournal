@@ -10,6 +10,15 @@ function fmtSetup(s) {
   return { ...s, checklist: parseJ(s.checklist,[]), default_fields: parseJ(s.default_fields,{}) }
 }
 
+/**
+ * A closed row carrying no P&L is a stage of something, not a result: a wheel
+ * leg inside a run that is still going, or one whose run books on its own
+ * summary row (see cycleJournalPnl in server/lib/wheelEngine.js). Sums and
+ * win/loss splits skip NULL on their own; trade COUNTS do not, and without this
+ * the Playbook reports 72 "Wheel Play" trades for 29 completed runs.
+ */
+const BOOKED = `NOT (status = 'closed' AND pnl IS NULL)`
+
 async function getStats(strategyId, userId) {
   const [rowR, grossR] = await Promise.all([
     pool.query(`
@@ -23,12 +32,12 @@ async function getStats(strategyId, userId) {
              AVG(CASE WHEN status='closed' THEN r_multiple END) AS avg_r,
              MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
              MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
-      FROM trades WHERE strategy_id=$1 AND user_id=$2
+      FROM trades WHERE strategy_id=$1 AND user_id=$2 AND ${BOOKED}
     `, [strategyId, userId]),
     pool.query(`
       SELECT COALESCE(SUM(CASE WHEN pnl>0  THEN pnl END),0)      AS gross_profit,
              ABS(COALESCE(SUM(CASE WHEN pnl<=0 THEN pnl END),0)) AS gross_loss
-      FROM trades WHERE status='closed' AND strategy_id=$1 AND user_id=$2
+      FROM trades WHERE status='closed' AND strategy_id=$1 AND user_id=$2 AND ${BOOKED}
     `, [strategyId, userId]),
   ])
   const row   = rowR.rows[0]
@@ -86,7 +95,7 @@ router.get('/setups/:id', async (req, res) => {
       pool.query(`
         SELECT ticker, COUNT(*) AS trades, COALESCE(SUM(pnl),0) AS total_pnl,
                COUNT(CASE WHEN pnl>0 THEN 1 END) AS wins, AVG(r_multiple) AS avg_r
-        FROM trades WHERE strategy_id=$1 AND status='closed' AND user_id=$2
+        FROM trades WHERE strategy_id=$1 AND status='closed' AND user_id=$2 AND ${BOOKED}
         GROUP BY ticker ORDER BY total_pnl DESC LIMIT 10
       `, [setup.id, req.userId]),
     ])
