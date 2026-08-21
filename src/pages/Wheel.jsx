@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import {
   Plus, Calculator, TriangleAlert, Info, Trash2, CircleDollarSign, ChevronRight, PackagePlus,
+  Receipt,
 } from 'lucide-react'
 import { wheelApi } from '../api/wheel.js'
 import Modal from '../components/ui/Modal.jsx'
@@ -13,6 +14,9 @@ import StrikeCalculator from '../components/wheel/StrikeCalculator.jsx'
 import LegForm from '../components/wheel/LegForm.jsx'
 import SeedPositionForm from '../components/wheel/SeedPositionForm.jsx'
 import LegActions, { SellSharesModal } from '../components/wheel/LegActions.jsx'
+import CommissionSettings from '../components/wheel/CommissionSettings.jsx'
+import { optionOrderFee } from '../lib/commissions.js'
+import { useCommissions } from '../lib/useCommissions.js'
 import { valueAtExpiry } from '../lib/strikeCalc.js'
 
 const money  = (v, d = 2) => (v == null ? '—' : `${v < 0 ? '-' : ''}$${Math.abs(Number(v)).toFixed(d)}`)
@@ -41,6 +45,7 @@ export default function Wheel() {
 
   const [showLogLeg, setShowLogLeg] = useState(false)
   const [showSeed, setShowSeed]     = useState(false)
+  const [showFees, setShowFees]     = useState(false)
   const [legPrefill, setLegPrefill] = useState(null)
   const [calcCycle, setCalcCycle]   = useState(null)
   const [sellCycle, setSellCycle]   = useState(null)
@@ -96,6 +101,7 @@ export default function Wheel() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <CommissionRatesButton onClick={() => setShowFees(true)} />
           <button
             type="button"
             onClick={() => setShowSeed(true)}
@@ -199,6 +205,8 @@ export default function Wheel() {
           onCancel={() => setShowSeed(false)}
         />
       </Modal>
+
+      <CommissionSettings open={showFees} onClose={() => setShowFees(false)} />
 
       <Modal
         isOpen={!!calcCycle}
@@ -772,5 +780,26 @@ function SummaryCard({ label, value, big, positive }) {
         {value}
       </div>
     </div>
+  )
+}
+
+/**
+ * Header button for the rate card. It states the current one-contract cost
+ * rather than just saying "Commissions", because a rate table you never see is
+ * a rate table you forget is wrong.
+ */
+function CommissionRatesButton({ onClick }) {
+  const cfg = useCommissions()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Commission rates used to pre-fill every fee field on this tab"
+      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
+    >
+      <Receipt className="w-4 h-4" />
+      Commissions
+      <span className="font-mono text-[11px] text-gray-600">{money(optionOrderFee(1, cfg))}/contract</span>
+    </button>
   )
 }

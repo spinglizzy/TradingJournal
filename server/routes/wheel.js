@@ -8,6 +8,25 @@ import {
 const router = Router()
 
 const today = () => new Date().toISOString().slice(0, 10)
+
+/** Round to cents — fee arithmetic is money, and 0.1 + 0.2 is not 0.3. */
+const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100
+
+/**
+ * Validate a commission coming off the wire. Absent means zero (an older client,
+ * or a broker that genuinely charges nothing), but a negative or non-numeric fee
+ * is a bug that would silently INFLATE the basis, so it is refused outright.
+ */
+function feeAmount(v, label = 'Fees') {
+  if (v == null || v === '') return 0
+  const n = Number(v)
+  if (!Number.isFinite(n) || n < 0) {
+    const e = new Error(`${label} must be a number of dollars, zero or more.`)
+    e.status = 400
+    throw e
+  }
+  return round2(n)
+}
 const LEG_COLS = `id, date, ticker, option_type, strike, expiry, premium, close_cost,
   contracts, leg_status, wheel_cycle_id, rolled_from_id, needs_roll, notes, fees,
   status, pnl, account_id, strike_selection_snapshot`
@@ -123,17 +142,27 @@ async function getOwnedLeg(client, legId, userId) {
   return rows[0]
 }
 
-/** Mark a leg resolved and book its realised premium as the row's P&L. */
-async function resolveLeg(client, leg, legStatus, { closeCost = null } = {}) {
+/**
+ * Mark a leg resolved and book its realised premium as the row's P&L.
+ *
+ * `closeFees` is the commission paid to GET OUT — the buy-to-close ticket, or the
+ * broker's assignment/exercise charge. It is ADDED to whatever the leg already
+ * carries from its opening order, because `trades.fees` is the leg's lifetime
+ * commission, not a per-event one. Skipping it is not a rounding matter: an
+ * unrecorded round-trip commission reads the basis low by exactly that amount,
+ * in the direction that makes a marginal strike look safer than it is.
+ */
+async function resolveLeg(client, leg, legStatus, { closeCost = null, closeFees = 0 } = {}) {
   const cost = closeCost == null ? leg.close_cost : closeCost
+  const fees = round2(Number(leg.fees || 0) + feeAmount(closeFees))
   // Same figure the cycle's net_premium uses, so the row's P&L and the basis
   // line can never tell two different stories about the same leg.
-  const pnl  = legNetPremium({ premium: leg.premium, close_cost: cost, fees: leg.fees })
+  const pnl  = legNetPremium({ premium: leg.premium, close_cost: cost, fees })
   await client.query(`
     UPDATE trades SET leg_status = $1, close_cost = $2, status = 'closed',
-                      pnl = $3, needs_roll = false, updated_at = NOW()
-    WHERE id = $4
-  `, [legStatus, cost, pnl, leg.id])
+                      pnl = $3, fees = $4, needs_roll = false, updated_at = NOW()
+    WHERE id = $5
+  `, [legStatus, cost, pnl, fees, leg.id])
 }
 
 /** Run a handler inside a transaction. */
@@ -392,6 +421,7 @@ router.post('/legs', async (req, res) => tx(res, async (client) => {
   if (!(Number(contracts) >= 1))                throw badRequest('Contracts must be at least 1')
   if (premium == null || Number.isNaN(Number(premium))) throw badRequest('Premium is required')
 
+  const openFees = feeAmount(fees, 'Commission')
   const sym   = String(ticker).trim().toUpperCase()
   const qty   = sharesFor(contracts)
   const total = Number(premium)
@@ -418,7 +448,7 @@ router.post('/legs', async (req, res) => tx(res, async (client) => {
               $8,$9,$10,$11,$12,'open',$13,$14,$15,$16,$17)
     RETURNING *
   `, [
-    date, sym, total / qty, qty, fees, notes, account_id ?? cycle.account_id,
+    date, sym, total / qty, qty, openFees, notes, account_id ?? cycle.account_id,
     option_type, Number(strike), expiry, total, Math.round(Number(contracts)),
     cycle.id, rolled_from_id, strike_selection_snapshot, strategyId, req.userId,
   ])
@@ -465,6 +495,7 @@ router.post('/cycles', async (req, res) => tx(res, async (client) => {
     throw badRequest(`Assignment comes in round lots — ${qty} is not a multiple of ${SHARES_PER_CONTRACT}.`)
   }
 
+  const seedFees = feeAmount(fees, 'Commission')
   const sym = String(ticker).trim().toUpperCase()
   const { rows: [clash] } = await client.query(
     `SELECT id FROM wheel_cycles WHERE user_id = $1 AND ticker = $2 AND status = 'active'`,
@@ -492,12 +523,12 @@ router.post('/cycles', async (req, res) => tx(res, async (client) => {
     ) VALUES ($1,$2,'short',$3,$4,$5,$6,$7,'closed','wheel_option','option','wheel',
               'put',$8,$1,$9,$10,'assigned',$11,$12,$13,$14)
     RETURNING *
-  `, [assigned_at, sym, total / qty, qty, fees,
+  `, [assigned_at, sym, total / qty, qty, seedFees,
       dupe
         ? 'Assignment recorded retrospectively — this put predates the Wheel tab and is already logged in the Trade Log, so its premium is excluded from dashboard P&L to avoid double-counting.'
         : 'Assignment recorded retrospectively — this put predates the Wheel tab.',
       account_id, Number(assigned_strike), total, contracts, cycle.id,
-      dupe ? null : total - Number(fees || 0),
+      dupe ? null : total - seedFees,
       await wheelStrategyId(client, req.userId), req.userId])
 
   await client.query(`
@@ -539,6 +570,7 @@ router.put('/legs/:id', async (req, res) => tx(res, async (client) => {
   if (!f.expiry)                                throw badRequest('Expiry is required')
   if (!(Number(f.contracts) >= 1))              throw badRequest('Contracts must be at least 1')
   if (f.premium == null || Number.isNaN(Number(f.premium))) throw badRequest('Premium is required')
+  f.fees = feeAmount(f.fees, 'Commission')
 
   const qty = sharesFor(f.contracts)
 
@@ -638,7 +670,9 @@ function assertOpen(leg) {
 router.post('/legs/:id/expire', async (req, res) => tx(res, async (client) => {
   const leg = await getOwnedLeg(client, req.params.id, req.userId)
   assertOpen(leg)
-  await resolveLeg(client, leg, 'expired')
+  // Normally zero — brokers don't charge you for a contract that just died — but
+  // it is accepted so an exchange fee can be recorded when one does show up.
+  await resolveLeg(client, leg, 'expired', { closeFees: feeAmount(req.body.fees) })
   const cycle = await recomputeCycle(client, leg.wheel_cycle_id, { eventDate: req.body.date || leg.expiry })
   return { cycle }
 }))
@@ -655,7 +689,7 @@ router.post('/legs/:id/assign', async (req, res) => tx(res, async (client) => {
     VALUES ($1,$2,$3,$4,$5,$6,$7)
   `, [leg.wheel_cycle_id, leg.ticker, sharesFor(leg.contracts), leg.strike, when, leg.id, req.userId])
 
-  await resolveLeg(client, leg, 'assigned')
+  await resolveLeg(client, leg, 'assigned', { closeFees: feeAmount(req.body.fees, 'Assignment fee') })
   const cycle = await recomputeCycle(client, leg.wheel_cycle_id, { eventDate: when })
   return { cycle }
 }))
@@ -679,7 +713,7 @@ router.post('/legs/:id/call-away', async (req, res) => tx(res, async (client) =>
   // Resolve the leg FIRST so its premium is inside net_premium before the
   // pro-rata attribution runs — the premium of the call that caused the exit
   // belongs to the shares leaving.
-  await resolveLeg(client, leg, 'called_away')
+  await resolveLeg(client, leg, 'called_away', { closeFees: feeAmount(req.body.fees, 'Exercise fee') })
   await recomputeCycle(client, cycle.id)
 
   const { rows: [fresh] } = await client.query('SELECT * FROM wheel_cycles WHERE id = $1', [cycle.id])
@@ -708,18 +742,31 @@ router.post('/legs/:id/call-away', async (req, res) => tx(res, async (client) =>
  * The buy-to-close debit is captured on the closed leg as `close_cost`, so a roll
  * that is a net debit correctly drags net_premium down instead of quietly
  * inflating it.
+ *
+ * A roll is TWO commissioned orders, and both belong on the books:
+ *   `close_fees` — the buy-to-close ticket, added to the leg being resolved.
+ *   `fees`       — the sell-to-open ticket on the new leg, stored on that row.
+ * The new leg used to be inserted with a hardcoded fees = 0, which meant every
+ * roll understated its cost by a full commission and the break-even line drifted
+ * further from the truth with each one.
  */
 router.post('/legs/:id/roll', async (req, res) => tx(res, async (client) => {
   const leg = await getOwnedLeg(client, req.params.id, req.userId)
   assertOpen(leg)
 
-  const { close_cost, strike, expiry, premium, contracts = leg.contracts, date = today() } = req.body
+  const {
+    close_cost, strike, expiry, premium, contracts = leg.contracts, date = today(),
+    close_fees = 0, fees = 0,
+  } = req.body
   if (!(Number(close_cost) >= 0)) throw badRequest('Buy-to-close cost is required (enter 0 if it expired into the roll for nothing).')
   if (!(Number(strike) > 0))      throw badRequest('New strike is required')
   if (!expiry)                    throw badRequest('New expiry is required')
   if (premium == null || Number.isNaN(Number(premium))) throw badRequest('New premium is required')
 
-  await resolveLeg(client, leg, 'rolled', { closeCost: Number(close_cost) })
+  const closeFees = feeAmount(close_fees, 'Buy-to-close commission')
+  const openFees  = feeAmount(fees, 'New leg commission')
+
+  await resolveLeg(client, leg, 'rolled', { closeCost: Number(close_cost), closeFees })
 
   const qty   = sharesFor(contracts)
   const total = Number(premium)
@@ -728,10 +775,10 @@ router.post('/legs/:id/roll', async (req, res) => tx(res, async (client) => {
       date, ticker, direction, entry_price, position_size, fees, account_id,
       status, entry_mode, instrument_type, strategy_tag, option_type, strike, expiry,
       premium, contracts, leg_status, wheel_cycle_id, rolled_from_id, strategy_id, user_id
-    ) VALUES ($1,$2,'short',$3,$4,0,$5,'open','wheel_option','option','wheel',
-              $6,$7,$8,$9,$10,'open',$11,$12,$13,$14)
+    ) VALUES ($1,$2,'short',$3,$4,$5,$6,'open','wheel_option','option','wheel',
+              $7,$8,$9,$10,$11,'open',$12,$13,$14,$15)
     RETURNING *
-  `, [date, leg.ticker, total / qty, qty, leg.account_id, leg.option_type,
+  `, [date, leg.ticker, total / qty, qty, openFees, leg.account_id, leg.option_type,
       Number(strike), expiry, total, Math.round(Number(contracts)),
       leg.wheel_cycle_id, leg.id, await wheelStrategyId(client, req.userId), req.userId])
 
@@ -746,7 +793,10 @@ router.post('/legs/:id/close', async (req, res) => tx(res, async (client) => {
   const cost = Number(req.body.close_cost)
   if (!(cost >= 0)) throw badRequest('Buy-to-close cost is required')
 
-  await resolveLeg(client, leg, 'closed', { closeCost: cost })
+  await resolveLeg(client, leg, 'closed', {
+    closeCost: cost,
+    closeFees: feeAmount(req.body.fees, 'Buy-to-close commission'),
+  })
   const cycle = await recomputeCycle(client, leg.wheel_cycle_id, { eventDate: req.body.date || today() })
   return { cycle }
 }))
@@ -765,6 +815,10 @@ router.post('/legs/:id/close', async (req, res) => tx(res, async (client) => {
  * the gain instead would leave B exactly where it was and make the sale
  * pointless in basis terms. Lifetime P&L is unaffected: the carried gain books
  * when the cycle goes flat.
+ *
+ * `fees` is the commission on the share order. It comes off the gain inside
+ * `bookShareExit`, so it follows whichever path the sale takes — booked on a
+ * full exit, carried on a trim — without a separate accumulator to keep in sync.
  */
 router.post('/cycles/:id/sell-shares', async (req, res) => tx(res, async (client) => {
   const { rows: [cycle] } = await client.query(
@@ -775,6 +829,7 @@ router.post('/cycles/:id/sell-shares', async (req, res) => tx(res, async (client
 
   const price = Number(req.body.price)
   if (!(price > 0)) throw badRequest('Sale price is required')
+  const fees = feeAmount(req.body.fees, 'Share order commission')
   const when = req.body.date || today()
 
   const asked = req.body.shares == null || req.body.shares === '' ? cycle.shares : Math.round(Number(req.body.shares))
@@ -800,7 +855,7 @@ router.post('/cycles/:id/sell-shares', async (req, res) => tx(res, async (client
 
   const exit = bookShareExit(
     { shares: cycle.shares, avgAssignedStrike: cycle.avg_assigned_strike, netPremium: cycle.net_premium },
-    { exitPrice: price, sharesOut: qty, retainGain: true }
+    { exitPrice: price, sharesOut: qty, retainGain: true, fees }
   )
 
   await client.query(`
@@ -821,6 +876,7 @@ router.post('/cycles/:id/sell-shares', async (req, res) => tx(res, async (client
     booked: exit.bookedPnl,
     shares_out: exit.sharesOut,
     retained_gain: exit.retainedGain,
+    fees,
     basis: updated?.shares > 0
       ? effectiveBasis({ shares: updated.shares, avgAssignedStrike: updated.avg_assigned_strike, netPremium: updated.net_premium })
       : null,

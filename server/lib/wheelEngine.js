@@ -112,19 +112,26 @@ export function rollupLots(lots = []) {
  * A full exit ignores `retainGain`: with no shares left there is nothing to carry
  * the gain, so everything books either way.
  *
+ * `fees` is the commission on the share order itself. It comes off the gain on
+ * the departed shares, which puts it in the right place on BOTH paths without
+ * needing a new accumulator: on the pro-rata path it lands in `bookedPnl` (and
+ * so in `realized_pnl`), and on the retained path it lands in `retainedGain`
+ * (and so in the running premium), where it correctly leaves the survivors'
+ * basis a touch higher than a free sale would have.
+ *
  * @returns {{
  *   sharesOut: number, bookedPnl: number, premiumAttributed: number,
  *   retainedGain: number, shares: number, netPremium: number,
  *   avgAssignedStrike: number|null, flat: boolean
  * }}
  */
-export function bookShareExit({ shares, avgAssignedStrike, netPremium }, { exitPrice, sharesOut, retainGain = false }) {
+export function bookShareExit({ shares, avgAssignedStrike, netPremium }, { exitPrice, sharesOut, retainGain = false, fees = 0 }) {
   const held = Math.round(num(shares))
   if (held <= 0) throw new Error('No shares held to exit')
 
   const out       = Math.min(Math.round(num(sharesOut)) || held, held)
   const remaining = held - out
-  const shareGain = out * (num(exitPrice) - num(avgAssignedStrike))
+  const shareGain = out * (num(exitPrice) - num(avgAssignedStrike)) - num(fees)
 
   if (retainGain && remaining > 0) {
     return {
@@ -160,14 +167,17 @@ export function bookShareExit({ shares, avgAssignedStrike, netPremium }, { exitP
  * Total realised P&L for a cycle closed in one exit — the spec §8 formula.
  * Kept as a standalone function because it is the thing worth testing directly:
  *
- *   realized_pnl = shares × (exit_price - avg_assigned_strike) + net_premium
+ *   realized_pnl = shares × (exit_price - avg_assigned_strike) + net_premium - fees
+ *
+ * `net_premium` already carries every option leg's commission (see
+ * `legNetPremium`); `fees` here is only the share order's own commission.
  *
  * `bookShareExit` reduces to exactly this when the whole position leaves at once.
  */
-export function realizedPnl({ shares, avgAssignedStrike, netPremium, exitPrice }) {
+export function realizedPnl({ shares, avgAssignedStrike, netPremium, exitPrice, fees = 0 }) {
   const n = Math.round(num(shares))
-  if (n <= 0) return num(netPremium) // never assigned: the premium is the whole story
-  return n * (num(exitPrice) - num(avgAssignedStrike)) + num(netPremium)
+  if (n <= 0) return num(netPremium) - num(fees) // never assigned: the premium is the whole story
+  return n * (num(exitPrice) - num(avgAssignedStrike)) + num(netPremium) - num(fees)
 }
 
 /**

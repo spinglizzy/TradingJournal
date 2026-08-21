@@ -176,6 +176,54 @@ group('Partial SALE keeps the gain and drops the basis', () => {
   check('full exit is flat', whole.flat, true)
 })
 
+group('Share-order commission lands on the right side of the basis', () => {
+  // Same 200 @ 20 avg, $400 premium position -> B = 18.00.
+  // `bookShareExit` takes the share order's fee off the gain on the departed
+  // shares, which is what lets ONE subtraction serve both exit paths.
+  const before = { shares: 200, avgAssignedStrike: 20, netPremium: 400 }
+
+  // Full exit: the fee books, so it comes straight off lifetime P&L.
+  const whole = bookShareExit(before, { exitPrice: 22, sharesOut: 200, fees: 1 })
+  check('fee comes off a full exit', whole.bookedPnl, 799)
+  check('and realizedPnl agrees', whole.bookedPnl,
+    realizedPnl({ ...before, exitPrice: 22, fees: 1 }))
+
+  // Trim: the fee rides along with the retained gain instead of booking.
+  const trim = bookShareExit(before, { exitPrice: 22, sharesOut: 100, retainGain: true, fees: 1 })
+  check('fee comes out of the retained gain', trim.retainedGain, 199)
+  check('nothing books on a trim, fee included', trim.bookedPnl, 0)
+
+  // The direction is the point: paying to sell leaves the survivors carrying a
+  // slightly HIGHER break-even than a free sale would have. Asserting the
+  // direction catches a sign flip that an exact-value check alone could pass.
+  const paid = effectiveBasis({ shares: trim.shares, avgAssignedStrike: trim.avgAssignedStrike, netPremium: trim.netPremium })
+  const free = bookShareExit(before, { exitPrice: 22, sharesOut: 100, retainGain: true })
+  const freeBasis = effectiveBasis({ shares: free.shares, avgAssignedStrike: free.avgAssignedStrike, netPremium: free.netPremium })
+  check('a commissioned trim leaves a higher basis', paid > freeBasis, true)
+  check('basis = 20 - 599/100', paid, 14.01)
+
+  // Deferring still must not lose money: trim then sell the rest, each paying a
+  // fee, has to total a single exit charged both fees. If the trim's fee were
+  // dropped on recompute this is the check that fails.
+  const rest = bookShareExit(
+    { shares: trim.shares, avgAssignedStrike: trim.avgAssignedStrike, netPremium: trim.netPremium },
+    { exitPrice: 22, sharesOut: 100, retainGain: true, fees: 1 }
+  )
+  check('two commissioned sales total one exit charged twice',
+    trim.bookedPnl + rest.bookedPnl,
+    realizedPnl({ ...before, exitPrice: 22, fees: 2 }))
+
+  // A cycle that never held shares still pays to get out of its options.
+  check('fee applies with no shares ever assigned',
+    realizedPnl({ shares: 0, netPremium: 30, exitPrice: 0, fees: 1 }), 29)
+
+  // Older callers pass no fee at all; that has to keep meaning "free".
+  check('omitted fee is zero, not NaN',
+    realizedPnl({ ...before, exitPrice: 22 }), 800)
+  check('omitted fee leaves bookShareExit unchanged',
+    bookShareExit(before, { exitPrice: 22, sharesOut: 200 }).bookedPnl, 800)
+})
+
 group('Cycle boundary detection', () => {
   check('flat with no shares and no open legs',
     isCycleFlat({ shares: 0, legs: [{ leg_status: 'expired' }] }), true)

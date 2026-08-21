@@ -5,6 +5,11 @@ import { DatePicker } from '../ui/DatePicker.jsx'
 import { wheelApi } from '../../api/wheel.js'
 import LegForm from './LegForm.jsx'
 import { SHARES_PER_CONTRACT } from './constants.js'
+import FeeField, { useAutoFee } from './FeeField.jsx'
+import {
+  optionOrderFee, rollFees, assignmentFee, shareOrderFee, feeBreakdown, round2,
+} from '../../lib/commissions.js'
+import { useCommissions } from '../../lib/useCommissions.js'
 
 const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white
   placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
@@ -22,8 +27,14 @@ export default function LegActions({ leg, onDone, compact }) {
   const [busy, setBusy]   = useState(null)
   const [error, setError] = useState(null)
   const [modal, setModal] = useState(null) // 'roll' | 'close' | 'edit'
+  const cfg = useCommissions()
 
   if (leg.leg_status !== 'open') return null
+
+  // The one-click outcomes still cost money, so they still send a fee. They stay
+  // one click because the amount is the broker's fixed charge, not a fill price
+  // that could come back different — and Edit can correct it if it ever does.
+  const exerciseFee = assignmentFee(cfg)
 
   async function run(kind, fn) {
     setBusy(kind); setError(null)
@@ -45,7 +56,8 @@ export default function LegActions({ leg, onDone, compact }) {
       <div className="flex flex-wrap items-center gap-1.5">
         <button
           type="button" disabled={!!busy}
-          onClick={() => run('expire', () => wheelApi.expire(leg.id, { date: leg.expiry }))}
+          onClick={() => run('expire', () => wheelApi.expire(leg.id, { date: leg.expiry, fees: 0 }))}
+          title="Expired worthless — no closing order, so no commission."
           className={`${btn} border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 disabled:opacity-40`}
         >
           Expired
@@ -54,7 +66,10 @@ export default function LegActions({ leg, onDone, compact }) {
         {isPut ? (
           <button
             type="button" disabled={!!busy}
-            onClick={() => run('assign', () => wheelApi.assign(leg.id, { date: leg.expiry }))}
+            onClick={() => run('assign', () => wheelApi.assign(leg.id, { date: leg.expiry, fees: exerciseFee }))}
+            title={exerciseFee > 0
+              ? `Books the assignment with your ${money(exerciseFee)} assignment fee.`
+              : 'Books the assignment. No assignment fee saved — set one in Commission rates if your broker charges it.'}
             className={`${btn} border-amber-500/40 text-amber-400 hover:bg-amber-500/10 disabled:opacity-40`}
           >
             Assigned
@@ -62,7 +77,10 @@ export default function LegActions({ leg, onDone, compact }) {
         ) : (
           <button
             type="button" disabled={!!busy}
-            onClick={() => run('call', () => wheelApi.callAway(leg.id, { date: leg.expiry }))}
+            onClick={() => run('call', () => wheelApi.callAway(leg.id, { date: leg.expiry, fees: exerciseFee }))}
+            title={exerciseFee > 0
+              ? `Books the call-away with your ${money(exerciseFee)} exercise fee.`
+              : 'Books the call-away. No exercise fee saved — set one in Commission rates if your broker charges it.'}
             className={`${btn} border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-40`}
           >
             Called away
@@ -168,19 +186,34 @@ function CostField({ label, value, onChange, shares, hint }) {
 }
 
 function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
+  const cfg    = useCommissions()
   const shares = (leg.contracts || 0) * SHARES_PER_CONTRACT
   const [closeCost, setCloseCost] = useState('')
   const [strike, setStrike]       = useState(leg.strike ?? '')
   const [expiry, setExpiry]       = useState('')
   const [premium, setPremium]     = useState('')
   const [date, setDate]           = useState(todayStr())
+  // A roll is normally one spread ticket, so the flat per-order fee lands once.
+  // Legging out and back in is two tickets — and two flat fees.
+  const [combo, setCombo]         = useState(true)
 
   const [dateError, setDateError] = useState(null)
 
+  const est       = rollFees(leg.contracts, cfg, { combo })
+  const closeFee  = useAutoFee(est.closeFee)
+  const openFee   = useAutoFee(est.openFee)
+  const fees      = round2(closeFee.amount + openFee.amount)
+
   const debit  = Number(closeCost) * shares
   const credit = Number(premium) * shares
-  const net    = (Number.isFinite(credit) ? credit : 0) - (Number.isFinite(debit) ? debit : 0)
+  // Net of the roll INCLUDING both commissions — the number that actually moves
+  // the cycle's net premium, and therefore the break-even line.
+  const gross  = (Number.isFinite(credit) ? credit : 0) - (Number.isFinite(debit) ? debit : 0)
+  const net    = round2(gross - fees)
   const ready  = closeCost !== '' && premium !== '' && strike !== '' && expiry !== ''
+  // A roll that only looks like a credit until the commissions are counted is
+  // the exact case worth naming — it is what makes a losing roll feel like a win.
+  const flipped = ready && gross >= 0 && net < 0
 
   return (
     <Modal isOpen={open} onClose={onClose} title={`Roll ${leg.ticker} ${leg.strike} ${leg.option_type === 'put' ? 'put' : 'call'}`} size="md">
@@ -193,9 +226,11 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
           setDateError(null)
           onSubmit({
             close_cost: Number(closeCost) * shares,
+            close_fees: closeFee.amount,
             strike: Number(strike),
             expiry,
             premium: Number(premium) * shares,
+            fees: openFee.amount,
             contracts: leg.contracts,
             date,
           })
@@ -203,14 +238,18 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
         className="space-y-4"
       >
         <p className="text-xs text-gray-500 leading-relaxed">
-          Buying the current leg back and selling a new one. The buy-to-close debit is recorded against
-          this leg, so a roll that costs more than it brings in correctly pulls the cycle's net premium
-          down instead of quietly inflating it.
+          Buying the current leg back and selling a new one. The buy-to-close debit and both
+          commissions are recorded against the cycle, so a roll that costs more than it brings in
+          correctly pulls the net premium down instead of quietly inflating it.
         </p>
 
         <CostField
           label="Buy-to-close cost" value={closeCost} onChange={setCloseCost} shares={shares}
           hint="What you pay to close the existing leg. Enter 0 if it closed for nothing."
+        />
+        <FeeField
+          label="Buy-to-close commission" fee={closeFee}
+          breakdown={feeBreakdown(leg.contracts, cfg)}
         />
 
         <div className="border-t border-gray-800 pt-4 space-y-4">
@@ -227,11 +266,26 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
             </div>
           </div>
           <CostField label="New premium received" value={premium} onChange={setPremium} shares={shares} />
+          <FeeField
+            label="New leg commission" fee={openFee}
+            breakdown={feeBreakdown(leg.contracts, cfg, { includeOrderFee: !combo })}
+          />
           <div>
             <label className="block text-xs text-gray-400 font-medium mb-1.5">Date rolled</label>
             <DatePicker value={date} onChange={setDate} />
           </div>
         </div>
+
+        <label className="flex items-start gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox" checked={combo} onChange={e => setCombo(e.target.checked)}
+            className="mt-0.5 w-3.5 h-3.5 accent-cyan-500"
+          />
+          <span className="text-[11px] text-gray-500 leading-relaxed">
+            Sent as one combo order — the flat ticket fee is charged once, on the close.
+            Untick if you legged out and back in as two separate orders.
+          </span>
+        </label>
 
         {ready && (
           <div className={`px-3 py-2 rounded-lg border ${
@@ -242,6 +296,18 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
               {net >= 0 ? '+' : ''}{money(net)}
             </span>
             {net < 0 && <span className="ml-2 text-[11px] text-amber-400/80">net debit — basis will rise</span>}
+            <p className="text-[11px] text-gray-500 mt-1 font-mono">
+              {money(credit)} credit − {money(debit)} debit − {money(fees)} commissions
+            </p>
+            {flipped && (
+              <p className="flex gap-1.5 text-[11px] text-amber-400 mt-1.5 leading-relaxed">
+                <TriangleAlert className="w-3 h-3 shrink-0 mt-px" />
+                <span>
+                  This roll is a {money(gross)} credit on the quotes but a {money(Math.abs(net))} debit
+                  once commissions are paid.
+                </span>
+              </p>
+            )}
           </div>
         )}
 
@@ -267,12 +333,19 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
 }
 
 function CloseModal({ open, leg, busy, error, onClose, onSubmit }) {
+  const cfg    = useCommissions()
   const shares = (leg.contracts || 0) * SHARES_PER_CONTRACT
   const [closeCost, setCloseCost] = useState('')
   const [date, setDate] = useState(todayStr())
   const [dateError, setDateError] = useState(null)
 
-  const kept = Number(leg.premium) - Number(closeCost) * shares
+  const fee  = useAutoFee(optionOrderFee(leg.contracts, cfg))
+  // What the leg actually kept: the opening credit, less the buy-back, less BOTH
+  // commissions — the one already sitting on the leg from opening it, and the one
+  // being paid now to close it.
+  const debit  = Number(closeCost) * shares
+  const opened = Number(leg.fees || 0)
+  const kept   = round2(Number(leg.premium) - debit - opened - fee.amount)
 
   return (
     <Modal isOpen={open} onClose={onClose} title={`Buy back ${leg.ticker} ${leg.strike} ${leg.option_type === 'put' ? 'put' : 'call'}`} size="sm">
@@ -282,11 +355,15 @@ function CloseModal({ open, leg, busy, error, onClose, onSubmit }) {
           // DatePicker is a button, not an <input required> — guard here instead.
           if (!date) return setDateError('Date closed is required')
           setDateError(null)
-          onSubmit({ close_cost: Number(closeCost) * shares, date })
+          onSubmit({ close_cost: Number(closeCost) * shares, fees: fee.amount, date })
         }}
         className="space-y-4"
       >
         <CostField label="Buy-to-close cost" value={closeCost} onChange={setCloseCost} shares={shares} />
+        <FeeField
+          label="Buy-to-close commission" fee={fee}
+          breakdown={feeBreakdown(leg.contracts, cfg)}
+        />
 
         {closeCost !== '' && (
           <div className={`px-3 py-2 rounded-lg border ${
@@ -296,9 +373,10 @@ function CloseModal({ open, leg, busy, error, onClose, onSubmit }) {
             <span className={`ml-2 text-sm font-mono font-semibold ${kept >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {kept >= 0 ? '+' : ''}{money(kept)}
             </span>
-            <span className="ml-2 text-[11px] text-gray-500 font-mono">
-              {money(leg.premium)} credit − {money(Number(closeCost) * shares)} debit
-            </span>
+            <p className="text-[11px] text-gray-500 mt-1 font-mono">
+              {money(leg.premium)} credit − {money(debit)} debit − {money(opened + fee.amount)} commissions
+              {opened > 0 && <span className="text-gray-600"> ({money(opened)} to open + {money(fee.amount)} to close)</span>}
+            </p>
           </div>
         )}
 
@@ -337,11 +415,13 @@ function CloseModal({ open, leg, busy, error, onClose, onSubmit }) {
  * only previews the number so the size of the trim can be chosen against it.
  */
 export function SellSharesModal({ open, cycle, onClose, onDone }) {
+  const cfg = useCommissions()
   const [price, setPrice]   = useState('')
   const [shares, setShares] = useState('')
   const [date, setDate]     = useState(todayStr())
   const [busy, setBusy]     = useState(false)
   const [error, setError]   = useState(null)
+  const fee = useAutoFee(shareOrderFee(cfg))
 
   // Re-mounted per cycle by the `key` on the call site, so the fields start
   // empty (= sell everything) each time the modal is opened on a position.
@@ -364,13 +444,15 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
   const basisNow = held > 0 ? strike - netPremium / held : null
   // Gain on the shares that leave stays with the cycle, so the survivors carry
   // the whole premium: B_new = strike − (net premium + gain) / remaining.
-  const gain     = qty * (priceNum - strike)
+  // The share order's commission comes off that gain, exactly as the server
+  // computes it in bookShareExit — so the preview and the booked number agree.
+  const gain     = qty * (priceNum - strike) - fee.amount
   const newBasis = priced && partial ? strike - (netPremium + gain) / remaining : null
   const raisesBasis = newBasis != null && newBasis > basisNow
 
   // Full exit: everything books, so show the lifetime P&L of the cycle instead.
   const estimate = priced && !partial
-    ? held * (priceNum - strike) + netPremium
+    ? held * (priceNum - strike) + netPremium - fee.amount
     : null
 
   async function submit(e) {
@@ -380,7 +462,7 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
     if (!qtyOk) return setError(`Shares to sell must be between 1 and ${held}`)
     setBusy(true); setError(null)
     try {
-      await wheelApi.sellShares(cycle.id, { price: priceNum, shares: qty, date })
+      await wheelApi.sellShares(cycle.id, { price: priceNum, shares: qty, fees: fee.amount, date })
       onDone?.()
       onClose()
     } catch (err) {
@@ -447,7 +529,7 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
               from {money(basisNow)} ({raisesBasis ? '+' : '−'}{money(Math.abs(newBasis - basisNow))})
             </span>
             <p className="text-[11px] text-gray-500 mt-1 font-mono">
-              B = {money(strike)} − ({money(netPremium)} premium {gain >= 0 ? '+' : '−'} {money(Math.abs(gain))} gain) / {remaining}
+              B = {money(strike)} − ({money(netPremium)} premium {gain >= 0 ? '+' : '−'} {money(Math.abs(gain))} gain{fee.amount > 0 ? `, after ${money(fee.amount)} commission` : ''}) / {remaining}
             </p>
             {/* A trim below the break-even loads its loss onto the shares you keep.
                 That is legitimate — but a mistyped price looks exactly the same, and
@@ -475,14 +557,20 @@ export function SellSharesModal({ open, cycle, onClose, onDone }) {
               {estimate >= 0 ? '+' : ''}{money(estimate)}
             </span>
             <p className="text-[11px] text-gray-500 mt-1 font-mono">
-              {held} × ({money(priceNum)} − {money(strike)}) + {money(netPremium)} premium
+              {held} × ({money(priceNum)} − {money(strike)}) + {money(netPremium)} premium{fee.amount > 0 ? ` − ${money(fee.amount)} commission` : ''}
             </p>
           </div>
         )}
 
-        <div>
-          <label className="block text-xs text-gray-400 font-medium mb-1.5">Date sold</label>
-          <DatePicker value={date} onChange={setDate} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-gray-400 font-medium mb-1.5">Date sold</label>
+            <DatePicker value={date} onChange={setDate} />
+          </div>
+          <FeeField
+            label="Share order commission" fee={fee}
+            hint={partial ? 'Comes off the gain you keep in the position.' : 'Comes off the cycle P&L.'}
+          />
         </div>
 
         {error && (

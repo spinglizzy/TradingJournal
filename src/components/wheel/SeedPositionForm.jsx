@@ -3,6 +3,9 @@ import { TriangleAlert, Info } from 'lucide-react'
 import { wheelApi } from '../../api/wheel.js'
 import { DatePicker } from '../ui/DatePicker.jsx'
 import { SHARES_PER_CONTRACT } from './constants.js'
+import FeeField, { useAutoFee } from './FeeField.jsx'
+import { optionOrderFee, assignmentFee, round2 } from '../../lib/commissions.js'
+import { useCommissions } from '../../lib/useCommissions.js'
 
 const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white
   placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
@@ -42,18 +45,24 @@ export default function SeedPositionForm({ prefill = {}, onSaved, onCancel }) {
     assigned_strike:   prefill.assigned_strike   ?? '',
     assigned_at:       prefill.assigned_at       ?? todayStr(),
     premium_collected: prefill.premium_collected ?? '',
-    fees:              prefill.fees              ?? 0,
     already_logged:    prefill.already_logged    ?? false,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState(null)
+  const cfg = useCommissions()
 
   const set = (patch) => setForm(f => ({ ...f, ...patch }))
 
   const qty       = Math.round(Number(form.shares) || 0)
   const strike    = Number(form.assigned_strike)
   const premium   = Number(form.premium_collected) || 0
-  const fees      = Number(form.fees) || 0
+  // The put's whole commission history: the order that sold it, plus whatever
+  // the assignment itself cost. Both were paid before this cycle existed, so
+  // both belong in the basis it opens with.
+  const contracts = Math.floor(qty / SHARES_PER_CONTRACT)
+  const fee       = useAutoFee(round2(optionOrderFee(contracts, cfg) + assignmentFee(cfg)),
+                               { initial: prefill.fees ?? null })
+  const fees      = fee.amount
   const netPrem   = premium - fees
   const lotsOk    = qty > 0 && qty % SHARES_PER_CONTRACT === 0
   const basis     = lotsOk && strike > 0 ? strike - netPrem / qty : null
@@ -141,13 +150,10 @@ export default function SeedPositionForm({ prefill = {}, onSaved, onCancel }) {
             className={inputCls}
           />
         </Field>
-        <Field label="Fees on that put">
-          <input
-            type="number" step="0.01" value={form.fees}
-            onChange={e => set({ fees: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
+        <FeeField
+          label="Commissions on that put" fee={fee}
+          hint="Selling it, plus the assignment charge."
+        />
       </div>
 
       {/*

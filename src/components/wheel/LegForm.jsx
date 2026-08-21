@@ -3,6 +3,9 @@ import { TriangleAlert } from 'lucide-react'
 import { wheelApi } from '../../api/wheel.js'
 import { DatePicker } from '../ui/DatePicker.jsx'
 import { SHARES_PER_CONTRACT } from './constants.js'
+import FeeField, { useAutoFee } from './FeeField.jsx'
+import { optionOrderFee, feeBreakdown } from '../../lib/commissions.js'
+import { useCommissions } from '../../lib/useCommissions.js'
 
 const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white
   placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
@@ -55,7 +58,6 @@ export default function LegForm({ leg, prefill = {}, lockTicker, snapshot, onSav
     contracts:   leg.contracts ?? 1,
     premium:     quotedFromLeg(),
     date:        leg.date ?? todayStr(),
-    fees:        leg.fees ?? 0,
     notes:       leg.notes ?? '',
   } : {
     ticker:      prefill.ticker      ?? '',
@@ -65,16 +67,19 @@ export default function LegForm({ leg, prefill = {}, lockTicker, snapshot, onSav
     contracts:   prefill.contracts   ?? 1,
     premium:     prefill.premium     ?? '',
     date:        prefill.date        ?? todayStr(),
-    fees:        prefill.fees        ?? 0,
     notes:       prefill.notes       ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState(null)
+  const cfg = useCommissions()
 
   const set = (patch) => setForm(f => ({ ...f, ...patch }))
 
   const contracts   = Math.max(0, Math.round(Number(form.contracts) || 0))
   const shares      = contracts * SHARES_PER_CONTRACT
+  // Editing shows what the leg was actually charged; a new leg follows the rate
+  // card and re-prices as the contract count changes.
+  const fee = useAutoFee(optionOrderFee(contracts, cfg), { initial: editing ? leg.fees : (prefill.fees ?? null) })
   const quoted      = Number(form.premium)
   const totalPremium = Number.isFinite(quoted) && form.premium !== '' ? quoted * shares : null
 
@@ -94,7 +99,7 @@ export default function LegForm({ leg, prefill = {}, lockTicker, snapshot, onSav
         contracts,
         premium:     totalPremium,   // TOTAL dollars for the leg
         date:        form.date,
-        fees:        Number(form.fees) || 0,
+        fees:        fee.amount,
         notes:       form.notes || null,
       }
       const saved = editing
@@ -199,13 +204,10 @@ export default function LegForm({ leg, prefill = {}, lockTicker, snapshot, onSav
             placeholder="Pick a date"
           />
         </Field>
-        <Field label="Fees">
-          <input
-            type="number" step="0.01" value={form.fees}
-            onChange={e => set({ fees: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
+        <FeeField
+          label="Commission" fee={fee}
+          breakdown={feeBreakdown(contracts, cfg)}
+        />
       </div>
 
       <Field label="Notes">
