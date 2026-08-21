@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import pool from '../db.js'
+import { BOOKED, COUNT_WINS, COUNT_LOSSES, winRate } from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -9,15 +10,6 @@ function safeJson(v) {
 }
 
 // ── Timeframe helpers ─────────────────────────────────────────────────────────
-/**
- * A closed row carrying no P&L is a stage of something, not a result: a wheel
- * leg inside a run that is still going, or one whose run books on its own
- * summary row (see cycleJournalPnl in server/lib/wheelEngine.js). Sums and
- * win/loss splits skip NULL on their own; trade COUNTS do not, and without this
- * the Playbook reports 72 "Wheel Play" trades for 29 completed runs.
- */
-const BOOKED = `NOT (status = 'closed' AND pnl IS NULL)`
-
 function getTimeframeRange(timeframe) {
   const today = new Date().toISOString().split('T')[0]
   const now   = new Date()
@@ -56,22 +48,25 @@ async function computeCurrentJournalStreak(userId) {
 async function computeCurrentValue(metric, from, to, userId) {
   if (metric === 'pnl') {
     const r = await pool.query(
-      `SELECT COALESCE(SUM(pnl),0) as v FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED}`,
+      `SELECT COALESCE(SUM(pnl),0) as v FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED()}`,
       [from, to, userId]
     )
     return Number(r.rows[0].v)
   }
   if (metric === 'win_rate') {
+    // Decisive trades only, on the same rule the Dashboard uses. Dividing by
+    // COUNT(*) instead buries scratches in the denominator and reports a win
+    // rate the rest of the app disagrees with.
     const r = await pool.query(
-      `SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED}`,
+      `SELECT ${COUNT_WINS()} as wins, ${COUNT_LOSSES()} as losses FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED()}`,
       [from, to, userId]
     )
-    const { total, wins } = r.rows[0]
-    return total > 0 ? (Number(wins) / Number(total)) * 100 : 0
+    const { wins, losses } = r.rows[0]
+    return winRate(wins, losses)
   }
   if (metric === 'trade_count') {
     const r = await pool.query(
-      `SELECT COUNT(*) as v FROM trades WHERE date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED}`,
+      `SELECT COUNT(*) as v FROM trades WHERE date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED()}`,
       [from, to, userId]
     )
     return Number(r.rows[0].v)
@@ -93,7 +88,7 @@ async function computeCurrentValue(metric, from, to, userId) {
   }
   if (metric === 'max_daily_loss') {
     const r = await pool.query(
-      `SELECT MIN(s) as worst FROM (SELECT SUM(pnl) as s FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 GROUP BY date) AS sub`,
+      `SELECT MIN(s) as worst FROM (SELECT SUM(pnl) as s FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED()} GROUP BY date) AS sub`,
       [from, to, userId]
     )
     const worst = r.rows[0].worst
@@ -215,7 +210,7 @@ function currentStreakOf(dateSet) {
 router.get('/streaks', async (req, res) => {
   try {
     const [tradingR, journalR, rulesR] = await Promise.all([
-      pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 GROUP BY date ORDER BY date`, [req.userId]),
+      pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 AND ${BOOKED()} GROUP BY date ORDER BY date`, [req.userId]),
       pool.query('SELECT DISTINCT date FROM journal_entries WHERE user_id=$1', [req.userId]),
       pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND user_id=$1 ORDER BY date`, [req.userId]),
     ])
@@ -273,7 +268,7 @@ router.get('/progress', async (req, res) => {
     const from = days[0], to = days[days.length-1]
 
     const [dailyR, journalR, ruleR] = await Promise.all([
-      pool.query(`SELECT date, SUM(pnl) as pnl, COUNT(*) as trades, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED} GROUP BY date`, [from, to, req.userId]),
+      pool.query(`SELECT date, SUM(pnl) as pnl, COUNT(*) as trades, ${COUNT_WINS()} as wins, ${COUNT_LOSSES()} as losses FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED()} GROUP BY date`, [from, to, req.userId]),
       pool.query(`SELECT DISTINCT date FROM journal_entries WHERE date BETWEEN $1 AND $2 AND user_id=$3`, [from, to, req.userId]),
       pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`, [from, to, req.userId]),
     ])
@@ -294,7 +289,7 @@ router.get('/progress', async (req, res) => {
       for (const goal of goals) {
         let cv = 0
         if (goal.metric==='pnl')              cv = day ? Number(day.pnl) : 0
-        else if (goal.metric==='win_rate')    cv = (day && day.trades>0) ? (Number(day.wins)/Number(day.trades))*100 : 0
+        else if (goal.metric==='win_rate')    cv = day ? winRate(day.wins, day.losses) : 0
         else if (goal.metric==='trade_count') cv = day ? Number(day.trades) : 0
         else if (goal.metric==='discipline_score') {
           const dt = rulesByDay[date]||[]
@@ -348,10 +343,10 @@ function longestStreak(dateSet) { return longestStreakOf(dateSet).longest }
 
 async function checkAndUpsertAchievements(userId) {
   const [tsR, missedR, strategiesR, tradingR, journalR, rulesR] = await Promise.all([
-    pool.query(`SELECT COUNT(*) as total, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins, COALESCE(SUM(pnl),0) as pnl FROM trades WHERE status='closed' AND user_id=$1 AND ${BOOKED}`, [userId]),
+    pool.query(`SELECT COUNT(*) as total, ${COUNT_WINS()} as wins, ${COUNT_LOSSES()} as losses, COALESCE(SUM(pnl),0) as pnl FROM trades WHERE status='closed' AND user_id=$1 AND ${BOOKED()}`, [userId]),
     pool.query(`SELECT COUNT(*) as cnt FROM missed_trades WHERE user_id=$1`, [userId]),
     pool.query(`SELECT COUNT(DISTINCT strategy_id) as cnt FROM trades WHERE strategy_id IS NOT NULL AND user_id=$1`, [userId]),
-    pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 GROUP BY date ORDER BY date`, [userId]),
+    pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 AND ${BOOKED()} GROUP BY date ORDER BY date`, [userId]),
     pool.query('SELECT DISTINCT date FROM journal_entries WHERE user_id=$1', [userId]),
     pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND user_id=$1 ORDER BY date`, [userId]),
   ])
@@ -375,7 +370,9 @@ async function checkAndUpsertAchievements(userId) {
 
   const totalTrades = Number(ts.total)
   const totalPnl    = Number(ts.pnl)
-  const winRate     = totalTrades >= 20 ? (Number(ts.wins) / totalTrades) * 100 : 0
+  // Same decisive-trade rule as everywhere else; the 20-trade floor is a
+  // sample-size gate on the achievement, not part of the rate itself.
+  const winRatePct  = totalTrades >= 20 ? winRate(ts.wins, ts.losses) : 0
 
   const checks = {
     first_trade: totalTrades>=1, trades_10: totalTrades>=10, trades_50: totalTrades>=50,
@@ -385,7 +382,7 @@ async function checkAndUpsertAchievements(userId) {
     journal_streak_5: longestStreak(journalDays)>=5, journal_streak_10: longestStreak(journalDays)>=10, journal_streak_30: longestStreak(journalDays)>=30,
     rule_compliance_week: longestStreak(ruleDays)>=7,
     missed_trade_logged: missed>=1, all_setups_used: strategies>=5,
-    win_rate_55: winRate>=55, win_rate_60: winRate>=60,
+    win_rate_55: winRatePct>=55, win_rate_60: winRatePct>=60,
   }
 
   const progress = {
@@ -395,7 +392,7 @@ async function checkAndUpsertAchievements(userId) {
     journal_streak_5:longestStreak(journalDays), journal_streak_10:longestStreak(journalDays), journal_streak_30:longestStreak(journalDays),
     rule_compliance_week:longestStreak(ruleDays),
     missed_trade_logged:missed, all_setups_used:strategies,
-    win_rate_55:totalTrades>=20?winRate:0, win_rate_60:totalTrades>=20?winRate:0,
+    win_rate_55:totalTrades>=20?winRatePct:0, win_rate_60:totalTrades>=20?winRatePct:0,
   }
 
   const thresholds = {

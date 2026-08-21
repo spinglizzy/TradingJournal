@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import pool from '../db.js'
+import { BOOKED, IS_WIN, IS_LOSS, IS_BREAKEVEN, GROSS_PROFIT, GROSS_LOSS, winRate, profitFactor } from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -69,16 +70,17 @@ router.get('/weekly-stats', async (req, res) => {
       pool.query(`
         SELECT COUNT(*) AS total_trades,
                COALESCE(SUM(CASE WHEN status='closed' THEN pnl END),0) AS total_pnl,
-               COUNT(CASE WHEN pnl>0  AND status='closed' THEN 1 END) AS wins,
-               COUNT(CASE WHEN pnl<=0 AND status='closed' THEN 1 END) AS losses,
+               COUNT(CASE WHEN ${IS_WIN()}  AND status='closed' THEN 1 END) AS wins,
+               COUNT(CASE WHEN ${IS_LOSS()} AND status='closed' THEN 1 END) AS losses,
+               COUNT(CASE WHEN ${IS_BREAKEVEN()} AND status='closed' THEN 1 END) AS breakevens,
                MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
                MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
-        FROM trades WHERE date>=$1 AND date<=$2 AND user_id=$3
+        FROM trades WHERE date>=$1 AND date<=$2 AND user_id=$3 AND ${BOOKED()}
       `, [from, to, req.userId]),
       pool.query(`
-        SELECT COALESCE(SUM(CASE WHEN pnl>0  THEN pnl END),0)      AS gross_profit,
-               ABS(COALESCE(SUM(CASE WHEN pnl<=0 THEN pnl END),0)) AS gross_loss
-        FROM trades WHERE status='closed' AND date>=$1 AND date<=$2 AND user_id=$3
+        SELECT ${GROSS_PROFIT()} AS gross_profit,
+               ${GROSS_LOSS()}   AS gross_loss
+        FROM trades WHERE status='closed' AND date>=$1 AND date<=$2 AND user_id=$3 AND ${BOOKED()}
       `, [from, to, req.userId]),
       pool.query(`
         SELECT setup, COUNT(*) AS cnt FROM trades
@@ -88,10 +90,9 @@ router.get('/weekly-stats', async (req, res) => {
     ])
 
     const stats = statsR.rows[0]
-    const closed = Number(stats.wins) + Number(stats.losses)
-    const win_rate = closed > 0 ? (Number(stats.wins) / closed) * 100 : 0
     const gross = grossR.rows[0]
-    const profit_factor = gross.gross_loss > 0 ? gross.gross_profit / gross.gross_loss : null
+    const win_rate      = winRate(stats.wins, stats.losses)
+    const profit_factor = profitFactor(gross.gross_profit, gross.gross_loss)
 
     const [bestR, worstR] = await Promise.all([
       stats.best_pnl  != null ? pool.query(`SELECT id,ticker,pnl,date FROM trades WHERE status='closed' AND pnl=$1 AND date>=$2 AND date<=$3 AND user_id=$4 LIMIT 1`, [stats.best_pnl,  from, to, req.userId]) : Promise.resolve({ rows: [] }),

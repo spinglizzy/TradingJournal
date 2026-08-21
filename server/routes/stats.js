@@ -1,5 +1,9 @@
 import { Router } from 'express'
 import pool from '../db.js'
+import {
+  BOOKED, COUNT_WINS, COUNT_LOSSES, COUNT_BREAKEVENS, IS_WIN, IS_LOSS, IS_BREAKEVEN,
+  GROSS_PROFIT, GROSS_LOSS, winRate, profitFactor, expectancy,
+} from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -17,12 +21,8 @@ function dateFilter(from, to, account_id, strategy_ids, userId, col='date', star
   parts.push(`${prefix}user_id = $${i++}`); params.push(userId)
 
   // A wheel play books ONE result, on the summary row its cycle gets when the
-  // run goes flat — see syncCycleSummary in server/routes/wheel.js. Every leg
-  // along the way carries a NULL P&L, and so does a leg whose premium the
-  // journal counts on another row. Sums and win/loss splits already skip NULL;
-  // dropping the rows outright is what also keeps the trade COUNTS honest, one
-  // per wheel run rather than one per contract.
-  parts.push(`NOT (${prefix}status = 'closed' AND ${prefix}pnl IS NULL)`)
+  // run goes flat — see syncCycleSummary in server/routes/wheel.js.
+  parts.push(BOOKED(prefix))
 
   if (account_id) { parts.push(`${prefix}account_id = $${i++}`); params.push(account_id) }
   if (from) { parts.push(`${col} >= $${i++}`); params.push(from) }
@@ -51,11 +51,11 @@ router.get('/summary', async (req, res) => {
         COUNT(CASE WHEN status='closed' THEN 1 END)                     AS closed_trades,
         COUNT(CASE WHEN status='open'   THEN 1 END)                     AS open_trades,
         COALESCE(SUM(CASE WHEN status='closed' THEN pnl END), 0)        AS total_pnl,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  AND status='closed' THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  AND status='closed' THEN 1 END) AS losses,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))=0  AND status='closed' THEN 1 END) AS breakevens,
-        AVG(CASE WHEN (pnl + COALESCE(fees,0))>0  AND status='closed' THEN pnl END) AS avg_win,
-        AVG(CASE WHEN (pnl + COALESCE(fees,0))<0  AND status='closed' THEN pnl END) AS avg_loss,
+        COUNT(CASE WHEN ${IS_WIN()}  AND status='closed' THEN 1 END) AS wins,
+        COUNT(CASE WHEN ${IS_LOSS()} AND status='closed' THEN 1 END) AS losses,
+        COUNT(CASE WHEN ${IS_BREAKEVEN()} AND status='closed' THEN 1 END) AS breakevens,
+        AVG(CASE WHEN ${IS_WIN()}  AND status='closed' THEN pnl END) AS avg_win,
+        AVG(CASE WHEN ${IS_LOSS()} AND status='closed' THEN pnl END) AS avg_loss,
         MAX(CASE WHEN status='closed' THEN pnl END)                     AS best_pnl,
         MIN(CASE WHEN status='closed' THEN pnl END)                     AS worst_pnl
       FROM trades WHERE 1=1 ${clause}
@@ -64,19 +64,16 @@ router.get('/summary', async (req, res) => {
 
     const grossR = await pool.query(`
       SELECT
-        COALESCE(SUM(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN pnl END), 0)       AS gross_profit,
-        ABS(COALESCE(SUM(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN pnl END), 0))  AS gross_loss
+        ${GROSS_PROFIT()} AS gross_profit,
+        ${GROSS_LOSS()}   AS gross_loss
       FROM trades WHERE status='closed' ${clause}
     `, params)
     const grossRow = grossR.rows[0]
 
-    const decisive = Number(row.wins) + Number(row.losses)
-    const win_rate = decisive > 0 ? (Number(row.wins) / decisive) * 100 : 0
-    const profit_factor = grossRow.gross_loss > 0 ? grossRow.gross_profit / grossRow.gross_loss : null
+    const win_rate      = winRate(row.wins, row.losses)
+    const profit_factor = profitFactor(grossRow.gross_profit, grossRow.gross_loss)
     const avg_win  = Number(row.avg_win  ?? 0)
     const avg_loss = Number(row.avg_loss ?? 0)
-    const wr = win_rate / 100
-    const expectancy = (wr * avg_win) + ((1 - wr) * avg_loss)
 
     // startIdx=2 because $1 is the pnl value prepended by the callers below
     const { clause: bClause, params: bParams } = dateFilter(from, to, account_id, strategy_ids, req.userId, 'date', 2)
@@ -91,7 +88,7 @@ router.get('/summary', async (req, res) => {
       profit_factor,
       avg_win,
       avg_loss,
-      expectancy,
+      expectancy: expectancy(win_rate, avg_win, avg_loss),
       best_trade:  bestR.rows[0]  ?? null,
       worst_trade: worstR.rows[0] ?? null,
     })
@@ -148,11 +145,11 @@ router.get('/monthly', async (req, res) => {
     const r = await pool.query(`
       SELECT
         SUBSTRING(date,1,7)                                   AS month,
-        COALESCE(SUM(pnl),0)                                  AS pnl,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0 THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0 THEN 1 END) AS losses,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))=0 THEN 1 END) AS breakevens,
-        COUNT(*)                                              AS trades
+        COALESCE(SUM(pnl),0)     AS pnl,
+        ${COUNT_WINS()}          AS wins,
+        ${COUNT_LOSSES()}        AS losses,
+        ${COUNT_BREAKEVENS()}    AS breakevens,
+        COUNT(*)                 AS trades
       FROM trades WHERE status='closed' ${clause}
       GROUP BY SUBSTRING(date,1,7) ORDER BY month ASC
     `, params)

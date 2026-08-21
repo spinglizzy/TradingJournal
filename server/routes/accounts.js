@@ -1,14 +1,19 @@
 import { Router } from 'express'
 import pool from '../db.js'
+import { BOOKED } from '../lib/tradeStats.js'
 
 const router = Router()
 
+// `trade_count` counts booked trades, not rows: a wheel run is one trade even
+// though it is made of a dozen contracts, and an unfinished run is not a result
+// to count at all. Without this an account that wheels reads several times
+// busier than the Dashboard says it is.
 const ACCT_SELECT = `
   SELECT a.*,
     COALESCE(SUM(CASE WHEN at.type='deposit'    THEN at.amount ELSE 0 END),0) AS total_deposits,
     COALESCE(SUM(CASE WHEN at.type='withdrawal' THEN at.amount ELSE 0 END),0) AS total_withdrawals,
-    (SELECT COALESCE(SUM(pnl),0) FROM trades WHERE account_id=a.id AND status='closed') AS realized_pnl,
-    (SELECT COUNT(*)             FROM trades WHERE account_id=a.id) AS trade_count
+    (SELECT COALESCE(SUM(pnl),0) FROM trades WHERE account_id=a.id AND status='closed' AND user_id=a.user_id) AS realized_pnl,
+    (SELECT COUNT(*)             FROM trades WHERE account_id=a.id AND user_id=a.user_id AND ${BOOKED()}) AS trade_count
   FROM accounts a
   LEFT JOIN account_transactions at ON at.account_id=a.id`
 
@@ -166,7 +171,7 @@ router.get('/:id/equity', async (req, res) => {
 
     const [txR, tradeR] = await Promise.all([
       pool.query('SELECT date,type,amount FROM account_transactions WHERE account_id=$1 ORDER BY date ASC', [req.params.id]),
-      pool.query(`SELECT date,SUM(pnl) as day_pnl FROM trades WHERE account_id=$1 AND status='closed' AND pnl IS NOT NULL GROUP BY date ORDER BY date ASC`, [req.params.id]),
+      pool.query(`SELECT date,SUM(pnl) as day_pnl FROM trades WHERE account_id=$1 AND user_id=$2 AND status='closed' AND pnl IS NOT NULL GROUP BY date ORDER BY date ASC`, [req.params.id, req.userId]),
     ])
 
     const txEvents    = txR.rows

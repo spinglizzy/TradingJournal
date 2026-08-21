@@ -1,5 +1,9 @@
 import { Router } from 'express'
 import pool from '../db.js'
+import {
+  BOOKED, IS_WIN, IS_LOSS, IS_BREAKEVEN, COUNT_WINS, COUNT_LOSSES, COUNT_BREAKEVENS,
+  GROSS_PROFIT, GROSS_LOSS, PROFIT_FACTOR, winRate, profitFactor, expectancy,
+} from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -10,46 +14,39 @@ function fmtSetup(s) {
   return { ...s, checklist: parseJ(s.checklist,[]), default_fields: parseJ(s.default_fields,{}) }
 }
 
-/**
- * A closed row carrying no P&L is a stage of something, not a result: a wheel
- * leg inside a run that is still going, or one whose run books on its own
- * summary row (see cycleJournalPnl in server/lib/wheelEngine.js). Sums and
- * win/loss splits skip NULL on their own; trade COUNTS do not, and without this
- * the Playbook reports 72 "Wheel Play" trades for 29 completed runs.
- */
-const BOOKED = `NOT (status = 'closed' AND pnl IS NULL)`
-
 async function getStats(strategyId, userId) {
   const [rowR, grossR] = await Promise.all([
     pool.query(`
       SELECT COUNT(*) AS total_trades,
              COUNT(CASE WHEN status='closed' THEN 1 END) AS closed_trades,
              COALESCE(SUM(CASE WHEN status='closed' THEN pnl END),0) AS total_pnl,
-             COUNT(CASE WHEN pnl>0  AND status='closed' THEN 1 END) AS wins,
-             COUNT(CASE WHEN pnl<=0 AND status='closed' THEN 1 END) AS losses,
-             AVG(CASE WHEN pnl>0  AND status='closed' THEN pnl END) AS avg_win,
-             AVG(CASE WHEN pnl<=0 AND status='closed' THEN pnl END) AS avg_loss,
+             COUNT(CASE WHEN ${IS_WIN()}  AND status='closed' THEN 1 END) AS wins,
+             COUNT(CASE WHEN ${IS_LOSS()} AND status='closed' THEN 1 END) AS losses,
+             COUNT(CASE WHEN ${IS_BREAKEVEN()} AND status='closed' THEN 1 END) AS breakevens,
+             AVG(CASE WHEN ${IS_WIN()}  AND status='closed' THEN pnl END) AS avg_win,
+             AVG(CASE WHEN ${IS_LOSS()} AND status='closed' THEN pnl END) AS avg_loss,
              AVG(CASE WHEN status='closed' THEN r_multiple END) AS avg_r,
              MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
              MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
-      FROM trades WHERE strategy_id=$1 AND user_id=$2 AND ${BOOKED}
+      FROM trades WHERE strategy_id=$1 AND user_id=$2 AND ${BOOKED()}
     `, [strategyId, userId]),
     pool.query(`
-      SELECT COALESCE(SUM(CASE WHEN pnl>0  THEN pnl END),0)      AS gross_profit,
-             ABS(COALESCE(SUM(CASE WHEN pnl<=0 THEN pnl END),0)) AS gross_loss
-      FROM trades WHERE status='closed' AND strategy_id=$1 AND user_id=$2 AND ${BOOKED}
+      SELECT ${GROSS_PROFIT()} AS gross_profit,
+             ${GROSS_LOSS()}   AS gross_loss
+      FROM trades WHERE status='closed' AND strategy_id=$1 AND user_id=$2 AND ${BOOKED()}
     `, [strategyId, userId]),
   ])
   const row   = rowR.rows[0]
   const gross = grossR.rows[0]
-  const closed = (Number(row.wins)??0) + (Number(row.losses)??0)
-  const win_rate = closed>0 ? (Number(row.wins)/closed)*100 : 0
-  const profit_factor = gross.gross_loss>0 ? gross.gross_profit/gross.gross_loss : null
-  const wr = win_rate/100
-  const avg_win  = Number(row.avg_win ??0)
-  const avg_loss = Number(row.avg_loss??0)
-  const expectancy = (wr*avg_win) + ((1-wr)*avg_loss)
-  return { ...row, win_rate, profit_factor, expectancy }
+  const win_rate = winRate(row.wins, row.losses)
+  const avg_win  = Number(row.avg_win ?? 0)
+  const avg_loss = Number(row.avg_loss ?? 0)
+  return {
+    ...row,
+    win_rate,
+    profit_factor: profitFactor(gross.gross_profit, gross.gross_loss),
+    expectancy:    expectancy(win_rate, avg_win, avg_loss),
+  }
 }
 
 async function getEquity(strategyId, userId) {
@@ -88,14 +85,16 @@ router.get('/setups/:id', async (req, res) => {
       pool.query(`
         SELECT EXTRACT(DOW FROM date::date)::int AS wd,
                COUNT(*) AS trades, COALESCE(SUM(pnl),0) AS total_pnl,
-               COUNT(CASE WHEN pnl>0 THEN 1 END) AS wins, AVG(pnl) AS avg_pnl
+               ${COUNT_WINS()} AS wins, ${COUNT_LOSSES()} AS losses,
+               ${COUNT_BREAKEVENS()} AS breakevens, AVG(pnl) AS avg_pnl
         FROM trades WHERE strategy_id=$1 AND status='closed' AND pnl IS NOT NULL AND user_id=$2
         GROUP BY wd ORDER BY wd
       `, [setup.id, req.userId]),
       pool.query(`
         SELECT ticker, COUNT(*) AS trades, COALESCE(SUM(pnl),0) AS total_pnl,
-               COUNT(CASE WHEN pnl>0 THEN 1 END) AS wins, AVG(r_multiple) AS avg_r
-        FROM trades WHERE strategy_id=$1 AND status='closed' AND user_id=$2 AND ${BOOKED}
+               ${COUNT_WINS()} AS wins, ${COUNT_LOSSES()} AS losses,
+               ${COUNT_BREAKEVENS()} AS breakevens, AVG(r_multiple) AS avg_r
+        FROM trades WHERE strategy_id=$1 AND status='closed' AND user_id=$2 AND ${BOOKED()}
         GROUP BY ticker ORDER BY total_pnl DESC LIMIT 10
       `, [setup.id, req.userId]),
     ])

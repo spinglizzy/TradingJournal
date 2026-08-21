@@ -1,5 +1,8 @@
 import { Router } from 'express'
 import pool from '../db.js'
+import {
+  BOOKED, COUNT_WINS, COUNT_LOSSES, PROFIT_FACTOR,
+} from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -14,12 +17,8 @@ function dateFilter(from, to, account_id, strategy_ids, userId, col='t.date', st
   parts.push(`${prefix}user_id = $${i++}`); params.push(userId)
 
   // A wheel play books ONE result, on the summary row its cycle gets when the
-  // run goes flat — see syncCycleSummary in server/routes/wheel.js. Every leg
-  // along the way carries a NULL P&L, and so does a leg whose premium the
-  // journal counts on another row. Sums and win/loss splits already skip NULL;
-  // dropping the rows outright is what also keeps the trade COUNTS honest, one
-  // per wheel run rather than one per contract.
-  parts.push(`NOT (${prefix}status = 'closed' AND ${prefix}pnl IS NULL)`)
+  // run goes flat — see syncCycleSummary in server/routes/wheel.js.
+  parts.push(BOOKED(prefix))
   if (from) { parts.push(`${col} >= $${i++}`); params.push(from) }
   if (to)   { parts.push(`${col} <= $${i++}`); params.push(to)   }
   if (strategy_ids !== undefined && strategy_ids !== '') {
@@ -45,8 +44,8 @@ router.get('/by-weekday', async (req, res) => {
         EXTRACT(DOW FROM date::date)::int                AS dow,
         COUNT(*)                                          AS trades,
         COALESCE(SUM(pnl),0)                             AS pnl,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN 1 END) AS losses,
+        ${COUNT_WINS('')} AS wins,
+        ${COUNT_LOSSES('')} AS losses,
         AVG(pnl)                                         AS avg_pnl,
         AVG(r_multiple)                                  AS avg_r
       FROM trades WHERE status='closed' ${clause}
@@ -71,7 +70,8 @@ router.get('/by-hour', async (req, res) => {
         EXTRACT(HOUR FROM created_at::timestamptz)::int  AS hour,
         COUNT(*)                                          AS trades,
         COALESCE(SUM(pnl),0)                             AS pnl,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0 THEN 1 END) AS wins,
+        ${COUNT_WINS('')} AS wins,
+        ${COUNT_LOSSES('')} AS losses,
         AVG(pnl)                                         AS avg_pnl,
         AVG(r_multiple)                                  AS avg_r
       FROM trades WHERE status='closed' ${clause}
@@ -95,12 +95,11 @@ router.get('/by-strategy', async (req, res) => {
         COALESCE(s.name,'No Strategy')                    AS strategy,
         COUNT(*)                                          AS trades,
         COALESCE(SUM(t.pnl),0)                           AS pnl,
-        COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))<0  THEN 1 END) AS losses,
+        ${COUNT_WINS('t.')} AS wins,
+        ${COUNT_LOSSES('t.')} AS losses,
         AVG(t.pnl)                                       AS avg_pnl,
         AVG(t.r_multiple)                                AS avg_r,
-        1.0*SUM(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0  THEN t.pnl ELSE 0 END)/
-          NULLIF(ABS(SUM(CASE WHEN (t.pnl + COALESCE(t.fees,0))<=0 THEN t.pnl ELSE 0 END)),0) AS profit_factor
+        ${PROFIT_FACTOR('t.')} AS profit_factor
       FROM trades t LEFT JOIN strategies s ON t.strategy_id=s.id
       WHERE t.status='closed' ${clause}
       GROUP BY t.strategy_id, s.name ORDER BY pnl DESC
@@ -122,12 +121,11 @@ router.get('/by-setup', async (req, res) => {
         INITCAP(LOWER(COALESCE(NULLIF(TRIM(setup),''),'No Setup'))) AS setup,
         COUNT(*)                                          AS trades,
         COALESCE(SUM(pnl),0)                             AS pnl,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN 1 END) AS losses,
+        ${COUNT_WINS('')} AS wins,
+        ${COUNT_LOSSES('')} AS losses,
         AVG(pnl)                                         AS avg_pnl,
         AVG(r_multiple)                                  AS avg_r,
-        1.0*SUM(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN pnl ELSE 0 END)/
-          NULLIF(ABS(SUM(CASE WHEN (pnl + COALESCE(fees,0))<=0 THEN pnl ELSE 0 END)),0) AS profit_factor
+        ${PROFIT_FACTOR('')} AS profit_factor
       FROM trades WHERE status='closed' ${clause}
       GROUP BY INITCAP(LOWER(COALESCE(NULLIF(TRIM(setup),''),'No Setup'))) ORDER BY pnl DESC
     `, params)
@@ -148,12 +146,11 @@ router.get('/by-ticker', async (req, res) => {
         ticker,
         COUNT(*)                                         AS trades,
         COALESCE(SUM(pnl),0)                            AS pnl,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN 1 END) AS losses,
+        ${COUNT_WINS('')} AS wins,
+        ${COUNT_LOSSES('')} AS losses,
         AVG(pnl)                                        AS avg_pnl,
         AVG(r_multiple)                                 AS avg_r,
-        1.0*SUM(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN pnl ELSE 0 END)/
-          NULLIF(ABS(SUM(CASE WHEN (pnl + COALESCE(fees,0))<=0 THEN pnl ELSE 0 END)),0) AS profit_factor
+        ${PROFIT_FACTOR('')} AS profit_factor
       FROM trades WHERE status='closed' ${clause}
       GROUP BY ticker ORDER BY pnl DESC
     `, params)
@@ -175,12 +172,11 @@ router.get('/by-tag', async (req, res) => {
         tg.color,
         COUNT(*)                                         AS trades,
         COALESCE(SUM(t.pnl),0)                          AS pnl,
-        COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))<0  THEN 1 END) AS losses,
+        ${COUNT_WINS('t.')} AS wins,
+        ${COUNT_LOSSES('t.')} AS losses,
         AVG(t.pnl)                                      AS avg_pnl,
         AVG(t.r_multiple)                               AS avg_r,
-        1.0*SUM(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0  THEN t.pnl ELSE 0 END)/
-          NULLIF(ABS(SUM(CASE WHEN (t.pnl + COALESCE(t.fees,0))<=0 THEN t.pnl ELSE 0 END)),0) AS profit_factor
+        ${PROFIT_FACTOR('t.')} AS profit_factor
       FROM trades t
       JOIN trade_tags tt ON t.id=tt.trade_id
       JOIN tags tg ON tt.tag_id=tg.id
@@ -204,12 +200,11 @@ router.get('/by-smt', async (req, res) => {
         smt_divergence,
         COUNT(*)                                          AS trades,
         COALESCE(SUM(pnl),0)                             AS pnl,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))>0  THEN 1 END) AS wins,
-        COUNT(CASE WHEN (pnl + COALESCE(fees,0))<0  THEN 1 END) AS losses,
+        ${COUNT_WINS('')} AS wins,
+        ${COUNT_LOSSES('')} AS losses,
         AVG(pnl)                                         AS avg_pnl,
         AVG(r_multiple)                                  AS avg_r,
-        1.0*SUM(CASE WHEN (pnl + COALESCE(fees,0))>0 THEN pnl ELSE 0 END)/
-          NULLIF(ABS(SUM(CASE WHEN (pnl + COALESCE(fees,0))<=0 THEN pnl ELSE 0 END)),0) AS profit_factor
+        ${PROFIT_FACTOR('')} AS profit_factor
       FROM trades WHERE status='closed' AND smt_divergence IS NOT NULL ${clause}
       GROUP BY smt_divergence ORDER BY smt_divergence DESC
     `, params)
@@ -358,8 +353,8 @@ const X_FIELDS = {
 const Y_METRICS = {
   pnl:           `COALESCE(SUM(t.pnl),0)`,
   avg_pnl:       `AVG(t.pnl)`,
-  win_rate:      `100.0*COUNT(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0 THEN 1 END)/COUNT(*)`,
-  profit_factor: `1.0*SUM(CASE WHEN (t.pnl + COALESCE(t.fees,0))>0 THEN t.pnl ELSE 0 END)/NULLIF(ABS(SUM(CASE WHEN (t.pnl + COALESCE(t.fees,0))<=0 THEN t.pnl ELSE 0 END)),0)`,
+  win_rate:      `100.0 * ${COUNT_WINS('t.')} / NULLIF(${COUNT_WINS('t.')} + ${COUNT_LOSSES('t.')}, 0)`,
+  profit_factor: `${PROFIT_FACTOR('t.')}`,
   trade_count:   `COUNT(*)`,
   avg_r:         `AVG(t.r_multiple)`,
 }

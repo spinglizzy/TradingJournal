@@ -10,8 +10,10 @@ npm run dev:server    # Backend only
 npm run dev:client    # Frontend only
 npm run build         # Production Vite build
 npm run seed          # Load sample trade data into the database
+npm test              # All three unit suites below (no DB)
 npm run test:wheel    # Wheel basis engine + strike calculator unit tests (no DB)
 npm run test:gate     # Pre-Entry Gate verdict engine unit tests (no DB)
+npm run test:stats    # Win/loss + win-rate definitions, and the anti-drift grep over server/routes (no DB)
 ```
 
 The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`.
@@ -34,8 +36,9 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 - Cycle fields (`shares`, `avg_assigned_strike`, `net_premium`) are **cached derived values**, recomputed by `recomputeCycle()` on every mutation from lots + legs + the `shares_exited` / `premium_attributed` accumulators.
 - `premium` is the TOTAL dollars for a leg (credit positive); `close_cost` is the buy-to-close debit. A leg's realised premium is `premium − close_cost − fees`.
 - Wheel legs are rejected by the generic `PUT`/`DELETE /api/trades/:id` handlers (409) — editing them there would recompute `pnl` with `calcPnl` and leave the basis wrong.
-- Main dashboard P&L counts **option premium only**; the share gain/loss on assignment→call-away is booked to the cycle and reported in the Wheel history.
-- A wheel leg is counted **once** in dashboard/analytics P&L, via its `trades.pnl`. The one double-count risk is `POST /wheel/cycles` ("Add assigned shares"), which back-fills a put that predates the tab and may already exist in the Trade Log — pass `already_logged: true` and the leg is stored with `pnl = NULL`. Every stats query either `SUM(pnl)` (skips NULL) or filters `pnl IS NOT NULL`, so it drops out of dashboard totals while `premium` still feeds the basis engine and the Wheel tab's own totals.
+- **The wheel RUN is the trade, and it books once — when the cycle goes flat.** No leg ever carries `pnl`; a closed cycle gets ONE summary row in `trades` (told apart by `leg_status IS NULL`) holding every leg's premium net of commissions **plus** the share gain/loss, dated `closed_at`. `syncCycleSummary` writes, refreshes and deletes that row; `recomputeCycle` drives it on every event. That single figure is what the dashboard, the equity curve and the win rate see.
+- Because every leg carries `pnl = NULL` for life, **trade COUNTS need the `BOOKED` predicate** — sums and win/loss splits skip NULL for free, counts do not. Import it from `server/lib/tradeStats.js`; never re-spell it inline.
+- `already_logged` (`trades.premium_already_logged`, `wheel_migration_03.sql`) marks a put reconstructed from before the Wheel tab existed whose premium already sits on its own Trade Log row. `cycleJournalPnl` subtracts those legs so the credit is not booked twice; the basis engine still sees the premium.
 - Premium/cost fields in the wheel **entry** forms are labelled `$ / contract` and take the broker's quote (0.30 → $30 per contract). `StrikeCalculator` deliberately keeps `$ / share` — the same number, but every figure it computes (weekly-equivalent floor, value at expiry, the chart) is per-share.
 
 ### Pre-Entry Gate (a widget in the premarket plan)
@@ -58,6 +61,7 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 - `gate_migration.sql` adds `gate_checks` + `gate_factors`; `gate_migration_02.sql` adds `took_trade` and renames a confluence label; `gate_migration_03.sql` Title Cases the kill labels and reseeds the contested defaults; `gate_migration_04.sql` adds the `objective_taken` kill; `gate_migration_05.sql` adds the `rr_below_1` kill. All additive and idempotent. Apply them through `DATABASE_URL` as one `pool.query(wholeFile)`, **not** the Supabase SQL editor, which reports "Success" while executing only the leading comment block
 - The backend connects via `pg` pool using `DATABASE_URL` from `.env`
 - P&L calculation logic is centralised in `server/db.js` → `calcPnl(direction, entryPrice, exitPrice, positionSize, fees, stopLoss)` — returns `{ pnl, pnlPct, rMultiple }`
+- **What counts as a trade, and what counts as a win, is centralised in `server/lib/tradeStats.js`.** Every route that splits trades into wins and losses imports `BOOKED`, `IS_WIN`/`IS_LOSS`, `COUNT_WINS`/`COUNT_LOSSES`, `GROSS_PROFIT`/`GROSS_LOSS`, `winRate()`, `profitFactor()`. The rules: a scratch is a **breakeven, not a loss** (`< 0`, never `<= 0`); the verdict is taken on `pnl + fees` (before commissions) while the sums stay net; win rate divides by decisive trades, not `COUNT(*)`. `stats-tests.mjs` unit-tests these *and* greps `server/routes/` for inline re-spellings — it fails the build if a route starts classifying on its own. This is not stylistic: the Dashboard and the Playbook once reported 67.6% and 57.5% for the same 80 trades because they spelled "loss" differently.
 - All tables have RLS policies enforcing `user_id = auth.uid()`
 
 ### Frontend State

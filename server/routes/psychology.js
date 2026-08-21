@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import pool from '../db.js'
+import { isLoss, isWin, winRate } from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -26,7 +27,7 @@ function computeTiltHistory(trades) {
     const total = window.length
     const mistake_rate    = window.filter(t => parseJson(t.mistakes).length > 0).length / total
     const rule_break_rate = window.filter(t => parseJson(t.rules_broken).length > 0).length / total
-    const loss_rate       = window.filter(t => t.pnl != null && t.pnl <= 0).length / total
+    const loss_rate       = window.filter(isLoss).length / total
     const low_conf_rate   = window.filter(t => t.confidence != null && t.confidence < 3).length / total
     const tilt_score = Math.round(
       (mistake_rate*0.35 + low_conf_rate*0.25 + loss_rate*0.25 + rule_break_rate*0.15) * 100
@@ -42,7 +43,7 @@ router.get('/tilt-history', async (req, res) => {
     const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
-      SELECT id,date,pnl,confidence,emotions,mistakes,rules_broken
+      SELECT id,date,pnl,fees,confidence,emotions,mistakes,rules_broken
       FROM trades WHERE status='closed' AND pnl IS NOT NULL ${clause}
       ORDER BY date ASC, id ASC
     `, params)
@@ -65,7 +66,7 @@ router.get('/summary', async (req, res) => {
     const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
-      SELECT id,date,pnl,confidence,emotions,mistakes,rules_followed,rules_broken
+      SELECT id,date,pnl,fees,confidence,emotions,mistakes,rules_followed,rules_broken
       FROM trades WHERE status='closed' AND pnl IS NOT NULL ${clause}
       ORDER BY date ASC, id ASC
     `, params)
@@ -142,16 +143,17 @@ router.get('/emotion-performance', async (req, res) => {
     const { clause, params } = dateFilter(from, to, req.userId)
 
     const r = await pool.query(`
-      SELECT pnl,emotions FROM trades
+      SELECT pnl,fees,emotions FROM trades
       WHERE status='closed' AND pnl IS NOT NULL AND emotions IS NOT NULL AND emotions != '[]' ${clause}
     `, params)
 
     const byEmotion = {}
     r.rows.forEach(t => {
       parseJson(t.emotions).forEach(e => {
-        if (!byEmotion[e]) byEmotion[e] = { pnls:[], wins:0 }
+        if (!byEmotion[e]) byEmotion[e] = { pnls:[], wins:0, losses:0 }
         byEmotion[e].pnls.push(Number(t.pnl))
-        if (t.pnl > 0) byEmotion[e].wins++
+        if (isWin(t))  byEmotion[e].wins++
+        if (isLoss(t)) byEmotion[e].losses++
       })
     })
 
@@ -160,7 +162,7 @@ router.get('/emotion-performance', async (req, res) => {
       count:     d.pnls.length,
       avg_pnl:   d.pnls.reduce((a,b)=>a+b,0) / d.pnls.length,
       total_pnl: d.pnls.reduce((a,b)=>a+b,0),
-      win_rate:  (d.wins / d.pnls.length) * 100,
+      win_rate:  winRate(d.wins, d.losses),
     })).sort((a,b)=>b.count-a.count))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })

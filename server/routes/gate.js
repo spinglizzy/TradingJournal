@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import pool from '../db.js'
 import { evaluateGate } from '../lib/gateVerdict.js'
+import { BOOKED, IS_WIN, IS_LOSS, IS_BREAKEVEN } from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -287,10 +288,11 @@ router.get('/review', async (req, res) => {
                AVG(t.r_multiple)                                    AS avg_r,
                SUM(t.r_multiple)                                    AS total_r,
                SUM(t.pnl)                                           AS total_pnl,
-               COUNT(*) FILTER (WHERE t.pnl > 0)::int               AS wins,
-               COUNT(*) FILTER (WHERE t.pnl <= 0)::int              AS losses
+               COUNT(*) FILTER (WHERE ${IS_WIN('t.')})::int         AS wins,
+               COUNT(*) FILTER (WHERE ${IS_LOSS('t.')})::int        AS losses,
+               COUNT(*) FILTER (WHERE ${IS_BREAKEVEN('t.')})::int   AS breakevens
         FROM gate_checks g
-        JOIN trades t ON t.id = g.linked_trade_id AND t.status = 'closed'
+        JOIN trades t ON t.id = g.linked_trade_id AND t.status = 'closed' AND ${BOOKED('t.')}
         WHERE ${where}
         GROUP BY 1
       `, p),

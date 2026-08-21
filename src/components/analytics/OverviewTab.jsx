@@ -160,9 +160,11 @@ function MonthlyTable({ data }) {
   let running = 0
   const rows = data.map(m => {
     running += m.pnl
+    // Breakevens are excluded from both sides, the same way the Dashboard does
+    // it. The bar below must be drawn on this denominator too, not on `trades`.
     const decisive = Number(m.wins) + Number(m.losses)
     const winRate = decisive > 0 ? (Number(m.wins) / decisive) * 100 : 0
-    return { ...m, running, winRate }
+    return { ...m, running, winRate, decisive }
   }).reverse()
 
   return (
@@ -186,7 +188,7 @@ function MonthlyTable({ data }) {
               </td>
               <td className="py-2.5 pr-4 text-gray-300">{r.trades}</td>
               <td className="py-2.5 pr-4 w-32">
-                <WinRateBar wins={r.wins} total={r.trades} />
+                <WinRateBar wins={Number(r.wins)} total={r.decisive} />
               </td>
               <td className={`py-2.5 font-mono font-medium ${r.running >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {fmtPnl(r.running)}
