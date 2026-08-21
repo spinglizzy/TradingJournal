@@ -34,7 +34,12 @@ function PnlBarChart({ data, xKey, xLabel = xKey, chartRef }) {
                   <div className={`font-mono font-semibold ${d.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {fmtPnl(d.pnl)}
                   </div>
-                  <div className="text-gray-500 text-xs">{d.trades} trades · {d.wins ?? 0}W</div>
+                  <div className="text-gray-500 text-xs">
+                    {d.trades} trades · {d.wins ?? 0}W / {d.losses ?? 0}L
+                    {Number(d.trades) - Number(d.wins ?? 0) - Number(d.losses ?? 0) > 0
+                      ? ` / ${Number(d.trades) - Number(d.wins ?? 0) - Number(d.losses ?? 0)}BE`
+                      : ''}
+                  </div>
                 </div>
               )
             }}
@@ -108,7 +113,7 @@ export default function ByTimeTab({ dateRange }) {
     ]).then(([hour, weekday, monthly, holdTime]) => {
       // Fill missing hours
       const hourMap = Object.fromEntries(hour.map(h => [h.hour, h]))
-      const allHours = Array.from({ length: 24 }, (_, i) => hourMap[i] ?? { hour: i, label: `${String(i).padStart(2,'0')}:00`, trades: 0, pnl: 0, wins: 0, avg_pnl: 0, avg_r: null })
+      const allHours = Array.from({ length: 24 }, (_, i) => hourMap[i] ?? { hour: i, label: `${String(i).padStart(2,'0')}:00`, trades: 0, pnl: 0, wins: 0, losses: 0, avg_pnl: 0, avg_r: null })
 
       // Fill missing weekdays
       const dayMap = Object.fromEntries(weekday.map(d => [d.dow, d]))
