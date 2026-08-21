@@ -10,10 +10,11 @@ npm run dev:server    # Backend only
 npm run dev:client    # Frontend only
 npm run build         # Production Vite build
 npm run seed          # Load sample trade data into the database
-npm test              # All three unit suites below (no DB)
-npm run test:wheel    # Wheel basis engine + strike calculator unit tests (no DB)
-npm run test:gate     # Pre-Entry Gate verdict engine unit tests (no DB)
-npm run test:stats    # Win/loss + win-rate definitions, and the anti-drift grep over server/routes (no DB)
+npm test               # All four unit suites below (no DB)
+npm run test:wheel     # Wheel basis engine + strike calculator unit tests (no DB)
+npm run test:lifecycle # Drives the real wheel router against an in-memory pg shim (no DB)
+npm run test:gate      # Pre-Entry Gate verdict engine unit tests (no DB)
+npm run test:stats     # Win/loss + win-rate definitions, and the anti-drift grep over server/routes (no DB)
 ```
 
 The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`.
@@ -36,6 +37,7 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 - Cycle fields (`shares`, `avg_assigned_strike`, `net_premium`) are **cached derived values**, recomputed by `recomputeCycle()` on every mutation from lots + legs + the `shares_exited` / `premium_attributed` accumulators.
 - `premium` is the TOTAL dollars for a leg (credit positive); `close_cost` is the buy-to-close debit. A leg's realised premium is `premium − close_cost − fees`.
 - Wheel legs are rejected by the generic `PUT`/`DELETE /api/trades/:id` handlers (409) — editing them there would recompute `pnl` with `calcPnl` and leave the basis wrong.
+- **The two endings are not symmetric, and `isCycleFlat` is where that lives.** A put expiring (or being bought back) while flat ENDS the run and books it — "log the win and move on". A call expiring while shares are held does NOT: the basis just drops, and the trade isn't over until the shares go. `wheel-lifecycle-tests.mjs` drives both paths through the real router.
 - **The wheel RUN is the trade, and it books once — when the cycle goes flat.** No leg ever carries `pnl`; a closed cycle gets ONE summary row in `trades` (told apart by `leg_status IS NULL`) holding every leg's premium net of commissions **plus** the share gain/loss, dated `closed_at`. `syncCycleSummary` writes, refreshes and deletes that row; `recomputeCycle` drives it on every event. That single figure is what the dashboard, the equity curve and the win rate see.
 - **A separate ticker is a separate play; multiple legs on one ticker are one trade.** That is Sam's rule and it is what `wheel_cycles` is keyed on, so the CYCLE is the unit of counting as well as of P&L. Counting queries use `COUNTS_AS_TRADE` (which excludes every leg, open or closed) and add the still-running plays back with `activeCycleCount()` — both in `server/lib/tradeStats.js`. Counting open *rows* instead is wrong in both directions: it would count a run once per live contract, and count zero for a run holding assigned shares between covered calls, which has no open row at all.
 - `BOOKED` (drops closed rows with no P&L) is still the right predicate for P&L **sums**; `COUNTS_AS_TRADE` is the one for **counts**.
