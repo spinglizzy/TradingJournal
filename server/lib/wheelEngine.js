@@ -45,6 +45,93 @@ export function sumLegPremium(legs = []) {
   return legs.reduce((acc, leg) => acc + legNetPremium(leg), 0)
 }
 
+/** Round to cents — leg P&L lands in a money column and 0.1 + 0.2 is not 0.3. */
+const round2 = (v) => Math.round((num(v) + Number.EPSILON) * 100) / 100
+
+/**
+ * Booked P&L for every leg of a cycle, keyed by leg id. `null` means "not an
+ * outcome yet — do not count this row".
+ *
+ * A ROLL IS NOT AN OUTCOME. The buy-to-close debit and the credit on the
+ * replacement leg are two halves of one position that is still running, so
+ * booking the debit the moment the roll is entered reports a loss on a trade
+ * that has not finished. That is what made a rolled RGTI put read -$193.55 on
+ * the dashboard while the position was, across the roll, up $127.35.
+ *
+ * So a leg that was rolled INTO a leg that still exists books nothing, and its
+ * realised premium is carried forward: whichever leg finally ENDS the chain —
+ * expired, assigned, called away, bought back — books the whole chain at once.
+ * Lifetime P&L is identical either way. What changes is the timing, and that one
+ * roll chain now counts as one trade instead of one per roll.
+ *
+ * `null` is the marker rather than 0 because 0 is a real, countable outcome: the
+ * win/loss split is taken on `pnl + fees`, so a zeroed row still carrying its
+ * commissions would be counted as a WIN. NULL is also the convention the
+ * `already_logged` seed leg already uses, and every stats query either sums
+ * `pnl` (NULL skipped) or filters `pnl IS NOT NULL`.
+ *
+ * Two kinds of leg come back unchanged, so this is idempotent over a whole
+ * cycle: legs still open, and legs deliberately left unbooked — a NULL `pnl` on
+ * a leg that neither was rolled nor came out of a roll. That combination is the
+ * `already_logged` seed leg and nothing else: `resolveLeg` always writes a
+ * figure for a standalone outcome, so the only other way a closed leg holds NULL
+ * is that it is part of a chain. Booking the seed leg here would double-count a
+ * credit the Trade Log has already recorded on its own row.
+ *
+ * A rolled leg whose successor was DELETED is not deferred: with nothing left to
+ * carry it into, it books on its own. That is what stops a mis-entered roll from
+ * silently losing its premium when the replacement leg is removed.
+ */
+export function legPnl(legs = []) {
+  const byId       = new Map(legs.map(l => [l.id, l]))
+  const rolledInto = new Set(legs.map(l => l.rolled_from_id).filter(id => id != null))
+  const out        = new Map()
+
+  for (const leg of legs) {
+    const unresolved           = leg.leg_status === 'open' || leg.status === 'open'
+    const deliberatelyUnbooked = leg.pnl == null && leg.leg_status !== 'rolled' && leg.rolled_from_id == null
+    if (unresolved || deliberatelyUnbooked) {
+      out.set(leg.id, leg.pnl == null ? null : num(leg.pnl))
+      continue
+    }
+    if (leg.leg_status === 'rolled' && rolledInto.has(leg.id)) { out.set(leg.id, null); continue }
+
+    // Walk back up the roll chain, adding every deferred leg's realised premium.
+    // `seen` guards a self-referential row rather than trusting the data.
+    let total  = legNetPremium(leg)
+    const seen = new Set([leg.id])
+    let prev   = leg.rolled_from_id != null ? byId.get(leg.rolled_from_id) : null
+    while (prev && prev.leg_status === 'rolled' && !seen.has(prev.id)) {
+      seen.add(prev.id)
+      total += legNetPremium(prev)
+      prev = prev.rolled_from_id != null ? byId.get(prev.rolled_from_id) : null
+    }
+    out.set(leg.id, round2(total))
+  }
+  return out
+}
+
+/**
+ * Premium a set of legs has actually settled — what the Wheel tab reports as
+ * "banked", and the figure that has to agree with the Playbook's "Wheel Play".
+ *
+ * It reads `pnl` wherever a leg has one, so a roll chain contributes its
+ * rolled-up total on the leg that ended it and nothing on the rolls in between.
+ * The fallback to `legNetPremium` covers the `already_logged` leg, which carries
+ * real premium that the journal books on another row; a leg deferred into a live
+ * roll chain contributes zero, because that money is not settled until the chain
+ * ends. So does an open leg: its credit can still be bought back at a loss. The
+ * callers filter to closed legs already, but the name promises settled money and
+ * the function should keep that promise on its own.
+ */
+export function settledPremium(legs = []) {
+  return legs.reduce((acc, leg) => {
+    if (leg.pnl != null) return acc + num(leg.pnl)
+    if (leg.leg_status === 'rolled' || leg.leg_status === 'open' || leg.status === 'open') return acc
+    return acc + legNetPremium(leg)
+  }, 0)
+}
+
 /**
  * Effective cost basis per share — the break-even line every covered-call strike
  * is compared against.

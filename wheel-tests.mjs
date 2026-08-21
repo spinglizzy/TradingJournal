@@ -8,7 +8,7 @@
  * the spec singles out as a correction to the original design.
  */
 import {
-  legNetPremium, sumLegPremium, effectiveBasis, addLot, rollupLots,
+  legNetPremium, sumLegPremium, legPnl, settledPremium, effectiveBasis, addLot, rollupLots,
   bookShareExit, realizedPnl, isCycleFlat, sharesFor,
 } from './server/lib/wheelEngine.js'
 import {
@@ -448,6 +448,73 @@ group('§9.11 snapshot shape', () => {
   check('records crossover', snap.crossover, 16.12)
   check('records expiry', snap.expiry, '2026-07-31')
 })
+
+group('roll chains book once, at the end', () => {
+  // The RGTI case that started this: sell the 16.5P for +30 (fees 1.55), buy it
+  // back for 222 and sell the next week's for +324 (fees 3.10). Booking the
+  // closing leg on its own reports -193.55 on a position that is up 127.35.
+  const rgti = [
+    { id: 156, leg_status: 'rolled', status: 'closed', rolled_from_id: null, premium: 30,  close_cost: 222,  fees: 1.55, pnl: null },
+    { id: 163, leg_status: 'open',   status: 'open',   rolled_from_id: 156,  premium: 324, close_cost: null, fees: 3.10, pnl: null },
+  ]
+  let p = legPnl(rgti)
+  check('the rolled leg books nothing while the chain is live', p.get(156), null)
+  check('the replacement books nothing while it is open',       p.get(163), null)
+  check('nothing is settled mid-roll',                          settledPremium(rgti), 0)
+
+  // The replacement expires worthless: the whole chain books on it, at once.
+  rgti[1].leg_status = 'expired'
+  rgti[1].status     = 'closed'
+  p = legPnl(rgti)
+  check('the closing leg still books nothing',      p.get(156), null)
+  check('the chain books on the leg that ended it', p.get(163), 127.35)
+  rgti[1].pnl = p.get(163)
+  check('settled premium is the chain total, not the last leg', settledPremium(rgti), 127.35)
+
+  // Lifetime P&L is unchanged by the deferral — only its timing is.
+  check('deferral does not move lifetime P&L', sumLegPremium(rgti), 127.35)
+})
+
+group('roll chains — long chains, edits and deletes', () => {
+  // HL: nine rolls into an assignment. The assignment leg carries all of it,
+  // which is the 569.30 basis cushion the cycle is judged against.
+  const hl = [
+    { id: 77,  leg_status: 'rolled',   status: 'closed', rolled_from_id: null, premium: 18,   close_cost: 0, fees: 1.13, pnl: null },
+    { id: 78,  leg_status: 'rolled',   status: 'closed', rolled_from_id: 77,   premium: 53.5, close_cost: 0, fees: 0,    pnl: null },
+    { id: 79,  leg_status: 'rolled',   status: 'closed', rolled_from_id: 78,   premium: 36,   close_cost: 0, fees: 1.05, pnl: null },
+    { id: 83,  leg_status: 'rolled',   status: 'closed', rolled_from_id: 79,   premium: 58,   close_cost: 0, fees: 1.02, pnl: null },
+    { id: 87,  leg_status: 'rolled',   status: 'closed', rolled_from_id: 83,   premium: 274,  close_cost: 0, fees: 3,    pnl: null },
+    { id: 89,  leg_status: 'rolled',   status: 'closed', rolled_from_id: 87,   premium: 68,   close_cost: 0, fees: 4,    pnl: null },
+    { id: 94,  leg_status: 'rolled',   status: 'closed', rolled_from_id: 89,   premium: -56,  close_cost: 0, fees: 0,    pnl: null },
+    { id: 97,  leg_status: 'rolled',   status: 'closed', rolled_from_id: 94,   premium: 44,   close_cost: 0, fees: 4,    pnl: null },
+    { id: 101, leg_status: 'rolled',   status: 'closed', rolled_from_id: 97,   premium: 52,   close_cost: 0, fees: 4,    pnl: null },
+    { id: 107, leg_status: 'assigned', status: 'closed', rolled_from_id: 101,  premium: 44,   close_cost: 0, fees: 4,    pnl: null },
+  ]
+  const p = legPnl(hl)
+  check('nine rolls book nothing', hl.slice(0, 9).every(l => p.get(l.id) === null), true)
+  check('the assignment books the whole chain', p.get(107), 569.30)
+  check('one chain, one booked trade', [...p.values()].filter(v => v !== null).length, 1)
+
+  // Deleting the replacement leg must not swallow the closing leg's premium:
+  // with nothing left to carry it into, the rolled leg books on its own.
+  check('a rolled leg with no successor books itself', legPnl([hl[0]]).get(77), 16.87)
+
+  // Re-deriving over its own output changes nothing — recomputeCycle runs this
+  // on every cycle event, so it has to be idempotent.
+  const again = legPnl(hl.map(l => ({ ...l, pnl: p.get(l.id) })))
+  check('idempotent for the leg that booked',   again.get(107), 569.30)
+  check('idempotent for the deferred legs',     again.get(101), null)
+})
+
+group('a leg journalled elsewhere stays unbooked', () => {
+  // The already_logged seed leg: closed, real premium, pnl deliberately NULL
+  // because the Trade Log books the same credit on another row. Re-deriving leg
+  // P&L must not "helpfully" book it and double-count.
+  const seeded = [{ id: 1, leg_status: 'assigned', status: 'closed', rolled_from_id: null, premium: 40, close_cost: null, fees: 1, pnl: null }]
+  check('stays unbooked', legPnl(seeded).get(1), null)
+  check('but its premium still counts as settled', settledPremium(seeded), 39)
+})
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log(`\n${'─'.repeat(60)}`)

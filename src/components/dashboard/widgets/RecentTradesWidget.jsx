@@ -71,8 +71,15 @@ export default function RecentTradesWidget({ config }) {
                       {t.direction}
                     </span>
                   </td>
-                  <td className={`py-2 text-right font-mono font-medium ${(t.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {(t.pnl ?? 0) >= 0 ? '+' : ''}${Math.abs(t.pnl ?? 0).toFixed(2)}
+                  {/* A null P&L is "no outcome booked yet" — a rolled wheel leg,
+                      or a leg journalled on another row. Rendering it as +$0.00
+                      in green claims a result the trade has not produced. */}
+                  <td className={`py-2 text-right font-mono font-medium ${
+                    t.pnl == null ? 'text-gray-600' : (t.pnl >= 0 ? 'text-emerald-400' : 'text-red-400')
+                  }`}>
+                    {t.pnl == null
+                      ? '—'
+                      : `${t.pnl >= 0 ? '+' : ''}$${Math.abs(t.pnl).toFixed(2)}`}
                   </td>
                   <td className={`py-2 text-right font-mono ${t.r_multiple == null ? 'text-gray-600' : (t.r_multiple >= 0 ? 'text-gray-300' : 'text-gray-400')}`}>
                     {t.r_multiple != null ? `${t.r_multiple >= 0 ? '+' : ''}${t.r_multiple.toFixed(2)}R` : '—'}

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import pool from '../db.js'
 import {
-  SHARES_PER_CONTRACT, sharesFor, legNetPremium, sumLegPremium,
+  SHARES_PER_CONTRACT, sharesFor, legNetPremium, sumLegPremium, legPnl, settledPremium,
   rollupLots, bookShareExit, isCycleFlat, describeCycle, dte, effectiveBasis,
 } from '../lib/wheelEngine.js'
 
@@ -81,6 +81,19 @@ async function recomputeCycle(client, cycleId, { eventDate, closeReason, exitPri
     'SELECT * FROM share_lots WHERE wheel_cycle_id = $1 ORDER BY id', [cycleId]
   )
 
+  // Leg P&L is DERIVED here, not accumulated at the point of each event, so a
+  // roll chain can never be left booking the wrong number after a leg is edited
+  // or deleted. `legPnl` defers a rolled leg and books the whole chain on the leg
+  // that ends it — see its doc comment for why a roll must not book on its own.
+  const pnlByLeg = legPnl(legs)
+  for (const leg of legs) {
+    const next = pnlByLeg.get(leg.id) ?? null
+    const curr = leg.pnl == null ? null : Number(leg.pnl)
+    if (next === curr) continue
+    await client.query('UPDATE trades SET pnl = $1, updated_at = NOW() WHERE id = $2', [next, leg.id])
+    leg.pnl = next
+  }
+
   const { shares: assigned, avgAssignedStrike } = rollupLots(lots)
   const shares     = assigned - cycle.shares_exited
   // `retained_share_gain` is profit from basis-reducing partial sales that was
@@ -151,13 +164,22 @@ async function getOwnedLeg(client, legId, userId) {
  * commission, not a per-event one. Skipping it is not a rounding matter: an
  * unrecorded round-trip commission reads the basis low by exactly that amount,
  * in the direction that makes a marginal strike look safer than it is.
+ *
+ * A roll books NOTHING here: the position continues in the leg that replaces
+ * this one, so `pnl` is left NULL and the realised premium is carried forward to
+ * whichever leg ends the chain. The provisional value written for every other
+ * outcome is finalised moments later by `recomputeCycle`, which owns leg P&L —
+ * it is the same figure unless this leg is itself the end of a roll chain, in
+ * which case the chain's earlier legs are added there.
  */
 async function resolveLeg(client, leg, legStatus, { closeCost = null, closeFees = 0 } = {}) {
   const cost = closeCost == null ? leg.close_cost : closeCost
   const fees = round2(Number(leg.fees || 0) + feeAmount(closeFees))
   // Same figure the cycle's net_premium uses, so the row's P&L and the basis
   // line can never tell two different stories about the same leg.
-  const pnl  = legNetPremium({ premium: leg.premium, close_cost: cost, fees })
+  const pnl  = legStatus === 'rolled'
+    ? null
+    : legNetPremium({ premium: leg.premium, close_cost: cost, fees })
   await client.query(`
     UPDATE trades SET leg_status = $1, close_cost = $2, status = 'closed',
                       pnl = $3, fees = $4, needs_roll = false, updated_at = NOW()
@@ -342,6 +364,12 @@ router.get('/history', async (req, res) => {
      * leg's premium is not yours yet — it can still be bought back at a loss —
      * and excluding it is also what keeps this total equal to the Playbook's,
      * which counts closed trades only.
+     *
+     * `settledPremium` rather than `sumLegPremium` for the same reason: a leg
+     * that has been rolled is settled on paper but its money is not, because the
+     * position continues. Summing raw premium would report the buy-to-close
+     * debit now AND the chain's total again when it ends, and would disagree with
+     * the Playbook, which sees the deferred leg's NULL P&L as nothing.
      */
     const { rows: openCycles } = await pool.query(
       `SELECT * FROM wheel_cycles WHERE user_id = $1 AND status = 'active' ORDER BY ticker`, [req.userId]
@@ -354,7 +382,7 @@ router.get('/history', async (req, res) => {
         [openCycles.map(c => c.id)]
       )
       for (const c of openCycles) {
-        const banked = sumLegPremium(openLegs.filter(l => l.wheel_cycle_id === c.id))
+        const banked = settledPremium(openLegs.filter(l => l.wheel_cycle_id === c.id))
         if (!banked) continue
         bankedTotal += banked
         const b = byTicker[c.ticker] ||= { ticker: c.ticker, cycles: 0, realized_pnl: 0, gross_premium: 0, share_pnl: 0, banked_premium: 0 }
@@ -373,12 +401,16 @@ router.get('/history', async (req, res) => {
      * exceed the Playbook's "Wheel Play" total by exactly this amount — an
      * intentional gap, but one the user has to be told about or the two screens
      * look like they disagree. `status = 'closed' AND pnl IS NULL` is unique to
-     * these legs: `resolveLeg` always writes a pnl, and open legs are not closed.
+     * these legs once rolled legs are excluded — those are also closed with a
+     * NULL P&L, but theirs is deferred into a live chain rather than journalled
+     * on another row, and counting them here would report money as missing from
+     * the dashboard that is merely not booked yet.
      */
     const { rows: excludedLegs } = await pool.query(
       `SELECT ${LEG_COLS} FROM trades
         WHERE user_id = $1 AND strategy_tag = 'wheel'
-          AND status = 'closed' AND pnl IS NULL`, [req.userId]
+          AND status = 'closed' AND pnl IS NULL
+          AND leg_status IS DISTINCT FROM 'rolled'`, [req.userId]
     )
     const excludedPremium = sumLegPremium(excludedLegs)
 

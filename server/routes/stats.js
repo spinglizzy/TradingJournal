@@ -16,6 +16,13 @@ function dateFilter(from, to, account_id, strategy_ids, userId, col='date', star
   // Always filter by user
   parts.push(`${prefix}user_id = $${i++}`); params.push(userId)
 
+  // A leg that was rolled is not a trade that happened — it is the first half of
+  // one still running, and its P&L is deferred onto the leg that ends the chain
+  // (see `legPnl` in server/lib/wheelEngine.js). Its `pnl` is NULL, so every sum
+  // and win/loss split here already skips it; dropping the row outright is what
+  // also keeps the trade COUNTS honest, one per chain rather than one per roll.
+  parts.push(`${prefix}leg_status IS DISTINCT FROM 'rolled'`)
+
   if (account_id) { parts.push(`${prefix}account_id = $${i++}`); params.push(account_id) }
   if (from) { parts.push(`${col} >= $${i++}`); params.push(from) }
   if (to)   { parts.push(`${col} <= $${i++}`); params.push(to)   }
