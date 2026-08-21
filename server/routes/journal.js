@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import pool from '../db.js'
-import { BOOKED, IS_WIN, IS_LOSS, IS_BREAKEVEN, GROSS_PROFIT, GROSS_LOSS, winRate, profitFactor } from '../lib/tradeStats.js'
+import { BOOKED, COUNTS_AS_TRADE, IS_WIN, IS_LOSS, IS_BREAKEVEN, GROSS_PROFIT, GROSS_LOSS, winRate, profitFactor, activeCycleCount } from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -75,7 +75,7 @@ router.get('/weekly-stats', async (req, res) => {
                COUNT(CASE WHEN ${IS_BREAKEVEN()} AND status='closed' THEN 1 END) AS breakevens,
                MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
                MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
-        FROM trades WHERE date>=$1 AND date<=$2 AND user_id=$3 AND ${BOOKED()}
+        FROM trades WHERE date>=$1 AND date<=$2 AND user_id=$3 AND ${COUNTS_AS_TRADE()}
       `, [from, to, req.userId]),
       pool.query(`
         SELECT ${GROSS_PROFIT()} AS gross_profit,
@@ -91,6 +91,11 @@ router.get('/weekly-stats', async (req, res) => {
 
     const stats = statsR.rows[0]
     const gross = grossR.rows[0]
+
+    // Wheel runs opened in the window are trades taken in the window, even
+    // though their result books later, on the day the run goes flat.
+    stats.total_trades = Number(stats.total_trades)
+      + await activeCycleCount(pool, { userId: req.userId, from, to })
     const win_rate      = winRate(stats.wins, stats.losses)
     const profit_factor = profitFactor(gross.gross_profit, gross.gross_loss)
 

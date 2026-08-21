@@ -38,6 +38,29 @@ export const BOOKED = (p = '') => `NOT (${p}status = 'closed' AND ${p}pnl IS NUL
  */
 export const RESULT = (p = '') => `(${p}pnl + COALESCE(${p}fees,0))`
 
+/**
+ * A wheel contract, as opposed to a trade.
+ *
+ * Sam's rule: *"if it's a separate ticker it's an individual play; multiple legs
+ * within the same ticker, it's the same trade."* That is exactly what
+ * `wheel_cycles` is keyed on, so the CYCLE is the trade and a leg is never one —
+ * not the put, not the nine rolls after it, not the covered calls written
+ * against the shares. Every real leg carries `leg_status`; the one summary row a
+ * closed cycle books does not, which is what tells them apart.
+ */
+export const IS_LEG = (p = '') => `${p}leg_status IS NOT NULL`
+
+/**
+ * Rows that are a trade in their own right — the predicate for COUNTING.
+ *
+ * `BOOKED` alone is not enough here. It drops closed legs (they carry no P&L)
+ * but keeps OPEN ones, so a live wheel run counted once per open contract while
+ * a run holding assigned shares between covered calls counted zero — it has no
+ * open row at all. Neither matches the rule. Legs are excluded outright, and the
+ * open runs are added back from `wheel_cycles` by `activeCycleCount()`.
+ */
+export const COUNTS_AS_TRADE = (p = '') => `(${BOOKED(p)} AND NOT ${IS_LEG(p)})`
+
 export const IS_WIN       = (p = '') => `${RESULT(p)} > 0`
 export const IS_LOSS      = (p = '') => `${RESULT(p)} < 0`
 export const IS_BREAKEVEN = (p = '') => `${RESULT(p)} = 0`
@@ -86,6 +109,63 @@ export function winRate(wins, losses) {
 export function profitFactor(grossProfit, grossLoss) {
   const gl = Number(grossLoss) || 0
   return gl > 0 ? Number(grossProfit) / gl : null
+}
+
+/**
+ * How many wheel runs are open — one per active cycle, whatever it is doing.
+ *
+ * This is the other half of `COUNTS_AS_TRADE`. A cycle is open whether it is
+ * sitting on a live put, mid-roll, or holding assigned shares with nothing
+ * written against them; that last state has no open row in `trades`, which is
+ * why counting rows misses it. FIG was in exactly that state when this was
+ * written, and the dashboard reported three open trades where there were four.
+ *
+ * Dated by `opened_at`: an open run is a trade from the day it started. When it
+ * goes flat it stops being counted here and its summary row — dated `closed_at`
+ * — starts being counted instead, so it is never both at once.
+ *
+ * `strategyOk` lets a caller filtering by strategy say whether Wheel Play is in
+ * the selection; when it is not, no cycle counts.
+ */
+export async function activeCycleCount(pool, { userId, from, to, accountId, strategyOk = true } = {}) {
+  if (!strategyOk) return 0
+  const params = [userId]
+  const parts  = [`user_id = $1`, `status = 'active'`]
+  if (accountId) { parts.push(`account_id = $${params.push(accountId)}`) }
+  if (from)      { parts.push(`opened_at >= $${params.push(from)}`) }
+  if (to)        { parts.push(`opened_at <= $${params.push(to)}`) }
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM wheel_cycles WHERE ${parts.join(' AND ')}`, params
+  )
+  return rows[0].n
+}
+
+/**
+ * The id of the "Wheel Play" playbook strategy, or null if the user has none.
+ * Resolve-only — creating it is `wheelStrategyId()` in routes/wheel.js, which is
+ * the write path. Reading must never conjure a strategy row as a side effect.
+ */
+export async function wheelStrategyId(pool, userId) {
+  const { rows } = await pool.query(
+    `SELECT id FROM strategies WHERE user_id = $1 AND lower(name) = 'wheel play' LIMIT 1`,
+    [userId]
+  )
+  return rows[0]?.id ?? null
+}
+
+/**
+ * Would a `strategy_ids` selection show wheel runs? An absent or empty filter
+ * means "everything", so it would. Used to decide whether open runs belong in a
+ * filtered count — the cycles themselves carry no `strategy_id`, only their legs
+ * and summary rows do.
+ */
+export async function wheelStrategySelected(pool, userId, strategy_ids) {
+  if (strategy_ids === undefined || strategy_ids === '') return true
+  const ids = String(strategy_ids).split(',').filter(Boolean)
+    .filter(t => t !== 'null').map(Number).filter(Number.isFinite)
+  if (!ids.length) return false
+  const id = await wheelStrategyId(pool, userId)
+  return id != null && ids.includes(id)
 }
 
 /** Expected value per trade, on the same decisive-trade win rate. */

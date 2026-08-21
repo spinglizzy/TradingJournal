@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import pool from '../db.js'
 import {
-  BOOKED, COUNT_WINS, COUNT_LOSSES, COUNT_BREAKEVENS, IS_WIN, IS_LOSS, IS_BREAKEVEN,
+  COUNTS_AS_TRADE, COUNT_WINS, COUNT_LOSSES, COUNT_BREAKEVENS, IS_WIN, IS_LOSS, IS_BREAKEVEN,
   GROSS_PROFIT, GROSS_LOSS, winRate, profitFactor, expectancy,
+  activeCycleCount, wheelStrategySelected,
 } from '../lib/tradeStats.js'
 
 const router = Router()
@@ -21,8 +22,10 @@ function dateFilter(from, to, account_id, strategy_ids, userId, col='date', star
   parts.push(`${prefix}user_id = $${i++}`); params.push(userId)
 
   // A wheel play books ONE result, on the summary row its cycle gets when the
-  // run goes flat — see syncCycleSummary in server/routes/wheel.js.
-  parts.push(BOOKED(prefix))
+  // run goes flat — see syncCycleSummary in server/routes/wheel.js. The legs are
+  // stages of that one trade and never count as trades themselves; the runs that
+  // are still going are added back from wheel_cycles by activeCycleCount().
+  parts.push(COUNTS_AS_TRADE(prefix))
 
   if (account_id) { parts.push(`${prefix}account_id = $${i++}`); params.push(account_id) }
   if (from) { parts.push(`${col} >= $${i++}`); params.push(from) }
@@ -61,6 +64,16 @@ router.get('/summary', async (req, res) => {
       FROM trades WHERE 1=1 ${clause}
     `, params)
     const row = rowR.rows[0]
+
+    // One open trade per active wheel run, whatever stage it is at. Counting
+    // open rows instead misses a run that holds assigned shares with no call
+    // written against them — it has no open row to find.
+    const openRuns = await activeCycleCount(pool, {
+      userId: req.userId, from, to, accountId: account_id,
+      strategyOk: await wheelStrategySelected(pool, req.userId, strategy_ids),
+    })
+    row.open_trades  = Number(row.open_trades)  + openRuns
+    row.total_trades = Number(row.total_trades) + openRuns
 
     const grossR = await pool.query(`
       SELECT

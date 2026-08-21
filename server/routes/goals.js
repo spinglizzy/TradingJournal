@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import pool from '../db.js'
-import { BOOKED, COUNT_WINS, COUNT_LOSSES, winRate } from '../lib/tradeStats.js'
+import { BOOKED, COUNTS_AS_TRADE, COUNT_WINS, COUNT_LOSSES, winRate, activeCycleCount } from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -65,11 +65,13 @@ async function computeCurrentValue(metric, from, to, userId) {
     return winRate(wins, losses)
   }
   if (metric === 'trade_count') {
+    // Rows that are trades, plus the wheel runs opened in the window — the legs
+    // themselves are stages of a run, not trades to count one by one.
     const r = await pool.query(
-      `SELECT COUNT(*) as v FROM trades WHERE date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED()}`,
+      `SELECT COUNT(*) as v FROM trades WHERE date BETWEEN $1 AND $2 AND user_id=$3 AND ${COUNTS_AS_TRADE()}`,
       [from, to, userId]
     )
-    return Number(r.rows[0].v)
+    return Number(r.rows[0].v) + await activeCycleCount(pool, { userId, from, to })
   }
   if (metric === 'discipline_score') {
     const r = await pool.query(

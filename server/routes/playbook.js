@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import pool from '../db.js'
 import {
-  BOOKED, IS_WIN, IS_LOSS, IS_BREAKEVEN, COUNT_WINS, COUNT_LOSSES, COUNT_BREAKEVENS,
+  BOOKED, COUNTS_AS_TRADE, IS_WIN, IS_LOSS, IS_BREAKEVEN, COUNT_WINS, COUNT_LOSSES, COUNT_BREAKEVENS,
+  activeCycleCount, wheelStrategyId,
   GROSS_PROFIT, GROSS_LOSS, PROFIT_FACTOR, winRate, profitFactor, expectancy,
 } from '../lib/tradeStats.js'
 
@@ -28,7 +29,7 @@ async function getStats(strategyId, userId) {
              AVG(CASE WHEN status='closed' THEN r_multiple END) AS avg_r,
              MAX(CASE WHEN status='closed' THEN pnl END) AS best_pnl,
              MIN(CASE WHEN status='closed' THEN pnl END) AS worst_pnl
-      FROM trades WHERE strategy_id=$1 AND user_id=$2 AND ${BOOKED()}
+      FROM trades WHERE strategy_id=$1 AND user_id=$2 AND ${COUNTS_AS_TRADE()}
     `, [strategyId, userId]),
     pool.query(`
       SELECT ${GROSS_PROFIT()} AS gross_profit,
@@ -38,6 +39,15 @@ async function getStats(strategyId, userId) {
   ])
   const row   = rowR.rows[0]
   const gross = grossR.rows[0]
+
+  // Wheel Play's open trades are its active runs, one per ticker — the legs
+  // were just excluded from the count above and no cycle carries a strategy_id.
+  // Number(): the id arrives as a string from req.params and an int from a row.
+  if (Number(strategyId) === await wheelStrategyId(pool, userId)) {
+    const openRuns = await activeCycleCount(pool, { userId })
+    row.total_trades = Number(row.total_trades) + openRuns
+  }
+
   const win_rate = winRate(row.wins, row.losses)
   const avg_win  = Number(row.avg_win ?? 0)
   const avg_loss = Number(row.avg_loss ?? 0)

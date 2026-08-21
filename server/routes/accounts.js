@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import pool from '../db.js'
-import { BOOKED } from '../lib/tradeStats.js'
+import { COUNTS_AS_TRADE } from '../lib/tradeStats.js'
 
 const router = Router()
 
@@ -13,7 +13,7 @@ const ACCT_SELECT = `
     COALESCE(SUM(CASE WHEN at.type='deposit'    THEN at.amount ELSE 0 END),0) AS total_deposits,
     COALESCE(SUM(CASE WHEN at.type='withdrawal' THEN at.amount ELSE 0 END),0) AS total_withdrawals,
     (SELECT COALESCE(SUM(pnl),0) FROM trades WHERE account_id=a.id AND status='closed' AND user_id=a.user_id) AS realized_pnl,
-    (SELECT COUNT(*)             FROM trades WHERE account_id=a.id AND user_id=a.user_id AND ${BOOKED()}) AS trade_count
+    (SELECT COUNT(*)             FROM trades WHERE account_id=a.id AND user_id=a.user_id AND ${COUNTS_AS_TRADE()}) AS trade_count
   FROM accounts a
   LEFT JOIN account_transactions at ON at.account_id=a.id`
 

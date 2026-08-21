@@ -15,9 +15,10 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  BOOKED, RESULT, IS_WIN, IS_LOSS, IS_BREAKEVEN,
+  BOOKED, RESULT, IS_WIN, IS_LOSS, IS_BREAKEVEN, IS_LEG, COUNTS_AS_TRADE,
   COUNT_WINS, COUNT_LOSSES, COUNT_BREAKEVENS, GROSS_PROFIT, GROSS_LOSS, PROFIT_FACTOR,
   winRate, profitFactor, expectancy, resultOf, isWin, isLoss, isBreakeven, isDecided,
+  activeCycleCount, wheelStrategySelected,
 } from './server/lib/tradeStats.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -78,8 +79,60 @@ ok('BOOKED drops closed rows with no P&L', /status = 'closed' AND .*pnl IS NULL/
 ok('GROSS_LOSS sums net P&L, not the result basis', /SUM\(CASE WHEN .* THEN pnl END\)/.test(GROSS_LOSS()), GROSS_LOSS())
 ok('PROFIT_FACTOR guards divide-by-zero', /NULLIF/.test(PROFIT_FACTOR()), PROFIT_FACTOR())
 
+// ── The counting unit ───────────────────────────────────────────────────────
+group('a wheel run is one trade, however many legs it took')
+ok('a leg is identified by leg_status',        /leg_status IS NOT NULL/.test(IS_LEG()), IS_LEG())
+ok('COUNTS_AS_TRADE excludes legs',            /NOT .*leg_status IS NOT NULL/.test(COUNTS_AS_TRADE()), COUNTS_AS_TRADE())
+ok('COUNTS_AS_TRADE still excludes unbooked rows', /pnl IS NULL/.test(COUNTS_AS_TRADE()), COUNTS_AS_TRADE())
+ok('COUNTS_AS_TRADE is stricter than BOOKED',
+   COUNTS_AS_TRADE().includes(BOOKED()) && COUNTS_AS_TRADE().length > BOOKED().length,
+   'it must only ever remove rows BOOKED would have kept, never add any')
+
+// A fake pool: records the SQL it is asked to run and reports one row back.
+const fakePool = (n = 7) => {
+  const seen = []
+  return { seen, query: async (sql, params) => (seen.push({ sql, params }), { rows: [{ n, id: 42 }] }) }
+}
+
+group('open wheel runs are counted from cycles, not from rows')
+{
+  const p = fakePool(4)
+  const got = await activeCycleCount(p, { userId: 'u' })
+  eq('returns the cycle count', got, 4)
+  ok('reads wheel_cycles, not trades', /FROM wheel_cycles/.test(p.seen[0].sql), p.seen[0].sql)
+  ok('counts only active cycles',      /status = 'active'/.test(p.seen[0].sql), p.seen[0].sql)
+  ok('always scopes to the user',      /user_id = \$1/.test(p.seen[0].sql), p.seen[0].sql)
+  ok('does not look at open legs',     !/leg_status/.test(p.seen[0].sql), p.seen[0].sql)
+}
+{
+  // The FIG case: a run holding assigned shares with no option written against
+  // it has no open row in `trades`, and must still count as one open trade.
+  const p = fakePool(1)
+  eq('a run on bare shares still counts', await activeCycleCount(p, { userId: 'u' }), 1)
+}
+{
+  const p = fakePool(4)
+  await activeCycleCount(p, { userId: 'u', from: '2026-08-01', to: '2026-08-31', accountId: 3 })
+  ok('windows on opened_at — a run is a trade from the day it started',
+     /opened_at >= \$/.test(p.seen[0].sql) && /opened_at <= \$/.test(p.seen[0].sql), p.seen[0].sql)
+  ok('honours the account filter', /account_id = \$/.test(p.seen[0].sql), p.seen[0].sql)
+}
+{
+  const p = fakePool(4)
+  eq('a strategy filter excluding Wheel Play counts no runs',
+     await activeCycleCount(p, { userId: 'u', strategyOk: false }), 0)
+  eq('...and issues no query at all', p.seen.length, 0)
+}
+
+group('does a strategy selection include the wheel?')
+eq('no filter means everything',  await wheelStrategySelected(fakePool(), 'u', undefined), true)
+eq('an empty filter means everything', await wheelStrategySelected(fakePool(), 'u', ''), true)
+eq('a selection of only "unassigned" excludes it', await wheelStrategySelected(fakePool(), 'u', 'null'), false)
+eq('a selection containing the wheel id includes it', await wheelStrategySelected(fakePool(), 'u', '42,7'), true)
+eq('a selection without the wheel id excludes it',    await wheelStrategySelected(fakePool(), 'u', '7,9'), false)
+
 group('fragments carry the table alias through')
-for (const [name, f] of Object.entries({ BOOKED, RESULT, IS_WIN, IS_LOSS, IS_BREAKEVEN,
+for (const [name, f] of Object.entries({ BOOKED, RESULT, IS_WIN, IS_LOSS, IS_BREAKEVEN, IS_LEG, COUNTS_AS_TRADE,
                                          COUNT_WINS, COUNT_LOSSES, COUNT_BREAKEVENS,
                                          GROSS_PROFIT, GROSS_LOSS, PROFIT_FACTOR })) {
   const withAlias = f('t.')
