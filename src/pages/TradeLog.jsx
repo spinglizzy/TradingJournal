@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { flushSync } from 'react-dom'
 import { Download, Plus, AlertTriangle, ClipboardList } from 'lucide-react'
@@ -47,7 +47,13 @@ export default function TradeLog() {
   const [page, setPage]   = useState(1)
   const LIMIT = 50
 
+  // Debouncing cuts the request count but does not order the responses: pause,
+  // type again, and an older /trades response can still land last and render stale
+  // matches. Only the newest request in flight is allowed to write state.
+  const reqSeq = useRef(0)
+
   const fetchTrades = useCallback(() => {
+    const seq = ++reqSeq.current
     setLoading(true)
     setError(null)
     const params = {
@@ -55,9 +61,9 @@ export default function TradeLog() {
       ...(selectedAccountId ? { account_id: selectedAccountId } : {}),
     }
     tradesApi.list(params)
-      .then(res => { setTrades(res.data); setTotal(res.total) })
-      .catch(() => setError('Failed to load trades. Make sure the server is running.'))
-      .finally(() => setLoading(false))
+      .then(res => { if (seq === reqSeq.current) { setTrades(res.data); setTotal(res.total) } })
+      .catch(() => { if (seq === reqSeq.current) setError('Failed to load trades. Make sure the server is running.') })
+      .finally(() => { if (seq === reqSeq.current) setLoading(false) })
   }, [filters, sort, page, selectedAccountId])
 
   useEffect(() => { fetchTrades() }, [fetchTrades])

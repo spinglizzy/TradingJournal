@@ -1,15 +1,35 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { DatePicker } from '../ui/DatePicker.jsx'
 
 export default function TradeFilters({ filters, onChange, strategies, tags, confluenceSuggestions = [], pdArraySuggestions = [] }) {
   const [open, setOpen] = useState(false)
 
+  // The search box types locally and only commits to `filters` after a pause, so a
+  // six-character ticker is one request instead of six. Everything else commits on
+  // the spot -- a select or a date pick is a decision, not a keystroke.
+  const [searchInput, setSearchInput] = useState(filters.search)
+  const searchTimer = useRef(null)
+
+  useEffect(() => () => clearTimeout(searchTimer.current), [])
+
+  function onSearchInput(e) {
+    const val = e.target.value
+    setSearchInput(val)
+    clearTimeout(searchTimer.current)
+    // Clearing the box restores the full list immediately -- waiting 300ms to show
+    // MORE results just feels broken.
+    if (val === '') { set('search', ''); return }
+    searchTimer.current = setTimeout(() => set('search', val), 300)
+  }
+
   function set(key, val) {
     onChange({ ...filters, [key]: val })
   }
 
   function reset() {
+    clearTimeout(searchTimer.current)
+    setSearchInput('')
     onChange({ start_date: '', end_date: '', ticker: '', direction: '', strategy_id: '', status: '', tag: '', confluence: '', pd_array: '', bias: '', smt_divergence: '', search: '' })
   }
 
@@ -24,8 +44,8 @@ export default function TradeFilters({ filters, onChange, strategies, tags, conf
           <input
             type="text"
             placeholder="Search ticker, notes..."
-            value={filters.search}
-            onChange={e => set('search', e.target.value)}
+            value={searchInput}
+            onChange={onSearchInput}
             className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
           />
         </div>
