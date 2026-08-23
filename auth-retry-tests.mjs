@@ -11,7 +11,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createRequest } from './src/api/authRetry.js'
-import { isSafeRedirect } from './src/lib/postLoginRedirect.js'
+import { isSafeRedirect, rememberPath, takeRememberedPath,
+         markOAuthPending, takeOAuthPending, oauthReturnTarget } from './src/lib/postLoginRedirect.js'
 import { TOKEN_INVALID } from './server/lib/authCodes.js'
 
 let passed = 0, failed = 0
@@ -208,6 +209,124 @@ await test('remembered paths that would loop or leave the site are rejected', ()
   assert.equal(isSafeRedirect('https://evil.com'), false)
   assert.equal(isSafeRedirect(null), false)
   assert.equal(isSafeRedirect(undefined), false)
+})
+
+// ── 7. OAuth returns through an external origin ─────────────────────────────
+// Password login consumes the remembered path in Login.jsx and never reloads.
+// OAuth leaves the site, so the path has to survive a round trip through the
+// provider and be picked up on the way back in. sessionStorage does survive it
+// -- it is scoped to the tab, not to a navigation, and Supabase redirects in
+// the same tab -- so these drive the pickup logic directly.
+function fakeStorage() {
+  const map = new Map()
+  return {
+    getItem:    k => (map.has(k) ? map.get(k) : null),
+    setItem:    (k, v) => map.set(k, String(v)),
+    removeItem: k => map.delete(k),
+  }
+}
+const withStorage = (store, fn) => {
+  globalThis.sessionStorage = store
+  try { return fn() } finally { delete globalThis.sessionStorage }
+}
+const fresh = fn => withStorage(fakeStorage(), fn)
+
+await test('OAuth round trip lands on the remembered path', () => {
+  fresh(() => {
+    rememberPath('/trades?search=NQ')       // kicked off the trade log
+    markOAuthPending()                      // then signed in with Google
+    assert.equal(oauthReturnTarget(true, '/dashboard'), '/trades?search=NQ')
+  })
+})
+
+await test('the OAuth path is single-use in both directions', () => {
+  fresh(() => {
+    rememberPath('/wheel')
+    markOAuthPending()
+    assert.equal(oauthReturnTarget(true, '/dashboard'), '/wheel')
+    // A second page load must not bounce them out of wherever they now are.
+    assert.equal(oauthReturnTarget(true, '/wheel'), null)
+    assert.equal(takeRememberedPath(), null)
+  })
+})
+
+await test('an ordinary page load with a path stored does not redirect', () => {
+  fresh(() => {
+    rememberPath('/wheel')                  // stored, but no OAuth was started
+    assert.equal(oauthReturnTarget(true, '/dashboard'), null)
+    assert.equal(takeRememberedPath(), '/wheel', 'the path is left for whoever does log in')
+  })
+})
+
+await test('an abandoned OAuth sign-in cannot redirect a later load', () => {
+  fresh(() => {
+    rememberPath('/wheel')
+    markOAuthPending()
+    assert.equal(oauthReturnTarget(false, '/login'), null, 'no session came back')
+    // The flag is spent even though nothing happened, so the next load is clean.
+    assert.equal(oauthReturnTarget(true, '/dashboard'), null)
+  })
+})
+
+await test('returning to where you already are is not a redirect', () => {
+  fresh(() => {
+    rememberPath('/dashboard')
+    markOAuthPending()
+    assert.equal(oauthReturnTarget(true, '/dashboard'), null, 'that would be a wasted page load')
+  })
+})
+
+await test('no remembered path → OAuth falls through to /dashboard', () => {
+  fresh(() => {
+    markOAuthPending()
+    assert.equal(oauthReturnTarget(true, '/dashboard'), null)
+  })
+})
+
+// The OAuth path must not become a second, laxer door into the same redirect.
+await test('OAuth applies the same validation as password login', () => {
+  for (const hostile of ['//evil.com', 'https://evil.com', '/login', '/signup', '/']) {
+    fresh(() => {
+      rememberPath(hostile)
+      markOAuthPending()
+      assert.equal(oauthReturnTarget(true, '/dashboard'), null, hostile + ' must never be a destination')
+    })
+  }
+})
+
+await test('a hostile path planted directly in storage is still rejected on read', () => {
+  // rememberPath guards the write, but the write is not the only way in.
+  const store = fakeStorage()
+  store.setItem('pj:post_login_redirect', '//evil.com')
+  withStorage(store, () => {
+    markOAuthPending()
+    assert.equal(oauthReturnTarget(true, '/dashboard'), null)
+  })
+})
+
+await test('storage that throws degrades to /dashboard instead of crashing', () => {
+  const privateMode = {
+    getItem()    { throw new Error('private mode') },
+    setItem()    { throw new Error('private mode') },
+    removeItem() { throw new Error('private mode') },
+  }
+  withStorage(privateMode, () => {
+    assert.doesNotThrow(() => rememberPath('/wheel'))
+    assert.equal(takeRememberedPath(), null)
+    assert.doesNotThrow(() => markOAuthPending())
+    assert.equal(takeOAuthPending(), false)
+    assert.equal(oauthReturnTarget(true, '/dashboard'), null)
+  })
+})
+
+await test('AuthContext still marks the OAuth flow and reads it back', () => {
+  // Drop either half and Google logins silently go back to always landing on
+  // /dashboard, with nothing failing to say so.
+  const ctx = fs.readFileSync('./src/contexts/AuthContext.jsx', 'utf8')
+  assert.match(ctx, /markOAuthPending\(\)/,  'loginWithOAuth must mark the flow before leaving')
+  assert.match(ctx, /oauthReturnTarget\(/,   'the boot path must check for a return')
+  assert.ok(ctx.includes('redirectTo: `${window.location.origin}/dashboard`'),
+    'redirectTo must stay on the allow-listed /dashboard — see markOAuthPending')
 })
 
 console.log(`\n${passed} passed, ${failed} failed\n`)

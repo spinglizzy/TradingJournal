@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { markOAuthPending, takeOAuthPending, oauthReturnTarget } from '../lib/postLoginRedirect.js'
 
 const AuthContext = createContext(null)
 
@@ -20,6 +21,14 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // Restore session from storage on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
+      // getSession() waits for the tokens in the return URL to be consumed, so
+      // this is the first moment an OAuth session is real. Redirect before
+      // clearing `loading`, so they keep seeing the spinner they were already
+      // looking at rather than a flash of the dashboard on the way elsewhere.
+      const target = oauthReturnTarget(Boolean(session),
+        window.location.pathname + window.location.search)
+      if (target) { window.location.replace(target); return }
+
       setUser(formatUser(session?.user ?? null))
       setLoading(false)
     })
@@ -39,11 +48,14 @@ export function AuthProvider({ children }) {
   }, [])
 
   const loginWithOAuth = useCallback(async (provider) => {
+    // redirectTo stays pointed at /dashboard on purpose -- see markOAuthPending.
+    markOAuthPending()
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: `${window.location.origin}/dashboard` },
     })
-    if (error) throw new Error(error.message)
+    // The browser never left, so nothing is coming back to read the flag.
+    if (error) { takeOAuthPending(); throw new Error(error.message) }
   }, [])
 
   const register = useCallback(async (email, password, name) => {
