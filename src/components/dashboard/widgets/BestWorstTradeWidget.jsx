@@ -1,19 +1,8 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { statsApi } from '../../../api/stats.js'
-import { useDashboard } from '../../../contexts/DashboardContext.jsx'
+import { useSummary } from '../../../contexts/DashboardContext.jsx'
 
 export default function BestWorstTradeWidget({ config }) {
-  const { dateRange, apiParams } = useDashboard()
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    statsApi.summary(apiParams)
-      .then(d => setData(d))
-      .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
+  const { data, loading } = useSummary()
 
   if (loading) return <WidgetSkeleton />
 

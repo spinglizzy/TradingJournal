@@ -1,20 +1,9 @@
-import { useEffect, useState } from 'react'
-import { statsApi } from '../../../api/stats.js'
-import { useDashboard } from '../../../contexts/DashboardContext.jsx'
+import { useSummary } from '../../../contexts/DashboardContext.jsx'
 import { useTheme } from '../../../contexts/ThemeContext.jsx'
 
 export default function ProfitFactorWidget({ config }) {
-  const { apiParams } = useDashboard()
+  const { data, loading } = useSummary()
   const { activeTheme } = useTheme()
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    statsApi.summary(apiParams)
-      .then(d => setData(d))
-      .finally(() => setLoading(false))
-  }, [apiParams.from, apiParams.to, apiParams.account_id, apiParams.strategy_ids])
 
   if (loading) return <WidgetSkeleton />
 
