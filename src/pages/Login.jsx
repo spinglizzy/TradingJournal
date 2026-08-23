@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import { takeRememberedPath } from '../lib/postLoginRedirect.js'
 import { Particles } from '../components/ui/Particles.jsx'
 import { PulseJournalLogo } from '../components/ui/PulseJournalLogo.jsx'
 
@@ -43,7 +44,7 @@ export default function Login() {
     setLoading(true)
     try {
       await login(email, password)
-      window.location.replace('/dashboard')
+      window.location.replace(takeRememberedPath() || '/dashboard')
     } catch (err) {
       setError(err.message)
     } finally {

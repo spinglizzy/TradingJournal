@@ -1,35 +1,26 @@
 import { supabase } from '../lib/supabase.js'
+import { createRequest } from './authRetry.js'
+import { rememberPath } from '../lib/postLoginRedirect.js'
 
-const BASE = '/api'
+export const api = createRequest({
+  fetchImpl: (...args) => fetch(...args),
 
-async function getAuthHeader() {
-  const { data: { session } } = await supabase.auth.getSession()
-  return session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}` }
-    : {}
-}
+  getAccessToken: async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ?? null
+  },
 
-async function request(path, options = {}) {
-  const authHeader = await getAuthHeader()
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...authHeader, ...options.headers },
-    ...options,
-  })
-  if (res.status === 401) {
+  // One shot at renewing. Supabase rotates the refresh token here, so a failure
+  // means the stored one is spent or revoked -- nothing left to retry with.
+  refreshSession: async () => {
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data?.session) throw error || new Error('No session after refresh')
+    return data.session
+  },
+
+  onAuthFailure: async () => {
+    rememberPath()
     await supabase.auth.signOut()
     window.location.href = '/login'
-    return
-  }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || 'Request failed')
-  }
-  return res.json()
-}
-
-export const api = {
-  get:    (path)       => request(path),
-  post:   (path, body) => request(path, { method: 'POST',   body: JSON.stringify(body) }),
-  put:    (path, body) => request(path, { method: 'PUT',    body: JSON.stringify(body) }),
-  delete: (path)       => request(path, { method: 'DELETE' }),
-}
+  },
+})
