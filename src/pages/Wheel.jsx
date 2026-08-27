@@ -350,11 +350,7 @@ function PositionCard({ cycle, onCalc }) {
         <Stat label="Shares" value={cycle.shares || '—'} />
         <Stat label="Avg assigned" value={cycle.shares > 0 ? money(cycle.avg_assigned_strike) : '—'} />
         <Stat label="Net premium" value={signed(cycle.net_premium)} />
-        <Stat
-          label="Effective basis"
-          value={cycle.basis == null ? 'not assigned' : money(cycle.basis)}
-          accent={cycle.basis != null}
-        />
+        <BasisStat cycle={cycle} />
       </div>
 
       {cycle.legs?.length > 0 && (
@@ -384,11 +380,66 @@ function PositionCard({ cycle, onCalc }) {
   )
 }
 
-function Stat({ label, value, accent }) {
+/**
+ * The basis line on an open-position card.
+ *
+ * Two mutually exclusive readings, never both:
+ *
+ *   shares held  → the real thing, `cycle.basis`, emerald and unqualified.
+ *   CSP still open → `cycle.projected_basis`, where the basis WOULD land if the
+ *     open puts were assigned at their current strike.
+ *
+ * The projected reading is deliberately dressed down — muted grey where the real
+ * one is emerald, plus a PROJECTED badge — because the two numbers are the same
+ * arithmetic over the same premium pool and so look identical on the card. The
+ * only thing separating a break-even Sam owns from one he is merely exposed to
+ * is this styling, so do not "unify" it with the assigned line.
+ *
+ * A negative projection is a real answer, not an error: enough net debit and the
+ * break-even genuinely sits below zero. The card floors the printed figure at
+ * $0.00 so it cannot be misread as a tradeable price, and the tooltip carries
+ * the true number so nothing is hidden.
+ */
+function BasisStat({ cycle }) {
+  if (cycle.basis != null) {
+    return <Stat label="Effective basis" value={money(cycle.basis)} accent />
+  }
+
+  const p = cycle.projected_basis
+  if (p == null) return <Stat label="Effective basis" value="not assigned" />
+
+  const tip = 'Anchor strike minus net premium collected on this play. '
+    + 'Assumes assignment at the current strike.'
+    + (cycle.anchor_strike != null ? `\nAnchor strike ${money(cycle.anchor_strike)}.` : '')
+    + (p < 0 ? `\nActual projected basis ${money(p)} — shown as $0.00.` : '')
+
   return (
-    <div>
-      <div className="text-[11px] text-gray-500">{label}</div>
-      <div className={`font-mono ${accent ? 'text-emerald-400 font-semibold' : 'text-gray-200'}`}>{value}</div>
+    <Stat
+      label="Projected basis (if assigned)"
+      value={money(Math.max(0, p))}
+      badge="PROJECTED"
+      title={tip}
+    />
+  )
+}
+
+function Stat({ label, value, accent, badge, title }) {
+  return (
+    <div title={title || undefined}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11px] text-gray-500">{label}</span>
+        {badge && (
+          <span className="px-1 py-px rounded text-[9px] font-semibold tracking-wide
+            bg-gray-700/50 text-gray-400 border border-gray-600/50">
+            {badge}
+          </span>
+        )}
+      </div>
+      <div className={`font-mono ${
+        accent ? 'text-emerald-400 font-semibold'
+        : badge ? 'text-gray-500'
+        : 'text-gray-200'
+      }`}>{value}</div>
     </div>
   )
 }

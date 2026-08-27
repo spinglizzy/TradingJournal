@@ -135,6 +135,66 @@ export function effectiveBasis({ shares, avgAssignedStrike, netPremium }) {
 }
 
 /**
+ * Contract-weighted average strike of the currently OPEN short puts.
+ *
+ *   A = sum(strike x contracts) / sum(contracts)
+ *
+ * CLOSED legs are excluded on purpose, and that exclusion is the whole point of
+ * the function. When a put is rolled down the old leg closes and a new one
+ * opens: the anchor must move to the new strike the instant the roll is booked,
+ * because the new strike is the price the shares would actually arrive at. The
+ * old leg has not stopped mattering — its credit and its buy-to-close debit both
+ * stay in the cycle's net premium — but it is no longer a strike anyone can be
+ * assigned at, so it must not drag the anchor back up.
+ *
+ * Puts only. A covered call's strike is where shares LEAVE, not where they
+ * arrive, and averaging the two together would mean nothing.
+ *
+ * Returns null when no short put is open — there is no strike to anchor to.
+ */
+export function anchorStrike(legs = []) {
+  const open      = legs.filter(l => l?.option_type === 'put' && l?.leg_status === 'open')
+  const contracts = open.reduce((acc, l) => acc + Math.round(num(l.contracts)), 0)
+  if (contracts <= 0) return null
+
+  const weighted = open.reduce((acc, l) => acc + num(l.strike) * Math.round(num(l.contracts)), 0)
+  return { anchor: weighted / contracts, contracts }
+}
+
+/**
+ * Where the basis WOULD land if the open short puts were assigned right now.
+ *
+ *   P = anchor_strike - net_premium / (open_contracts × 100)
+ *
+ * The CSP-stage companion to `effectiveBasis`, which has nothing to say until
+ * shares exist (spec §9.12) and so leaves a live put reading as a dash.
+ *
+ * The two are deliberately the same arithmetic over the same inputs. The divisor
+ * is the OPEN contract count because that is exactly the share count assignment
+ * would produce, and `netPremium` is the cycle's own accumulator — every leg of
+ * the play, open and closed, credits less buy-to-close debits less commissions.
+ * Feed either side anything else and the number visibly jumps at the moment of
+ * assignment, which is the one thing this must never do; `wheel-tests.mjs`
+ * asserts that continuity directly.
+ *
+ * DISPLAY ONLY. It is a hypothetical about shares nobody owns, so it must never
+ * reach a portfolio total, the covered-call safety check, or any P&L or
+ * allocation aggregate. Keeping it under its own name — never assigned into
+ * `basis` — is what enforces that.
+ *
+ * Not clamped. A cycle that is net debit correctly projects a basis ABOVE the
+ * strike, and a projection below zero comes back as it is: the engine reports
+ * the true number and presentation decides what to draw.
+ *
+ * Returns null when no short put is open, so a bare cycle keeps reading nil.
+ */
+export function projectedBasis({ legs = [], netPremium }) {
+  const a = anchorStrike(legs)
+  if (!a) return null
+  return a.anchor - num(netPremium) / (a.contracts * SHARES_PER_CONTRACT)
+}
+
+/**
  * Share-weighted average of assignment strikes after adding a new lot.
  * Returns the rolled-up { shares, avgAssignedStrike } for the cycle.
  */
@@ -288,9 +348,19 @@ export function describeCycle(cycle, legs = [], today) {
     netPremium: cycle.net_premium,
   })
 
+  // The projected line is the CSP stage only: it appears exactly where the real
+  // basis is silent and vanishes the moment shares arrive, so the card never
+  // shows both. `basis` itself is untouched either way — nothing downstream can
+  // pick this up by accident.
+  const projected_basis = basis == null
+    ? projectedBasis({ legs, netPremium: cycle.net_premium })
+    : null
+
   return {
     ...cycle,
     basis,
+    projected_basis,
+    anchor_strike: projected_basis == null ? null : anchorStrike(legs).anchor,
     open_legs: openLegs.length,
     gross_premium: sumLegPremium(legs),
     next_expiry: openExpiries[0] ?? null,

@@ -9,7 +9,7 @@
  */
 import {
   legNetPremium, sumLegPremium, cycleJournalPnl, bankedPremium, effectiveBasis, addLot, rollupLots,
-  bookShareExit, realizedPnl, isCycleFlat, sharesFor,
+  bookShareExit, realizedPnl, isCycleFlat, sharesFor, anchorStrike, projectedBasis,
 } from './server/lib/wheelEngine.js'
 import {
   analyseStrikes, crossover, impliedProb, safetyFlag, deadChain,
@@ -549,6 +549,99 @@ group('banked premium — settled money inside a run that is still going', () =>
 })
 
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+group('projected basis — the CSP-stage break-even, RGTI a/b/c', () => {
+  // The whole point of this block is the seam at (c). The projected line and the
+  // real line are two functions, and the danger is that they quietly read from
+  // different premium pools — which would show up as the basis JUMPING on the
+  // day of assignment, exactly when Sam is looking hardest at it. So every step
+  // carries the same `netPremium` accumulator that `recomputeCycle` maintains:
+  // sumLegPremium over ALL legs, open and closed, credits less buy-to-close
+  // debits less commissions.
+
+  // (a) CSP open at $16.50 — one contract, $100 credit, no fees for clarity.
+  const a = [{ id: 1, option_type: 'put', strike: 16.50, contracts: 1, leg_status: 'open',
+               premium: 100, close_cost: 0, fees: 0 }]
+  check('(a) anchor is the only open strike', anchorStrike(a).anchor, 16.50)
+  check('(a) net premium', sumLegPremium(a), 100)
+  check('(a) projected basis', projectedBasis({ legs: a, netPremium: sumLegPremium(a) }), 15.50)
+  check('(a) the real basis still says nothing',
+    effectiveBasis({ shares: 0, avgAssignedStrike: null, netPremium: 100 }), null)
+
+  // (b) Rolled down to $16.00: buy the 16.50 back for $150, sell the 16.00 for $180.
+  //     The anchor moves to 16.00 AT ONCE — the old strike is no longer a price
+  //     anyone can be assigned at — while both halves of the roll stay in premium.
+  const b = [
+    { id: 1, option_type: 'put', strike: 16.50, contracts: 1, leg_status: 'rolled',
+      premium: 100, close_cost: 150, fees: 0 },
+    { id: 2, option_type: 'put', strike: 16.00, contracts: 1, leg_status: 'open',
+      rolled_from_id: 1, premium: 180, close_cost: 0, fees: 0 },
+  ]
+  check('(b) anchor follows the roll down, closed leg excluded', anchorStrike(b).anchor, 16.00)
+  check('(b) the roll debit is subtracted, not ignored', sumLegPremium(b), 130)
+  const projectedB = projectedBasis({ legs: b, netPremium: sumLegPremium(b) })
+  check('(b) projected basis', projectedB, 14.70)
+
+  // The failure this guards against: dropping close_cost would read the premium
+  // as 280 and the basis as 13.20 — $1.50 too low, in the direction that makes a
+  // marginal covered call look safe when it is not.
+  check('(b) ignoring the debit would be $1.50 too generous',
+    16.00 - (100 + 180) / 100, 13.20)
+
+  // (c) Assigned at $16.00. The put resolves, a lot arrives, premium is untouched.
+  const c = [
+    b[0],
+    { ...b[1], leg_status: 'assigned' },
+  ]
+  const lots     = [{ shares: 100, assigned_strike: 16.00 }]
+  const rolled   = rollupLots(lots)
+  const realBasis = effectiveBasis({ ...rolled, netPremium: sumLegPremium(c) })
+
+  check('(c) the projected line switches off', projectedBasis({ legs: c, netPremium: sumLegPremium(c) }), null)
+  check('(c) the real basis takes over at the same number', realBasis, 14.70)
+  check('(c) NOTHING MOVES AT ASSIGNMENT', realBasis - projectedB, 0)
+
+  // Edge: nothing open, nothing held — the dash stays a dash.
+  check('no open legs and no shares → still nil',
+    projectedBasis({ legs: [{ ...b[0] }], netPremium: -50 }), null)
+
+  // Edge: net debit pushes the projection ABOVE the strike. Not clamped here.
+  const debit = [{ id: 9, option_type: 'put', strike: 20, contracts: 1, leg_status: 'open',
+                   premium: 40, close_cost: 190, fees: 0 }]
+  check('net debit projects a basis above the strike',
+    projectedBasis({ legs: debit, netPremium: sumLegPremium(debit) }), 21.50)
+
+  // Edge: a projection below zero is returned as-is; only the card floors it.
+  const deep = [{ id: 10, option_type: 'put', strike: 5, contracts: 1, leg_status: 'open',
+                  premium: 800, close_cost: 0, fees: 0 }]
+  check('a sub-zero projection is not clamped in the engine',
+    projectedBasis({ legs: deep, netPremium: sumLegPremium(deep) }), -3)
+
+  // Multi-contract: the anchor is contract-weighted, and the divisor is the OPEN
+  // contract count — which is exactly the share count assignment would produce.
+  const multi = [
+    { id: 20, option_type: 'put', strike: 10, contracts: 1, leg_status: 'open', premium: 100, close_cost: 0, fees: 0 },
+    { id: 21, option_type: 'put', strike: 12, contracts: 3, leg_status: 'open', premium: 300, close_cost: 0, fees: 0 },
+  ]
+  check('anchor is contract-weighted', anchorStrike(multi).anchor, 11.50)
+  check('divisor is the open contract count',
+    projectedBasis({ legs: multi, netPremium: sumLegPremium(multi) }), 10.50)
+
+  // A covered call must not pull the anchor: its strike is where shares LEAVE.
+  const withCall = [
+    { id: 30, option_type: 'put',  strike: 16, contracts: 1, leg_status: 'open', premium: 100, close_cost: 0, fees: 0 },
+    { id: 31, option_type: 'call', strike: 25, contracts: 1, leg_status: 'open', premium: 50,  close_cost: 0, fees: 0 },
+  ]
+  check('an open call is not part of the anchor', anchorStrike(withCall).anchor, 16)
+
+  // Commissions belong inside the projection for the same reason they belong in
+  // the real basis: a break-even that ignores them is not one.
+  const fees = [{ id: 40, option_type: 'put', strike: 16, contracts: 1, leg_status: 'open',
+                  premium: 100, close_cost: 0, fees: 1.30 }]
+  check('fees raise the projected basis',
+    projectedBasis({ legs: fees, netPremium: sumLegPremium(fees) }), 15.013)
+})
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log(`\n${'─'.repeat(60)}`)
