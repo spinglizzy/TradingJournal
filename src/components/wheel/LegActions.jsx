@@ -276,16 +276,21 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
           </div>
         </div>
 
-        <label className="flex items-start gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox" checked={combo} onChange={e => setCombo(e.target.checked)}
-            className="mt-0.5 w-3.5 h-3.5 accent-cyan-500"
-          />
-          <span className="text-[11px] text-gray-500 leading-relaxed">
-            Sent as one combo order — the flat ticket fee is charged once, on the close.
-            Untick if you legged out and back in as two separate orders.
-          </span>
-        </label>
+        {/* Only a flat ticket fee makes combo-vs-legged cost anything. With none
+            configured both sides bill per contract either way, so the choice is
+            noise — don't ask. */}
+        {cfg.perOrder > 0 && (
+          <label className="flex items-start gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox" checked={combo} onChange={e => setCombo(e.target.checked)}
+              className="mt-0.5 w-3.5 h-3.5 accent-cyan-500"
+            />
+            <span className="text-[11px] text-gray-500 leading-relaxed">
+              Sent as one combo order — the flat ticket fee is charged once, on the close.
+              Untick if you legged out and back in as two separate orders.
+            </span>
+          </label>
+        )}
 
         {ready && (
           <div className={`px-3 py-2 rounded-lg border ${

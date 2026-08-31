@@ -50,12 +50,14 @@ export default function CommissionSettings({ open, onClose }) {
   if (seed !== saved) { setSeed(saved); setForm(saved) }
 
   const cfg  = {
-    perContract:   Number(form.perContract)   || 0,
-    perOrder:      Number(form.perOrder)      || 0,
-    assignmentFee: Number(form.assignmentFee) || 0,
-    shareOrderFee: Number(form.shareOrderFee) || 0,
+    perContract:           Number(form.perContract)           || 0,
+    serviceFeePerContract: Number(form.serviceFeePerContract)  || 0,
+    perOrder:              Number(form.perOrder)              || 0,
+    assignmentFee:         Number(form.assignmentFee)         || 0,
+    shareOrderFee:         Number(form.shareOrderFee)         || 0,
   }
   const one    = optionOrderFee(1, cfg)
+  const three  = optionOrderFee(3, cfg)
   const ten    = optionOrderFee(10, cfg)
   const roll3  = rollFees(3, cfg, { combo: true })
 
@@ -74,8 +76,13 @@ export default function CommissionSettings({ open, onClose }) {
             value={form.perContract} onChange={set('perContract')}
           />
           <Row
+            label="Service fee per contract"
+            hint="Regulatory / transaction fee, charged per contract on top of commission. 3 contracts = 3 × this."
+            value={form.serviceFeePerContract} onChange={set('serviceFeePerContract')}
+          />
+          <Row
             label="Per order (ticket fee)"
-            hint="Flat charge per submitted order, whatever its size. Added once to each ticket."
+            hint="Flat charge per submitted order, whatever its size. $0 at most brokers — leave it at zero unless yours bills a ticket."
             value={form.perOrder} onChange={set('perOrder')}
           />
           <Row
@@ -96,6 +103,7 @@ export default function CommissionSettings({ open, onClose }) {
           </div>
           <ul className="space-y-1 text-[11px] font-mono text-gray-500">
             <li>1 contract, one order &nbsp;→&nbsp; <span className="text-gray-300">{money(one)}</span></li>
+            <li>3 contracts, one order &nbsp;→&nbsp; <span className="text-gray-300">{money(three)}</span></li>
             <li>10 contracts, one order &nbsp;→&nbsp; <span className="text-gray-300">{money(ten)}</span></li>
             <li>
               roll 3 contracts (one combo order) &nbsp;→&nbsp;{' '}
@@ -112,7 +120,7 @@ export default function CommissionSettings({ open, onClose }) {
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-500 hover:text-white transition-colors"
           >
             <RotateCcw className="w-3 h-3" />
-            Defaults ({money(DEFAULT_COMMISSIONS.perContract)} + {money(DEFAULT_COMMISSIONS.perOrder)})
+            Defaults ({money(DEFAULT_COMMISSIONS.perContract)} + {money(DEFAULT_COMMISSIONS.serviceFeePerContract)} per contract)
           </button>
           <div className="flex gap-3">
             <button

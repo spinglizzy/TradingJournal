@@ -15,7 +15,7 @@ import LegForm from '../components/wheel/LegForm.jsx'
 import SeedPositionForm from '../components/wheel/SeedPositionForm.jsx'
 import LegActions, { SellSharesModal } from '../components/wheel/LegActions.jsx'
 import CommissionSettings from '../components/wheel/CommissionSettings.jsx'
-import { optionOrderFee } from '../lib/commissions.js'
+import { perContractTotal, round2 } from '../lib/commissions.js'
 import { useCommissions } from '../lib/useCommissions.js'
 import { valueAtExpiry } from '../lib/strikeCalc.js'
 
@@ -849,7 +849,7 @@ function CommissionRatesButton({ onClick }) {
     >
       <Receipt className="w-4 h-4" />
       Commissions
-      <span className="font-mono text-[11px] text-gray-600">{money(optionOrderFee(1, cfg))}/contract</span>
+      <span className="font-mono text-[11px] text-gray-600">{money(round2(perContractTotal(cfg)))}/contract</span>
     </button>
   )
 }

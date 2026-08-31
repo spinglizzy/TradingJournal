@@ -15,6 +15,9 @@ import {
   analyseStrikes, crossover, impliedProb, safetyFlag, deadChain,
   annualised, valueAtExpiry, buildSnapshot,
 } from './src/lib/strikeCalc.js'
+import {
+  DEFAULT_COMMISSIONS, optionOrderFee, rollFees, feeBreakdown, perContractTotal,
+} from './src/lib/commissions.js'
 
 let passed = 0, failed = 0
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps
@@ -641,6 +644,43 @@ group('projected basis — the CSP-stage break-even, RGTI a/b/c', () => {
                   premium: 100, close_cost: 0, fees: 1.30 }]
   check('fees raise the projected basis',
     projectedBasis({ legs: fees, netPremium: sumLegPremium(fees) }), 15.013)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+group('commissions — the service fee is PER CONTRACT, not per ticket', () => {
+  const cfg = DEFAULT_COMMISSIONS
+
+  check('default service fee is a penny a contract', cfg.serviceFeePerContract, 0.01)
+  check('no flat ticket charge by default', cfg.perOrder, 0)
+  check('one contract, one side', perContractTotal(cfg), 0.51)
+
+  // The whole point of the correction: the fee scales with size. Three
+  // contracts is three pennies, not one nickel.
+  check('1 contract order',   optionOrderFee(1, cfg),  0.51)
+  check('3 contract order',   optionOrderFee(3, cfg),  1.53)
+  check('10 contract order',  optionOrderFee(10, cfg), 5.10)
+  check('no order, no fee',   optionOrderFee(0, cfg),  0)
+
+  // Round trip on 3 contracts: in and out, both sides billed per contract.
+  check('3 contracts round trip', optionOrderFee(3, cfg) * 2, 3.06)
+
+  // With no ticket charge, combo and legged cost the same — the distinction
+  // only ever priced the flat fee.
+  const combo  = rollFees(3, cfg, { combo: true })
+  const legged = rollFees(3, cfg, { combo: false })
+  check('roll 3 as combo',  combo.total, 3.06)
+  check('roll 3 legged',    legged.total, 3.06)
+  check('both roll sides equal', combo.closeFee === combo.openFee, true)
+
+  check('breakdown names both per-contract charges',
+    feeBreakdown(3, cfg), '3 × $0.50 + 3 × $0.01 fee')
+
+  // A broker that DOES bill a ticket still works: flat once per order, and the
+  // combo/legged split comes back.
+  const ticketed = { ...cfg, perOrder: 0.05 }
+  check('ticket fee lands once per order', optionOrderFee(3, ticketed), 1.58)
+  check('legged pays two tickets, combo one',
+    rollFees(3, ticketed, { combo: false }).total - rollFees(3, ticketed, { combo: true }).total, 0.05)
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
