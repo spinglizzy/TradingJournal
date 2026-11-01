@@ -100,8 +100,7 @@ export default function BySetupTab({ dateRange }) {
       setData(setupRows)
       setStrategyData(stratRows.map(r => { const d = Number(r.wins) + Number(r.losses); return { ...r, win_rate: d > 0 ? (Number(r.wins) / d) * 100 : 0 } }))
       setBiasData(biasRows.filter(r => r.dimension !== 'No Bias'))
-      setExpanded(null)
-    }).finally(() => setLoading(false))
+    }).catch(err => console.error('By Setup load failed:', err)).finally(() => setLoading(false))
   }, [dateRange])
 
   if (loading) return <LoadingSpinner className="h-64" />

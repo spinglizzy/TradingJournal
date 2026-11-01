@@ -2,7 +2,7 @@ import { Router } from 'express'
 import pool from '../db.js'
 import {
   SHARES_PER_CONTRACT, sharesFor, legNetPremium, sumLegPremium, cycleJournalPnl, bankedPremium,
-  rollupLots, bookShareExit, isCycleFlat, describeCycle, dte, effectiveBasis,
+  addLot, rollupLots, bookShareExit, isCycleFlat, describeCycle, dte, effectiveBasis,
 } from '../lib/wheelEngine.js'
 
 const router = Router()
@@ -154,8 +154,13 @@ async function recomputeCycle(client, cycleId, { eventDate, closeReason, exitPri
       WHERE wheel_cycle_id = $1 AND ${REAL_LEG} AND pnl IS NOT NULL`, [cycleId])
   for (const leg of legs) leg.pnl = null
 
-  const { shares: assigned, avgAssignedStrike } = rollupLots(lots)
+  const rolled     = rollupLots(lots)
+  const assigned   = rolled.shares
   const shares     = assigned - cycle.shares_exited
+  // Average cost: an exit never moves the average strike, so once shares have
+  // left, averaging every lot ever assigned counts departed shares. From then on
+  // the cached average is the truth — blendLot() folds each new lot into it.
+  const avgAssignedStrike = Number(cycle.shares_exited) > 0 ? cycle.avg_assigned_strike : rolled.avgAssignedStrike
   // `retained_share_gain` is profit from basis-reducing partial sales that was
   // deliberately NOT booked — it lives in the running premium so it keeps
   // pulling the break-even line down. See wheel_migration_02.sql.
@@ -206,10 +211,35 @@ async function ensureActiveCycle(client, { userId, ticker, date, accountId }) {
   return created
 }
 
+/**
+ * Fold a new lot into the cycle's running average strike, weighted by the shares
+ * actually HELD. Only needed once shares have exited; before that rollupLots()
+ * over all lots is exact. Call BEFORE inserting the lot.
+ */
+async function blendLot(client, cycleId, lotShares, strike) {
+  const { rows: [c] } = await client.query(
+    'SELECT shares, avg_assigned_strike, shares_exited FROM wheel_cycles WHERE id = $1 FOR UPDATE', [cycleId])
+  if (!c || Number(c.shares_exited) === 0) return
+  const { avgAssignedStrike } = addLot(
+    { shares: c.shares, avgAssignedStrike: c.avg_assigned_strike },
+    { shares: lotShares, assigned_strike: strike })
+  await client.query('UPDATE wheel_cycles SET avg_assigned_strike = $1 WHERE id = $2', [avgAssignedStrike, cycleId])
+}
+
+/** Shares already pinned under open covered calls, optionally ignoring one leg. */
+async function coveredShares(client, cycleId, exceptLegId = null) {
+  const { rows } = await client.query(
+    `SELECT contracts FROM trades WHERE wheel_cycle_id = $1 AND leg_status = 'open' AND option_type = 'call'
+       AND id IS DISTINCT FROM $2`, [cycleId, exceptLegId])
+  return rows.reduce((n, leg) => n + sharesFor(leg.contracts), 0)
+}
+
 /** Load a leg the user owns, or throw a 404-shaped error. */
 async function getOwnedLeg(client, legId, userId) {
+  // FOR UPDATE: a double-clicked "Assigned" must not see the leg open twice and
+  // insert two lots — the second request waits, then fails assertOpen.
   const { rows } = await client.query(
-    `SELECT * FROM trades WHERE id = $1 AND user_id = $2 AND strategy_tag = 'wheel'`,
+    `SELECT * FROM trades WHERE id = $1 AND user_id = $2 AND strategy_tag = 'wheel' FOR UPDATE`,
     [legId, userId]
   )
   if (!rows[0]) { const e = new Error('Wheel leg not found'); e.status = 404; throw e }
@@ -514,8 +544,9 @@ router.post('/legs', async (req, res) => tx(res, async (client) => {
   if (option_type === 'call' && cycle.shares <= 0) {
     throw badRequest(`No assigned ${sym} shares on the active cycle — a covered call needs shares behind it. Record the put assignment first.`)
   }
-  if (option_type === 'call' && qty > cycle.shares) {
-    throw badRequest(`${contracts} contract(s) covers ${qty} shares but only ${cycle.shares} are held.`)
+  if (option_type === 'call') {
+    const free = cycle.shares - await coveredShares(client, cycle.id)
+    if (qty > free) throw badRequest(`${contracts} contract(s) covers ${qty} shares but only ${free} of ${cycle.shares} held are not already under a covered call.`)
   }
 
   const strategyId = await wheelStrategyId(client, req.userId)
@@ -612,6 +643,7 @@ router.post('/cycles', async (req, res) => tx(res, async (client) => {
       account_id, Number(assigned_strike), total, contracts, cycle.id, dupe,
       await wheelStrategyId(client, req.userId), req.userId])
 
+  await blendLot(client, cycle.id, qty, Number(assigned_strike))
   await client.query(`
     INSERT INTO share_lots (wheel_cycle_id, ticker, shares, assigned_strike, assigned_at, trade_id, user_id)
     VALUES ($1,$2,$3,$4,$5,$6,$7)
@@ -662,8 +694,9 @@ router.put('/legs/:id', async (req, res) => tx(res, async (client) => {
     if (cycle && cycle.shares <= 0) {
       throw badRequest(`No assigned ${leg.ticker} shares on this cycle — a covered call needs shares behind it. Record the put assignment first, or use "Add assigned shares" if it predates this tab.`)
     }
-    if (cycle && qty > cycle.shares) {
-      throw badRequest(`${Math.round(Number(f.contracts))} contract(s) covers ${qty} shares but only ${cycle.shares} are held.`)
+    const free = cycle ? cycle.shares - await coveredShares(client, cycle.id, leg.id) : 0
+    if (cycle && qty > free) {
+      throw badRequest(`${Math.round(Number(f.contracts))} contract(s) covers ${qty} shares but only ${free} of ${cycle.shares} held are not already under a covered call.`)
     }
   }
 
@@ -688,11 +721,17 @@ router.delete('/legs/:id', async (req, res) => tx(res, async (client) => {
   const leg = await getOwnedLeg(client, req.params.id, req.userId)
   const cycleId = leg.wheel_cycle_id
 
-  if (leg.leg_status === 'assigned' || leg.leg_status === 'called_away') {
-    const { rows: [cycle] } = await client.query('SELECT * FROM wheel_cycles WHERE id = $1', [cycleId])
-    if (cycle && cycle.status === 'closed') {
-      throw badRequest('That cycle is already closed. Deleting a leg from it would rewrite booked P&L — delete the cycle instead if it was entered in error.')
-    }
+  const { rows: [cycle] } = cycleId
+    ? await client.query('SELECT * FROM wheel_cycles WHERE id = $1', [cycleId])
+    : { rows: [] }
+  // Any leg on a closed cycle: its premium is already inside the booked P&L.
+  if (cycle && cycle.status === 'closed') {
+    throw badRequest('That cycle is already closed. Deleting a leg from it would rewrite booked P&L — delete the cycle instead if it was entered in error.')
+  }
+  // An assignment after shares have exited: its lot is inside the running
+  // average and the exit count, and neither can be unwound from here.
+  if (cycle && leg.leg_status === 'assigned' && Number(cycle.shares_exited) > 0) {
+    throw badRequest('Shares from this cycle have already been called away or sold, so this assignment can no longer be removed on its own — delete the cycle instead if it was entered in error.')
   }
 
   await client.query('DELETE FROM share_lots WHERE trade_id = $1', [leg.id])
@@ -768,6 +807,7 @@ router.post('/legs/:id/assign', async (req, res) => tx(res, async (client) => {
   if (leg.option_type !== 'put') throw badRequest('Only a put can be assigned. A call that finished in the money is "called away".')
 
   const when = req.body.date || leg.expiry || today()
+  await blendLot(client, leg.wheel_cycle_id, sharesFor(leg.contracts), Number(leg.strike))
   await client.query(`
     INSERT INTO share_lots (wheel_cycle_id, ticker, shares, assigned_strike, assigned_at, trade_id, user_id)
     VALUES ($1,$2,$3,$4,$5,$6,$7)

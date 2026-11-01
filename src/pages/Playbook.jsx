@@ -1029,27 +1029,39 @@ function PipelineSection({ setups }) {
   useEffect(() => { load() }, [load])
 
   async function handleSave(data) {
-    if (editPlan) {
-      await playbookApi.updatePlanned(editPlan.id, data)
-    } else {
-      await playbookApi.createPlanned(data)
+    try {
+      if (editPlan) {
+        await playbookApi.updatePlanned(editPlan.id, data)
+      } else {
+        await playbookApi.createPlanned(data)
+      }
+      setShowForm(false)
+      setEditPlan(null)
+      load()
+    } catch (err) {
+      alert(`Save failed: ${err.message}`)
     }
-    setShowForm(false)
-    setEditPlan(null)
-    load()
   }
 
   async function handleDelete() {
-    await playbookApi.deletePlanned(deleteId)
-    setDeleteId(null)
-    load()
+    try {
+      await playbookApi.deletePlanned(deleteId)
+      setDeleteId(null)
+      load()
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`)
+    }
   }
 
   async function handleExecute(data) {
-    const { trade_id } = await playbookApi.executePlanned(execPlan.id, data)
-    setExecPlan(null)
-    load()
-    window.location.assign(`/trades/${trade_id}`)
+    try {
+      const { trade_id } = await playbookApi.executePlanned(execPlan.id, data)
+      setExecPlan(null)
+      load()
+      window.location.assign(`/trades/${trade_id}`)
+    } catch (err) {
+      alert(`Execute failed: ${err.message}`)
+    }
   }
 
   const STATUS_CLS = {
@@ -1317,20 +1329,28 @@ function MissedSection({ setups }) {
   useEffect(() => { load() }, [load])
 
   async function handleSave(data) {
-    if (editItem) {
-      await playbookApi.updateMissed(editItem.id, data)
-    } else {
-      await playbookApi.createMissed(data)
+    try {
+      if (editItem) {
+        await playbookApi.updateMissed(editItem.id, data)
+      } else {
+        await playbookApi.createMissed(data)
+      }
+      setShowForm(false)
+      setEditItem(null)
+      load()
+    } catch (err) {
+      alert(`Save failed: ${err.message}`)
     }
-    setShowForm(false)
-    setEditItem(null)
-    load()
   }
 
   async function handleDelete() {
-    await playbookApi.deleteMissed(deleteId)
-    setDeleteId(null)
-    load()
+    try {
+      await playbookApi.deleteMissed(deleteId)
+      setDeleteId(null)
+      load()
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`)
+    }
   }
 
   return (
@@ -1494,16 +1514,22 @@ export default function Playbook() {
       setIsEditorOpen(false)
       setEditingSetup(null)
       loadSetups()
+    } catch (err) {
+      alert(`Save failed: ${err.message}`)
     } finally {
       setIsSaving(false)
     }
   }
 
   async function handleDeleteSetup() {
-    await strategiesApi.delete(deleteId)
-    setDeleteId(null)
-    if (selectedId === deleteId) setSelectedId(null)
-    loadSetups()
+    try {
+      await strategiesApi.delete(deleteId)
+      setDeleteId(null)
+      if (selectedId === deleteId) setSelectedId(null)
+      loadSetups()
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`)
+    }
   }
 
   function openNew() { setEditingSetup(null); setIsEditorOpen(true) }

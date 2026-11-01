@@ -590,16 +590,19 @@ export default function Goals() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [g, s, a, p] = await Promise.all([
+      // allSettled: one failing panel (e.g. achievements) must not blank the others.
+      const [g, s, a, p] = await Promise.allSettled([
         goalsApi.list(),
         goalsApi.streaks(),
         goalsApi.achievements(),
         goalsApi.progress(),
       ])
-      setGoals(g)
-      setStreaks(s)
-      setAchievements(a)
-      setProgress(p)
+      if (g.status === 'fulfilled') setGoals(g.value)
+      if (s.status === 'fulfilled') setStreaks(s.value)
+      if (a.status === 'fulfilled') setAchievements(a.value)
+      if (p.status === 'fulfilled') setProgress(p.value)
+      const failed = [g, s, a, p].filter(r => r.status === 'rejected')
+      if (failed.length) console.error('Goals: some panels failed to load', failed.map(r => r.reason))
     } finally {
       setLoading(false)
     }
@@ -609,41 +612,61 @@ export default function Goals() {
 
   // Goal actions
   async function handleSaveGoal(data) {
-    if (goalModal?.goal) {
-      await goalsApi.update(goalModal.goal.id, data)
-    } else {
-      await goalsApi.create(data)
+    try {
+      if (goalModal?.goal) {
+        await goalsApi.update(goalModal.goal.id, data)
+      } else {
+        await goalsApi.create(data)
+      }
+      setGoalModal(null)
+      load()
+    } catch (err) {
+      alert(`Save failed: ${err.message}`)
     }
-    setGoalModal(null)
-    load()
   }
 
   async function handleDeleteGoal(goal) {
     if (!confirm(`Delete goal "${goal.name}"?`)) return
-    await goalsApi.remove(goal.id)
-    load()
+    try {
+      await goalsApi.remove(goal.id)
+      load()
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`)
+    }
   }
 
   async function handleToggleGoal(goal) {
-    await goalsApi.update(goal.id, { ...goal, active: !goal.active })
-    load()
+    try {
+      await goalsApi.update(goal.id, { ...goal, active: !goal.active })
+      load()
+    } catch (err) {
+      alert(`Save failed: ${err.message}`)
+    }
   }
 
   // Achievement actions
   async function handleSaveAchievement(data) {
-    if (achModal?.ach) {
-      await goalsApi.updateAchievement(achModal.ach.id, data)
-    } else {
-      await goalsApi.createAchievement(data)
+    try {
+      if (achModal?.ach) {
+        await goalsApi.updateAchievement(achModal.ach.id, data)
+      } else {
+        await goalsApi.createAchievement(data)
+      }
+      setAchModal(null)
+      load()
+    } catch (err) {
+      alert(`Save failed: ${err.message}`)
     }
-    setAchModal(null)
-    load()
   }
 
   async function handleDeleteAchievement(ach) {
     if (!confirm(`Delete milestone "${ach.name}"?`)) return
-    await goalsApi.removeAchievement(ach.id)
-    load()
+    try {
+      await goalsApi.removeAchievement(ach.id)
+      load()
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`)
+    }
   }
 
   // Stats

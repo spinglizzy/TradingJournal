@@ -150,11 +150,17 @@ function runStatement(sql, params) {
     return { rows: db.share_lots.filter(l => l.wheel_cycle_id === Number(p[0]))
                                 .sort((a, b) => a.id - b.id).map(clone) }
 
-  if (s === "SELECT * FROM trades WHERE id = $1 AND user_id = $2 AND strategy_tag = 'wheel'")
+  if (s === "SELECT * FROM trades WHERE id = $1 AND user_id = $2 AND strategy_tag = 'wheel' FOR UPDATE")
     return { rows: db.trades.filter(t => t.id === Number(p[0]) && t.user_id === p[1] && t.strategy_tag === 'wheel').map(clone) }
 
   if (s === 'SELECT * FROM trades WHERE id = $1')
     return { rows: db.trades.filter(t => t.id === Number(p[0])).map(clone) }
+
+  if (s === "SELECT contracts FROM trades WHERE wheel_cycle_id = $1 AND leg_status = 'open' AND option_type = 'call' AND id IS DISTINCT FROM $2")
+    return { rows: db.trades.filter(t => t.wheel_cycle_id === Number(p[0]) && t.leg_status === 'open' && t.option_type === 'call' && t.id !== (p[1] == null ? null : Number(p[1]))).map(t => ({ contracts: t.contracts })) }
+
+  if (s === 'SELECT shares, avg_assigned_strike, shares_exited FROM wheel_cycles WHERE id = $1 FOR UPDATE')
+    return { rows: db.wheel_cycles.filter(c => c.id === Number(p[0])).map(c => ({ shares: c.shares, avg_assigned_strike: c.avg_assigned_strike, shares_exited: c.shares_exited })) }
 
   if (s === "SELECT contracts FROM trades WHERE wheel_cycle_id = $1 AND leg_status = 'open' AND option_type = 'call'")
     return { rows: db.trades.filter(t => t.wheel_cycle_id === Number(p[0]) && t.leg_status === 'open' && t.option_type === 'call').map(t => ({ contracts: t.contracts })) }
@@ -176,6 +182,12 @@ function runStatement(sql, params) {
       premium_attributed: p[3], realized_pnl: p[4], status: p[5],
       closed_at: p[6], close_reason: p[7], exit_price: p[8],
     })
+    return { rows: [] }
+  }
+
+  if (s === 'UPDATE wheel_cycles SET avg_assigned_strike = $1 WHERE id = $2') {
+    const c = db.wheel_cycles.find(x => x.id === Number(p[1]))
+    if (c) c.avg_assigned_strike = p[0]
     return { rows: [] }
   }
 
@@ -676,6 +688,38 @@ await group('12. Partial sale: gain retained, so the survivors\' basis DROPS', a
   check('it carries the whole run', resultFor(cycleId).pnl, lifetime)
   check('no leg books anything',
     db.trades.filter(t => t.leg_status != null).every(t => t.pnl == null), true)
+})
+
+await group('13. A lot assigned after an exit averages with the shares still HELD', async () => {
+  resetDb()
+  const legBy = (type, strike) => db.trades.find(t => t.leg_status === 'open' && t.option_type === type && Number(t.strike) === strike)
+
+  await sellLeg({ option_type: 'put', strike: 50, expiry: '2026-08-07', premium: 0, contracts: 1, date: '2026-08-01' })
+  await call('POST', `/legs/${legBy('put', 50).id}/assign`, { date: '2026-08-07' })
+  await sellLeg({ option_type: 'put', strike: 40, expiry: '2026-08-14', premium: 0, contracts: 1, date: '2026-08-08' })
+  await call('POST', `/legs/${legBy('put', 40).id}/assign`, { date: '2026-08-14' })
+  check('200 held at an average of 45', [activeCycle().shares, activeCycle().avg_assigned_strike], [200, 45])
+
+  await sellLeg({ option_type: 'call', strike: 55, expiry: '2026-08-21', premium: 0, contracts: 1, date: '2026-08-15' })
+  await call('POST', `/legs/${legBy('call', 55).id}/call-away`, { date: '2026-08-21' })
+  check('an exit leaves the average alone', [activeCycle().shares, activeCycle().avg_assigned_strike], [100, 45])
+
+  await sellLeg({ option_type: 'put', strike: 30, expiry: '2026-08-28', premium: 0, contracts: 1, date: '2026-08-22' })
+  await call('POST', `/legs/${legBy('put', 30).id}/assign`, { date: '2026-08-28' })
+  // (100 x 45 + 100 x 30) / 200 -- NOT the 40 you get averaging all three lots.
+  check('the new lot blends with what is held', [activeCycle().shares, activeCycle().avg_assigned_strike], [200, 37.5])
+})
+
+await group('14. A covered call cannot be written against shares already covered', async () => {
+  resetDb()
+  await sellLeg({ option_type: 'put', strike: STRIKE, expiry: '2026-08-07', premium: 50, contracts: 1, date: '2026-08-01' })
+  await call('POST', `/legs/${openLeg().id}/assign`, { date: '2026-08-07' })
+  await sellLeg({ option_type: 'call', strike: 25, expiry: '2026-08-21', premium: 30, contracts: 1, date: '2026-08-08' })
+  let msg = null
+  try { await sellLeg({ option_type: 'call', strike: 26, expiry: '2026-08-21', premium: 20, contracts: 1, date: '2026-08-08' }) }
+  catch (err) { msg = err.message }
+  check('the second call is refused', /already under a covered call/.test(String(msg)), true)
+  check('only one call is open', db.trades.filter(t => t.leg_status === 'open' && t.option_type === 'call').length, 1)
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

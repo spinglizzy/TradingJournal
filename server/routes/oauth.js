@@ -71,7 +71,7 @@ router.get('/callback/:broker', async (req, res) => {
   const frontendBase = (process.env.ALLOWED_ORIGIN || 'http://localhost:5173').split(',')[0].trim()
 
   if (oauthError) {
-    return res.redirect(`${frontendBase}/settings?tab=Brokers&error=${encodeURIComponent(oauthError)}`)
+    return res.redirect(`${frontendBase}/settings?tab=Brokers&error=denied`)
   }
 
   if (!code || !state) {
@@ -80,9 +80,11 @@ router.get('/callback/:broker', async (req, res) => {
 
   let userId, meta
   try {
-    ;({ userId, meta } = await consumeOAuthState(state))
-  } catch (err) {
-    return res.redirect(`${frontendBase}/settings?tab=Brokers&error=${encodeURIComponent(err.message)}`)
+    let stateBroker
+    ;({ userId, meta, broker: stateBroker } = await consumeOAuthState(state))
+    if (stateBroker !== broker) throw new Error('broker_mismatch')
+  } catch {
+    return res.redirect(`${frontendBase}/settings?tab=Brokers&error=invalid_state`)
   }
 
   const config = BROKER_CONFIG[broker]
@@ -114,7 +116,7 @@ router.get('/callback/:broker', async (req, res) => {
     res.redirect(`${frontendBase}/settings?tab=Brokers&connected=${broker}`)
   } catch (err) {
     console.error(`OAuth callback error for ${broker}:`, err.message)
-    res.redirect(`${frontendBase}/settings?tab=Brokers&error=${encodeURIComponent('Connection failed. Please try again.')}`)
+    res.redirect(`${frontendBase}/settings?tab=Brokers&error=failed`)
   }
 })
 

@@ -542,7 +542,12 @@ export default function TradeDetailPage() {
   }, [load])
 
   async function handleDelete() {
-    await tradesApi.delete(id)
+    try {
+      await tradesApi.delete(id)
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`)
+      return
+    }
     flushSync(() => navigate('/trades'))
   }
 
@@ -551,18 +556,17 @@ export default function TradeDetailPage() {
 
   const holdDays = trade.exit_date
     ? differenceInCalendarDays(parseISO(trade.exit_date), parseISO(trade.date))
-    : trade.exit_price
-      ? differenceInCalendarDays(new Date(), parseISO(trade.date))
-      : null
+    : null
 
   const riskPerUnit = trade.stop_loss != null ? Math.abs(trade.entry_price - trade.stop_loss) : null
   const riskTotal   = riskPerUnit != null ? riskPerUnit * trade.position_size : null
-  const rewardPerUnit = trade.exit_price != null ? Math.abs(trade.exit_price - trade.entry_price) : null
+  const rewardPerUnit = trade.exit_price != null ? (trade.exit_price - trade.entry_price) * (trade.direction === 'short' ? -1 : 1) : null
   const rrRatio = riskPerUnit && rewardPerUnit ? (rewardPerUnit / riskPerUnit).toFixed(2) : null
   const positionValue = trade.entry_price * trade.position_size
 
-  const emotions  = trade.emotions  ? JSON.parse(trade.emotions)  : []
-  const mistakes  = trade.mistakes  ? JSON.parse(trade.mistakes)  : []
+  const parseList = (v) => { try { return v ? JSON.parse(v) : [] } catch { return [] } }
+  const emotions  = parseList(trade.emotions)
+  const mistakes  = parseList(trade.mistakes)
 
   const moodColors = { great: '#10b981', good: '#6ee7b7', neutral: '#9ca3af', bad: '#f97316', terrible: '#ef4444' }
 

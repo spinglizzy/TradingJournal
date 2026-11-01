@@ -77,6 +77,9 @@ app.use((err, _req, res, _next) => {
   console.error(err)
   // Never leak internal error details to clients in production
   const isDev = process.env.NODE_ENV !== 'production'
+  // Body-parser (400/413) and multer (file type/size) errors are the client's fault: say why.
+  const status = err.status || err.statusCode || (err.name === 'MulterError' ? 400 : 500)
+  if (status < 500) return res.status(status).json({ error: err.message })
   res.status(500).json({ error: isDev ? (err.message || 'Internal server error') : 'Internal server error' })
 })
 

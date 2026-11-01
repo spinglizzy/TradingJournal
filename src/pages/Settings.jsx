@@ -138,7 +138,14 @@ export default function Settings() {
         window.history.replaceState({}, '', '/settings?tab=Brokers')
       }
       if (errorMsg) {
-        setBrokerMsg(m => ({ ...m, _global: { success: false, error: decodeURIComponent(errorMsg) } }))
+        // Fixed messages only: the query string is attacker-controllable, so never echo it.
+        const OAUTH_ERRORS = {
+          denied: 'The broker declined the connection.',
+          missing_params: 'The broker returned an incomplete response.',
+          invalid_state: 'That connection link expired or was not started here. Please try again.',
+          unknown_broker: 'Unknown broker.',
+        }
+        setBrokerMsg(m => ({ ...m, _global: { success: false, error: OAUTH_ERRORS[errorMsg] || 'Connection failed. Please try again.' } }))
         window.history.replaceState({}, '', '/settings?tab=Brokers')
       }
     }
@@ -202,14 +209,16 @@ export default function Settings() {
   }
 
   // ── Backup handlers ───────────────────────────────────────────────────────────
-  function handleExportJson() {
+  async function handleExportJson() {
     setExportLoading(true)
-    window.open(importExportApi.exportJsonUrl(), '_blank')
-    setTimeout(() => setExportLoading(false), 1000)
+    try { await importExportApi.exportJson() }
+    catch (err) { alert(`Export failed: ${err.message}`) }
+    finally { setExportLoading(false) }
   }
 
-  function handleExportCsv() {
-    window.open(importExportApi.exportCsvUrl(), '_blank')
+  async function handleExportCsv() {
+    try { await importExportApi.exportCsv() }
+    catch (err) { alert(`Export failed: ${err.message}`) }
   }
 
   async function handleRestoreFile(e) {

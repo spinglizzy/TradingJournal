@@ -74,6 +74,8 @@ function ComparisonPanel({ onClose }) {
         statsApi.streaks({ from: b.from, to: b.to }),
       ])
       setResults({ a: { ...sumA, ...strA, name: a.name }, b: { ...sumB, ...strB, name: b.name } })
+    } catch (err) {
+      alert(`Compare failed: ${err.message}`)
     } finally {
       setLoading(false)
     }

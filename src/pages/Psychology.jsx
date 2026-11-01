@@ -712,7 +712,8 @@ export default function Psychology() {
   const [sessions,     setSessions]     = useState(null)
 
   useEffect(() => {
-    Promise.all([
+    // allSettled: one failing query must not blank every tab.
+    Promise.allSettled([
       psychologyApi.summary(),
       psychologyApi.tiltHistory(),
       psychologyApi.emotionPerformance(),
@@ -720,16 +721,14 @@ export default function Psychology() {
       psychologyApi.ruleCompliance(),
       psychologyApi.mistakeStats(),
       psychologyApi.sessionQuality(),
-    ]).then(([sum, tilt, emoPerf, emoFreq, comp, mist, sess]) => {
-      setSummary(sum)
-      setTiltHistory(tilt)
-      setEmotionPerf(emoPerf)
-      setEmotionFreq(emoFreq)
-      setCompliance(comp)
-      setMistakes(mist)
-      setSessions(sess)
+    ]).then(results => {
+      const setters = [setSummary, setTiltHistory, setEmotionPerf, setEmotionFreq, setCompliance, setMistakes, setSessions]
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') setters[i](r.value)
+        else console.error('Psychology: a panel failed to load', r.reason)
+      })
       setLoading(false)
-    }).catch(() => setLoading(false))
+    })
   }, [])
 
   return (

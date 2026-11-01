@@ -2,7 +2,6 @@ import { Router }      from 'express'
 import multer           from 'multer'
 import { createClient } from '@supabase/supabase-js'
 import { randomUUID }   from 'crypto'
-import { extname }      from 'path'
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -16,7 +15,7 @@ const ALLOWED   = new Set(['image/jpeg','image/jpg','image/png','image/gif','ima
 // Store files in memory so we can stream them to Supabase Storage
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits:  { fileSize: 10 * 1024 * 1024 },  // 10 MB
+  limits:  { fileSize: 4 * 1024 * 1024 },  // 4 MB — Vercel rejects request bodies over ~4.5 MB before we see them
   fileFilter: (_req, file, cb) => {
     if (ALLOWED.has(file.mimetype)) cb(null, true)
     else cb(new Error('Only image files allowed'))
@@ -29,7 +28,8 @@ router.post('/', upload.single('screenshot'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
 
-    const ext      = extname(req.file.originalname) || '.jpg'
+    // Extension from the (allow-listed) MIME type, never the client's filename.
+    const ext      = '.' + (req.file.mimetype.split('/')[1] === 'jpeg' ? 'jpg' : req.file.mimetype.split('/')[1])
     const userId   = req.userId  // set by requireAuth middleware
     const filename = `${userId}/${randomUUID()}${ext}`
 

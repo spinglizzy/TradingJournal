@@ -7,6 +7,9 @@ export const pool = new Pool({
   ssl: process.env.DATABASE_SSL !== 'false' ? { rejectUnauthorized: false } : false,
 })
 
+// The pooler drops idle connections; without a listener pg's 'error' event crashes the process.
+pool.on('error', err => console.error('pg idle client error:', err.message))
+
 // Schema is managed by supabase_migration.sql — run that in the Supabase SQL editor.
 // This function just verifies the DB connection on startup.
 export async function initDb() {

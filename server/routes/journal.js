@@ -137,8 +137,8 @@ router.get('/:id', async (req, res) => {
       pool.query(`
         SELECT t.id,t.date,t.ticker,t.direction,t.pnl,t.status,t.entry_price,t.exit_price
         FROM journal_trade_links jl JOIN trades t ON jl.trade_id=t.id
-        WHERE jl.journal_id=$1
-      `, [req.params.id]),
+        WHERE jl.journal_id=$1 AND t.user_id=$2
+      `, [req.params.id, req.userId]),
     ])
     if (!entryR.rows[0]) return res.status(404).json({ error: 'Entry not found' })
     const entry = entryR.rows[0]
@@ -155,10 +155,10 @@ router.post('/', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO journal_entries (date,entry_type,title,content,mood,tags,user_id,screenshot_paths,plan_data)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
-    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.userId, screenshot_paths ? JSON.stringify(screenshot_paths) : null, plan_data ? JSON.stringify(plan_data) : null])
+    `, [date, entry_type, title, content, mood, JSON.stringify(tags), req.userId, screenshot_paths ? (typeof screenshot_paths === 'string' ? screenshot_paths : JSON.stringify(screenshot_paths)) : null, plan_data ? JSON.stringify(plan_data) : null])
 
     const id = result.rows[0].id
-    await syncLinks(id, trade_ids)
+    await syncLinks(id, trade_ids, req.userId)
 
     const entry = await pool.query('SELECT * FROM journal_entries WHERE id=$1 AND user_id=$2', [id, req.userId])
     res.status(201).json({ ...entry.rows[0], tags: safeJson(entry.rows[0].tags) })
@@ -178,9 +178,9 @@ router.put('/:id', async (req, res) => {
       UPDATE journal_entries
       SET date=$1,entry_type=$2,title=$3,content=$4,mood=$5,tags=$6,screenshot_paths=$7,plan_data=$8,updated_at=NOW()
       WHERE id=$9 AND user_id=$10
-    `, [date, entry_type, title, content, mood, JSON.stringify(tags), screenshot_paths ? JSON.stringify(screenshot_paths) : null, plan_data ? JSON.stringify(plan_data) : null, req.params.id, req.userId])
+    `, [date, entry_type, title, content, mood, JSON.stringify(tags), screenshot_paths ? (typeof screenshot_paths === 'string' ? screenshot_paths : JSON.stringify(screenshot_paths)) : null, plan_data ? JSON.stringify(plan_data) : null, req.params.id, req.userId])
 
-    await syncLinks(req.params.id, trade_ids)
+    await syncLinks(req.params.id, trade_ids, req.userId)
 
     const entry = await pool.query('SELECT * FROM journal_entries WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
     res.json({ ...entry.rows[0], tags: safeJson(entry.rows[0].tags) })
@@ -202,10 +202,11 @@ router.delete('/:id', async (req, res) => {
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-async function syncLinks(journalId, tradeIds) {
+async function syncLinks(journalId, tradeIds, userId) {
   await pool.query('DELETE FROM journal_trade_links WHERE journal_id=$1', [journalId])
   for (const tid of tradeIds) {
-    await pool.query('INSERT INTO journal_trade_links (journal_id,trade_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [journalId, tid])
+    // Only link trades the user owns — ids are sequential and come from the client.
+    await pool.query('INSERT INTO journal_trade_links (journal_id,trade_id) SELECT $1, id FROM trades WHERE id=$2 AND user_id=$3 ON CONFLICT DO NOTHING', [journalId, tid, userId])
   }
 }
 

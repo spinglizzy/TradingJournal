@@ -80,12 +80,12 @@ router.get('/', async (req, res) => {
       SELECT t.*, s.name as strategy_name,
              ${TAG_AGG}
       FROM trades t
-      LEFT JOIN strategies s ON t.strategy_id = s.id
+      LEFT JOIN strategies s ON t.strategy_id=s.id AND s.user_id=t.user_id
       LEFT JOIN trade_tags tt ON t.id = tt.trade_id
-      LEFT JOIN tags tg ON tt.tag_id = tg.id
+      LEFT JOIN tags tg ON tt.tag_id=tg.id AND tg.user_id=t.user_id
       WHERE ${w.join(' AND ')}
       GROUP BY t.id, s.name
-      ORDER BY ${col} ${dir}
+      ORDER BY ${col} ${dir}, t.id ${dir}
       LIMIT $${limitN} OFFSET $${offsetN}
     `, p)
 
@@ -173,12 +173,12 @@ router.post('/', async (req, res) => {
       f.position_size, f.fees, f.strategy_id, f.timeframe, f.notes, f.screenshot_path, f.account_id,
       f.status, f.pnl, f.pnl_percent, f.r_multiple,
       f.confidence, f.emotions, f.mistakes, f.setup, f.emotion_intensity, f.rules_followed, f.rules_broken,
-      f.entry_mode, f.direct_pnl, f.confluences, f.pd_arrays, f.bias, f.smt_divergence,
+      f.entry_mode, f.direct_pnl, f.confluences, f.pd_arrays, f.bias || null, f.smt_divergence,
       req.userId,
     ])
 
     const tradeId = result.rows[0].id
-    await syncTags(tradeId, tags)
+    await syncTags(tradeId, tags, req.userId)
     res.status(201).json(await getTradeById(tradeId, req.userId))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -235,11 +235,11 @@ router.put('/:id', async (req, res) => {
       r_multiple, merged.confidence, merged.emotions, merged.mistakes, merged.setup,
       merged.emotion_intensity, merged.rules_followed, merged.rules_broken,
       merged.entry_mode, merged.direct_pnl, merged.confluences ?? [], merged.pd_arrays ?? [],
-      merged.bias ?? null, merged.smt_divergence ?? null,
+      merged.bias || null, merged.smt_divergence ?? null,
       req.params.id, req.userId,
     ])
 
-    await syncTags(req.params.id, tags)
+    await syncTags(req.params.id, tags, req.userId)
     res.json(await getTradeById(req.params.id, req.userId))
   } catch (err) {
     console.error(err); res.status(500).json({ error: err.message })
@@ -358,10 +358,10 @@ router.delete('/:id', async (req, res) => {
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-async function syncTags(tradeId, tagIds) {
+async function syncTags(tradeId, tagIds, userId) {
   await pool.query('DELETE FROM trade_tags WHERE trade_id = $1', [tradeId])
   for (const tagId of tagIds) {
-    await pool.query('INSERT INTO trade_tags (trade_id, tag_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [tradeId, tagId])
+    await pool.query('INSERT INTO trade_tags (trade_id, tag_id) SELECT $1, id FROM tags WHERE id = $2 AND user_id = $3 ON CONFLICT DO NOTHING', [tradeId, tagId, userId])
   }
 }
 
@@ -370,9 +370,9 @@ async function getTradeById(id, userId) {
     SELECT t.*, s.name as strategy_name,
            ${TAG_AGG}
     FROM trades t
-    LEFT JOIN strategies s ON t.strategy_id = s.id
+    LEFT JOIN strategies s ON t.strategy_id=s.id AND s.user_id=t.user_id
     LEFT JOIN trade_tags tt ON t.id = tt.trade_id
-    LEFT JOIN tags tg ON tt.tag_id = tg.id
+    LEFT JOIN tags tg ON tt.tag_id=tg.id AND tg.user_id=t.user_id
     WHERE t.id = $1 AND t.user_id = $2
     GROUP BY t.id, s.name
   `, [id, userId])

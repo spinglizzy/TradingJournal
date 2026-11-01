@@ -205,11 +205,14 @@ function ScreenshotPanel({ screenshots, onChange }) {
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         body: formData,
       })
-      if (!res.ok) throw new Error('Upload failed')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || (res.status === 413 ? 'Image is too large (max 4 MB)' : 'Upload failed'))
+      }
       const { path } = await res.json()
       onChange([...screenshots, { url: path, caption: '' }])
     } catch (err) {
-      console.error(err)
+      alert(`Screenshot upload failed: ${err.message}`)
     } finally {
       setUploading(false)
     }
@@ -299,6 +302,7 @@ function EntryEditorPanel({
   entry,          // null = new entry
   initialDate,    // for new entries
   initialType,    // for new entries
+  initialTrades,  // for new entries opened from a trade (?trade_id=)
   allTags,
   onSave,
   onClose,
@@ -310,7 +314,7 @@ function EntryEditorPanel({
   const [content,      setContent]      = useState(entry?.content    ?? '')
   const [mood,         setMood]         = useState(entry?.mood       ?? null)
   const [tags,         setTags]         = useState(entry?.tags       ?? [])
-  const [linkedTrades, setLinkedTrades] = useState(entry?.linked_trades ?? [])
+  const [linkedTrades, setLinkedTrades] = useState(entry?.linked_trades ?? initialTrades ?? [])
   const [tradePickerOpen, setTradePickerOpen] = useState(false)
   const [screenshots, setScreenshots] = useState(() => {
     if (!entry?.screenshot_paths) return []
@@ -604,14 +608,22 @@ function MissedSection() {
   useEffect(() => { load() }, [load])
 
   async function handleSave(data) {
-    if (editItem) await playbookApi.updateMissed(editItem.id, data)
-    else await playbookApi.createMissed(data)
-    setShowForm(false); setEditItem(null); load()
+    try {
+      if (editItem) await playbookApi.updateMissed(editItem.id, data)
+      else await playbookApi.createMissed(data)
+      setShowForm(false); setEditItem(null); load()
+    } catch (err) {
+      alert(`Save failed: ${err.message}`)
+    }
   }
 
   async function handleDelete() {
-    await playbookApi.deleteMissed(deleteId)
-    setDeleteId(null); load()
+    try {
+      await playbookApi.deleteMissed(deleteId)
+      setDeleteId(null); load()
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`)
+    }
   }
 
   return (
@@ -747,6 +759,9 @@ export default function Journal() {
   const [editingEntry, setEditingEntry] = useState(null)  // full entry object | null (new)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [newEntryType, setNewEntryType] = useState('daily')
+  const [newEntryTrades, setNewEntryTrades] = useState([])
+  // A trade pre-link only applies to the editor it opened; drop it once that closes.
+  useEffect(() => { if (!isEditorOpen) setNewEntryTrades([]) }, [isEditorOpen])
   const [newEntryDate, setNewEntryDate] = useState(todayStr())
   const [isSaving,    setIsSaving]    = useState(false)
 
@@ -817,10 +832,14 @@ export default function Journal() {
         setIsEditorOpen(true)
       }).catch(() => {})
     } else if (tradeId) {
-      setNewEntryType('post_session')
-      setNewEntryDate(todayStr())
-      setEditingEntry(null)
-      setIsEditorOpen(true)
+      // Pre-link the trade the user came from, dated to that trade's session.
+      tradesApi.get(tradeId).then(t => [t]).catch(() => []).then(trades => {
+        setNewEntryType('post_session')
+        setNewEntryDate(trades[0]?.date ?? todayStr())
+        setNewEntryTrades(trades)
+        setEditingEntry(null)
+        setIsEditorOpen(true)
+      })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -882,13 +901,17 @@ export default function Journal() {
   }
 
   async function handleDelete() {
-    await journalApi.delete(deleteId)
-    setDeleteId(null)
-    if (editingEntry?.id === deleteId) {
-      setIsEditorOpen(false)
-      setEditingEntry(null)
+    try {
+      await journalApi.delete(deleteId)
+      setDeleteId(null)
+      if (editingEntry?.id === deleteId) {
+        setIsEditorOpen(false)
+        setEditingEntry(null)
+      }
+      loadAll()
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`)
     }
-    loadAll()
   }
 
   function handleDayClick(dateStr) {
@@ -1177,6 +1200,7 @@ export default function Journal() {
                       entry={editingEntry}
                       initialDate={newEntryDate}
                       initialType={newEntryType}
+                      initialTrades={newEntryTrades}
                       allTags={allTags}
                       onSave={handleSave}
                       onClose={closeEditor}
@@ -1214,6 +1238,7 @@ export default function Journal() {
                   entry={editingEntry}
                   initialDate={newEntryDate}
                   initialType={newEntryType}
+                  initialTrades={newEntryTrades}
                   allTags={allTags}
                   onSave={handleSave}
                   onClose={closeEditor}

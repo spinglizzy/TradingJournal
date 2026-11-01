@@ -58,7 +58,7 @@ function LayoutInner() {
       return
     }
     if (keyBuffer.current[0] === 'g') {
-      const map = { h: '/', t: '/trades', a: '/analytics', j: '/journal', p: '/playbook', g: '/goals' }
+      const map = { h: '/dashboard', t: '/trades', a: '/analytics', j: '/journal', p: '/playbook', g: '/goals' }
       if (map[e.key]) {
         e.preventDefault()
         flushSync(() => navigate(map[e.key]))

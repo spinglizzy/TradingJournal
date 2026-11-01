@@ -91,7 +91,7 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <button type="button" onClick={() => window.location.replace('/dashboard')} className="flex items-center px-2 py-0.5 mr-1 select-none">
+        <button type="button" onClick={() => window.location.assign('/dashboard')} className="flex items-center px-2 py-0.5 mr-1 select-none">
           <PulseJournalLogo size="sm" />
         </button>
 
@@ -106,7 +106,7 @@ export default function TopNav() {
               key={link.to}
               type="button"
               data-testid={`nav-${link.to.replace('/', '')}`}
-              onClick={() => window.location.replace(link.to)}
+              onClick={() => window.location.assign(link.to)}
               className={navItemCls(link.to, link.end)}
               style={{ position: 'relative' }}
             >
@@ -161,7 +161,7 @@ export default function TopNav() {
                 <button
                   key={link.to}
                   type="button"
-                  onClick={() => { window.location.replace(link.to); setShowMore(false) }}
+                  onClick={() => { window.location.assign(link.to); setShowMore(false) }}
                   className={`block w-full text-left px-4 py-2 text-sm transition-colors ${
                     isLinkActive(link.to) ? 'text-white' : 'text-[#666] hover:text-white'
                   }`}
@@ -180,7 +180,7 @@ export default function TopNav() {
         <button
           type="button"
           data-testid="nav-log-trade"
-          onClick={() => window.location.replace('/trades/new')}
+          onClick={() => window.location.assign('/trades/new')}
           className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap select-none"
           style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
         >
@@ -236,7 +236,7 @@ export default function TopNav() {
             <div className="py-1">
               <button
                 type="button"
-                onClick={() => { window.location.replace('/settings'); setShowUser(false) }}
+                onClick={() => { window.location.assign('/settings'); setShowUser(false) }}
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#888] hover:text-white transition-colors"
               >
                 <Settings className="w-4 h-4 flex-shrink-0" />
@@ -271,14 +271,14 @@ export default function TopNav() {
         }}
       >
         {/* Logo */}
-        <button type="button" onClick={() => window.location.replace('/dashboard')} className="flex items-center flex-1">
+        <button type="button" onClick={() => window.location.assign('/dashboard')} className="flex items-center flex-1">
           <PulseJournalLogo size="xs" />
         </button>
 
         {/* Log Trade (mobile) */}
         <button
           type="button"
-          onClick={() => window.location.replace('/trades/new')}
+          onClick={() => window.location.assign('/trades/new')}
           className="px-3 py-1 rounded-full text-xs font-semibold"
           style={{ backgroundColor: 'var(--color-accent)', color: '#0a1a0a' }}
         >
@@ -315,7 +315,7 @@ export default function TopNav() {
               <button
                 key={link.to}
                 type="button"
-                onClick={() => { window.location.replace(link.to); setMobileOpen(false) }}
+                onClick={() => { window.location.assign(link.to); setMobileOpen(false) }}
                 className={`block w-full text-left px-5 py-2.5 text-sm transition-colors ${
                   isLinkActive(link.to, link.end) ? 'text-white font-medium' : 'text-[#666] hover:text-white'
                 }`}
@@ -331,7 +331,7 @@ export default function TopNav() {
               </div>
               <button
                 type="button"
-                onClick={() => { window.location.replace('/settings'); setMobileOpen(false) }}
+                onClick={() => { window.location.assign('/settings'); setMobileOpen(false) }}
                 className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-[#666] hover:text-white transition-colors"
               >
                 <Settings className="w-4 h-4" />

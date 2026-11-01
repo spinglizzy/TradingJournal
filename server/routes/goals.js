@@ -75,7 +75,7 @@ async function computeCurrentValue(metric, from, to, userId) {
   }
   if (metric === 'discipline_score') {
     const r = await pool.query(
-      `SELECT rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`,
+      `SELECT rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${COUNTS_AS_TRADE()}`,
       [from, to, userId]
     )
     if (!r.rows.length) return 0
@@ -214,7 +214,7 @@ router.get('/streaks', async (req, res) => {
     const [tradingR, journalR, rulesR] = await Promise.all([
       pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 AND ${BOOKED()} GROUP BY date ORDER BY date`, [req.userId]),
       pool.query('SELECT DISTINCT date FROM journal_entries WHERE user_id=$1', [req.userId]),
-      pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND user_id=$1 ORDER BY date`, [req.userId]),
+      pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND user_id=$1 AND ${COUNTS_AS_TRADE()} ORDER BY date`, [req.userId]),
     ])
 
     const journalDays = new Set(journalR.rows.map(r => r.date))
@@ -272,7 +272,7 @@ router.get('/progress', async (req, res) => {
     const [dailyR, journalR, ruleR] = await Promise.all([
       pool.query(`SELECT date, SUM(pnl) as pnl, COUNT(*) as trades, ${COUNT_WINS()} as wins, ${COUNT_LOSSES()} as losses FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${BOOKED()} GROUP BY date`, [from, to, req.userId]),
       pool.query(`SELECT DISTINCT date FROM journal_entries WHERE date BETWEEN $1 AND $2 AND user_id=$3`, [from, to, req.userId]),
-      pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3`, [from, to, req.userId]),
+      pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND date BETWEEN $1 AND $2 AND user_id=$3 AND ${COUNTS_AS_TRADE()}`, [from, to, req.userId]),
     ])
 
     const dailyStats = {}
@@ -289,6 +289,8 @@ router.get('/progress', async (req, res) => {
       let met=0, total=goals.length
       const day = dailyStats[date]
       for (const goal of goals) {
+        // No trades that day (weekend, holiday, sat out): a trade goal wasn't missed, it didn't apply.
+        if (!day && ['pnl','win_rate','trade_count','max_daily_loss'].includes(goal.metric)) { total--; continue }
         let cv = 0
         if (goal.metric==='pnl')              cv = day ? Number(day.pnl) : 0
         else if (goal.metric==='win_rate')    cv = day ? winRate(day.wins, day.losses) : 0
@@ -350,7 +352,7 @@ async function checkAndUpsertAchievements(userId) {
     pool.query(`SELECT COUNT(DISTINCT strategy_id) as cnt FROM trades WHERE strategy_id IS NOT NULL AND user_id=$1`, [userId]),
     pool.query(`SELECT date, SUM(pnl) as daily_pnl FROM trades WHERE status='closed' AND user_id=$1 AND ${BOOKED()} GROUP BY date ORDER BY date`, [userId]),
     pool.query('SELECT DISTINCT date FROM journal_entries WHERE user_id=$1', [userId]),
-    pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND user_id=$1 ORDER BY date`, [userId]),
+    pool.query(`SELECT date, rules_broken FROM trades WHERE status='closed' AND user_id=$1 AND ${COUNTS_AS_TRADE()} ORDER BY date`, [userId]),
   ])
 
   const ts         = tsR.rows[0]

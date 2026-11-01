@@ -100,7 +100,7 @@ router.get('/by-strategy', async (req, res) => {
         AVG(t.pnl)                                       AS avg_pnl,
         AVG(t.r_multiple)                                AS avg_r,
         ${PROFIT_FACTOR('t.')} AS profit_factor
-      FROM trades t LEFT JOIN strategies s ON t.strategy_id=s.id
+      FROM trades t LEFT JOIN strategies s ON t.strategy_id=s.id AND s.user_id=t.user_id
       WHERE t.status='closed' ${clause}
       GROUP BY t.strategy_id, s.name ORDER BY pnl DESC
     `, params)
@@ -321,7 +321,7 @@ const X_FIELDS = {
   strategy: {
     select:  `COALESCE(s.name,'No Strategy')`,
     orderBy: `value DESC`,
-    joins:   `LEFT JOIN strategies s ON t.strategy_id=s.id`,
+    joins:   `LEFT JOIN strategies s ON t.strategy_id=s.id AND s.user_id=t.user_id`,
   },
   direction: {
     select:  `t.direction`,

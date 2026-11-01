@@ -134,7 +134,7 @@ router.get('/setups/:id/trades', async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT t.*, s.name AS strategy_name FROM trades t
-      LEFT JOIN strategies s ON t.strategy_id=s.id
+      LEFT JOIN strategies s ON t.strategy_id=s.id AND s.user_id=t.user_id
       WHERE t.strategy_id=$1 AND t.user_id=$2 ORDER BY t.date DESC LIMIT 200
     `, [req.params.id, req.userId])
     res.json(r.rows)
@@ -168,7 +168,7 @@ router.get('/planned', async (req, res) => {
     if (status) w.push(`pt.status = $${p.push(status)}`)
     const r = await pool.query(`
       SELECT pt.*, s.name AS strategy_name FROM planned_trades pt
-      LEFT JOIN strategies s ON pt.strategy_id=s.id
+      LEFT JOIN strategies s ON pt.strategy_id=s.id AND s.user_id=pt.user_id
       WHERE ${w.join(' AND ')} ORDER BY pt.created_at DESC
     `, p)
     res.json(r.rows)
@@ -188,7 +188,7 @@ router.post('/planned', async (req, res) => {
     `, [ticker, strategy_id, direction, planned_entry, stop_loss, target_price, notes, confidence, req.userId])
     const row = await pool.query(`
       SELECT pt.*, s.name AS strategy_name FROM planned_trades pt
-      LEFT JOIN strategies s ON pt.strategy_id=s.id WHERE pt.id=$1 AND pt.user_id=$2
+      LEFT JOIN strategies s ON pt.strategy_id=s.id AND s.user_id=pt.user_id WHERE pt.id=$1 AND pt.user_id=$2
     `, [result.rows[0].id, req.userId])
     res.status(201).json(row.rows[0])
   } catch (err) {
@@ -204,17 +204,16 @@ router.put('/planned/:id', async (req, res) => {
     const { ticker, strategy_id=null, direction='long',
             planned_entry=null, stop_loss=null, target_price=null,
             notes='', confidence=null, status='active' } = req.body
-    const NOW = `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
     await pool.query(`
       UPDATE planned_trades
       SET ticker=$1,strategy_id=$2,direction=$3,planned_entry=$4,stop_loss=$5,
-          target_price=$6,notes=$7,confidence=$8,status=$9,updated_at=${NOW}
+          target_price=$6,notes=$7,confidence=$8,status=$9,updated_at=NOW()
       WHERE id=$10 AND user_id=$11
     `, [ticker, strategy_id, direction, planned_entry, stop_loss, target_price, notes, confidence, status, req.params.id, req.userId])
 
     const row = await pool.query(`
       SELECT pt.*, s.name AS strategy_name FROM planned_trades pt
-      LEFT JOIN strategies s ON pt.strategy_id=s.id WHERE pt.id=$1 AND pt.user_id=$2
+      LEFT JOIN strategies s ON pt.strategy_id=s.id AND s.user_id=pt.user_id WHERE pt.id=$1 AND pt.user_id=$2
     `, [req.params.id, req.userId])
     res.json(row.rows[0])
   } catch (err) {
@@ -235,13 +234,18 @@ router.delete('/planned/:id', async (req, res) => {
 
 // Convert planned trade → actual trade
 router.post('/planned/:id/execute', async (req, res) => {
+  const client = await pool.connect()
   try {
-    const ptR = await pool.query('SELECT * FROM planned_trades WHERE id=$1 AND user_id=$2', [req.params.id, req.userId])
-    if (!ptR.rows[0]) return res.status(404).json({ error: 'Not found' })
+    await client.query('BEGIN')
+    // Lock the plan and require it still active, so a double-click or retry can't
+    // create a second trade from the same plan.
+    const ptR = await client.query("SELECT * FROM planned_trades WHERE id=$1 AND user_id=$2 FOR UPDATE", [req.params.id, req.userId])
+    if (!ptR.rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Not found' }) }
     const pt = ptR.rows[0]
+    if (pt.status === 'executed') { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Already executed', trade_id: pt.trade_id }) }
 
     const { date, entry_price, position_size=1, fees=0, timeframe='', notes='' } = req.body
-    const tradeResult = await pool.query(`
+    const tradeResult = await client.query(`
       INSERT INTO trades (date,ticker,direction,entry_price,stop_loss,position_size,fees,strategy_id,timeframe,notes,status,user_id)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'open',$11) RETURNING id
     `, [
@@ -254,14 +258,17 @@ router.post('/planned/:id/execute', async (req, res) => {
     ])
 
     const tradeId = tradeResult.rows[0].id
-    const NOW = `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
-    await pool.query(
-      `UPDATE planned_trades SET status='executed',trade_id=$1,updated_at=${NOW} WHERE id=$2 AND user_id=$3`,
+    await client.query(
+      `UPDATE planned_trades SET status='executed',trade_id=$1,updated_at=NOW() WHERE id=$2 AND user_id=$3`,
       [tradeId, req.params.id, req.userId]
     )
+    await client.query('COMMIT')
     res.json({ trade_id: tradeId })
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
     console.error(err); res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
   }
 })
 
@@ -273,7 +280,7 @@ router.get('/missed/summary', async (req, res) => {
       pool.query(`
         SELECT COALESCE(s.name,'Unknown') AS setup_name,
                COUNT(*) AS count, COALESCE(SUM(mt.simulated_pnl),0) AS total_pnl
-        FROM missed_trades mt LEFT JOIN strategies s ON mt.strategy_id=s.id
+        FROM missed_trades mt LEFT JOIN strategies s ON mt.strategy_id=s.id AND s.user_id=mt.user_id
         WHERE mt.user_id=$1
         GROUP BY mt.strategy_id, s.name ORDER BY total_pnl DESC
       `, [req.userId]),
@@ -293,7 +300,7 @@ router.get('/missed', async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT mt.*, s.name AS strategy_name FROM missed_trades mt
-      LEFT JOIN strategies s ON mt.strategy_id=s.id
+      LEFT JOIN strategies s ON mt.strategy_id=s.id AND s.user_id=mt.user_id
       WHERE mt.user_id=$1 ORDER BY mt.date DESC
     `, [req.userId])
     res.json(r.rows)
@@ -313,7 +320,7 @@ router.post('/missed', async (req, res) => {
     `, [date, ticker, strategy_id, direction, entry_would_have_been, exit_would_have_been, position_size, simulated_pnl, reason_missed, notes, req.userId])
     const row = await pool.query(`
       SELECT mt.*, s.name AS strategy_name FROM missed_trades mt
-      LEFT JOIN strategies s ON mt.strategy_id=s.id WHERE mt.id=$1 AND mt.user_id=$2
+      LEFT JOIN strategies s ON mt.strategy_id=s.id AND s.user_id=mt.user_id WHERE mt.id=$1 AND mt.user_id=$2
     `, [result.rows[0].id, req.userId])
     res.status(201).json(row.rows[0])
   } catch (err) {
@@ -338,7 +345,7 @@ router.put('/missed/:id', async (req, res) => {
 
     const row = await pool.query(`
       SELECT mt.*, s.name AS strategy_name FROM missed_trades mt
-      LEFT JOIN strategies s ON mt.strategy_id=s.id WHERE mt.id=$1 AND mt.user_id=$2
+      LEFT JOIN strategies s ON mt.strategy_id=s.id AND s.user_id=mt.user_id WHERE mt.id=$1 AND mt.user_id=$2
     `, [req.params.id, req.userId])
     res.json(row.rows[0])
   } catch (err) {

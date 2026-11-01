@@ -64,11 +64,14 @@ function ScreenshotPanel({ screenshots, onChange }) {
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         body: formData,
       })
-      if (!res.ok) throw new Error('Upload failed')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || (res.status === 413 ? 'Image is too large (max 4 MB)' : 'Upload failed'))
+      }
       const { path } = await res.json()
       onChange([...screenshots, { url: path, caption: '' }])
     } catch (err) {
-      console.error(err)
+      alert(`Screenshot upload failed: ${err.message}`)
     } finally {
       setUploading(false)
     }
@@ -542,6 +545,7 @@ export default function TradeFormPage() {
         timeframe:      trade.timeframe ?? '',
         notes:          trade.notes ?? '',
         direct_pnl:     trade.direct_pnl ?? '',
+        direct_r_multiple: mode === 'direct_pnl' ? (trade.r_multiple ?? '') : '',
         bias:           trade.bias ?? '',
         smt_divergence: trade.smt_divergence != null ? String(trade.smt_divergence) : '',
       })
@@ -567,9 +571,13 @@ export default function TradeFormPage() {
       setGateCheckId(trade.gate_check_id ?? null)
       setInitialGateCheckId(trade.gate_check_id ?? null)
       setLoading(false)
+    }).catch(err => {
+      if (cancelled) return
+      alert(`Could not load trade: ${err.message}`)
+      navigate(-1)
     })
     return () => { cancelled = true }
-  }, [id, isEdit, reset])
+  }, [id, isEdit, reset, navigate])
 
   async function onSubmit(data) {
     setSubmitting(true)

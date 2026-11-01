@@ -17,7 +17,8 @@
     "test:e2e:headed": "npx playwright test --headed",
     "test:stats": "node stats-tests.mjs",
     "test:auth": "node auth-retry-tests.mjs",
-    "test": "npm run test:wheel && npm run test:lifecycle && npm run test:gate && npm run test:stats && npm run test:auth",
+    "test:csv": "node csv-tests.mjs",
+    "test": "npm run test:csv && npm run test:wheel && npm run test:lifecycle && npm run test:gate && npm run test:stats && npm run test:auth",
     "test:lifecycle": "node wheel-lifecycle-tests.mjs"
   },
   "dependencies": {

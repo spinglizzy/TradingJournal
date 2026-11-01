@@ -1,32 +1,8 @@
 import { Router } from 'express'
 import pool, { calcPnl } from '../db.js'
+import { parseCSV } from '../lib/csv.js'
 
 const router = Router()
-
-// ── Simple CSV parser ─────────────────────────────────────────────────────────
-function parseCSV(text) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  const rows = []
-  for (const line of lines) {
-    if (!line.trim()) continue
-    const fields = []
-    let cur = '', inQuote = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') {
-        if (inQuote && line[i+1] === '"') { cur += '"'; i++ }
-        else inQuote = !inQuote
-      } else if (ch === ',' && !inQuote) {
-        fields.push(cur.trim()); cur = ''
-      } else {
-        cur += ch
-      }
-    }
-    fields.push(cur.trim())
-    rows.push(fields)
-  }
-  return rows
-}
 
 // ── Preview CSV ───────────────────────────────────────────────────────────────
 router.post('/preview', (req, res) => {
@@ -80,8 +56,8 @@ router.post('/run', async (req, res) => {
 
       if (trade.direction) {
         const d = String(trade.direction).toLowerCase()
-        if (d==='buy'||d==='long'||d==='b')       trade.direction = 'long'
-        else if (d==='sell'||d==='short'||d==='s') trade.direction = 'short'
+        if (d==='buy'||d==='long'||d==='b'||d==='bot')   trade.direction = 'long'
+        else if (d==='sell'||d==='short'||d==='s'||d==='sld') trade.direction = 'short'
         else                                       trade.direction = 'long'
       } else { trade.direction = 'long' }
 
@@ -155,10 +131,10 @@ router.get('/csv', async (req, res) => {
       SELECT t.*, s.name as strategy_name, a.name as account_name,
              STRING_AGG(tg.name, ',' ORDER BY tg.id) as tag_names
       FROM trades t
-      LEFT JOIN strategies s ON t.strategy_id=s.id
-      LEFT JOIN accounts a ON t.account_id=a.id
+      LEFT JOIN strategies s ON t.strategy_id=s.id AND s.user_id=t.user_id
+      LEFT JOIN accounts a ON t.account_id=a.id AND a.user_id=t.user_id
       LEFT JOIN trade_tags tt ON t.id=tt.trade_id
-      LEFT JOIN tags tg ON tt.tag_id=tg.id
+      LEFT JOIN tags tg ON tt.tag_id=tg.id AND tg.user_id=t.user_id
       WHERE ${w.join(' AND ')}
       GROUP BY t.id, s.name, a.name
       ORDER BY t.date DESC, t.id DESC
@@ -199,7 +175,7 @@ router.get('/csv', async (req, res) => {
 router.get('/json', async (req, res) => {
   try {
     const uid = req.userId
-    const [accounts, trades, tags, strategies, journal, goals, achievements, transactions] = await Promise.all([
+    const [accounts, trades, tags, strategies, journal, goals, achievements, transactions, journalLinks] = await Promise.all([
       pool.query('SELECT * FROM accounts WHERE user_id=$1', [uid]),
       pool.query(`SELECT t.*, STRING_AGG(tt.tag_id::text, ',' ORDER BY tt.tag_id) as tag_ids FROM trades t LEFT JOIN trade_tags tt ON t.id=tt.trade_id WHERE t.user_id=$1 GROUP BY t.id`, [uid]),
       pool.query('SELECT * FROM tags WHERE user_id=$1', [uid]),
@@ -208,6 +184,7 @@ router.get('/json', async (req, res) => {
       pool.query('SELECT * FROM goals WHERE user_id=$1', [uid]),
       pool.query('SELECT * FROM achievements WHERE user_id=$1 AND earned_at IS NOT NULL', [uid]),
       pool.query('SELECT at.* FROM account_transactions at JOIN accounts a ON at.account_id=a.id WHERE a.user_id=$1', [uid]),
+      pool.query('SELECT jl.journal_id, jl.trade_id FROM journal_trade_links jl JOIN journal_entries j ON jl.journal_id=j.id WHERE j.user_id=$1', [uid]),
     ])
 
     const data = {
@@ -221,6 +198,7 @@ router.get('/json', async (req, res) => {
       goals:                goals.rows,
       achievements:         achievements.rows,
       account_transactions: transactions.rows,
+      journal_trade_links:  journalLinks.rows,
     }
 
     res.setHeader('Content-Type', 'application/json')
@@ -243,6 +221,12 @@ router.post('/restore', async (req, res) => {
     const stats = { accounts:0, strategies:0, tags:0, trades:0, journal:0, goals:0, achievements:0 }
 
     if (mode === 'replace') {
+      // Backups don't carry wheel_cycles/share_lots, so replacing would orphan the Wheel tab.
+      const wheel = await client.query('SELECT 1 FROM wheel_cycles WHERE user_id=$1 LIMIT 1', [req.userId])
+      if (wheel.rows[0]) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error: 'Replace would wipe your Wheel tab (backups do not include wheel cycles). Use merge instead.' })
+      }
       await client.query('DELETE FROM journal_trade_links WHERE journal_id IN (SELECT id FROM journal_entries WHERE user_id=$1)', [req.userId])
       await client.query('DELETE FROM trade_tags WHERE trade_id IN (SELECT id FROM trades WHERE user_id=$1)', [req.userId])
       await client.query('DELETE FROM executions WHERE trade_id IN (SELECT id FROM trades WHERE user_id=$1)', [req.userId])
@@ -312,8 +296,10 @@ router.post('/restore', async (req, res) => {
     const tradeIdMap = {}
     for (const t of (data.trades ?? [])) {
       const { id:oldId, tag_ids, strategy_name, account_name, ...fields } = t
-      if (fields.account_id  && accountIdMap[fields.account_id])  fields.account_id  = accountIdMap[fields.account_id]
-      if (fields.strategy_id && stratIdMap[fields.strategy_id])   fields.strategy_id = stratIdMap[fields.strategy_id]
+      // Ids not in this backup's maps would point at someone else's rows — drop them.
+      fields.account_id  = accountIdMap[fields.account_id] ?? null
+      fields.strategy_id = stratIdMap[fields.strategy_id] ?? null
+      if (fields.strategy_tag === 'wheel') continue  // wheel legs need their cycle, which backups don't carry
 
       const dup = await client.query('SELECT id FROM trades WHERE ticker=$1 AND date=$2 AND entry_price=$3 AND user_id=$4', [fields.ticker, fields.date, fields.entry_price, req.userId])
       if (dup.rows[0]) { tradeIdMap[oldId]=dup.rows[0].id; continue }
@@ -322,18 +308,22 @@ router.post('/restore', async (req, res) => {
         INSERT INTO trades (date,ticker,direction,entry_price,exit_price,stop_loss,position_size,fees,
           strategy_id,timeframe,notes,screenshot_path,account_id,status,pnl,pnl_percent,r_multiple,
           confidence,emotions,mistakes,setup,emotion_intensity,rules_followed,rules_broken,
-          exit_date,mfe,mae,user_id,created_at,updated_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
+          exit_date,mfe,mae,user_id,created_at,updated_at,
+          entry_mode,direct_pnl,confluences,pd_arrays,bias,smt_divergence)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
+          $31,$32,$33,$34,$35,$36)
         RETURNING id
       `, [
-        fields.date, fields.ticker, fields.direction, fields.entry_price, fields.exit_price||null, fields.stop_loss||null,
-        fields.position_size, fields.fees||0, fields.strategy_id||null, fields.timeframe||null, fields.notes||null,
-        fields.screenshot_path||null, fields.account_id||null, fields.status||'open',
-        fields.pnl||null, fields.pnl_percent||null, fields.r_multiple||null,
-        fields.confidence||null, fields.emotions||null, fields.mistakes||null, fields.setup||null,
-        fields.emotion_intensity||null, fields.rules_followed||null, fields.rules_broken||null,
-        fields.exit_date||null, fields.mfe||null, fields.mae||null,
+        fields.date, fields.ticker, fields.direction, fields.entry_price, fields.exit_price??null, fields.stop_loss??null,
+        fields.position_size, fields.fees??0, fields.strategy_id, fields.timeframe||null, fields.notes||null,
+        fields.screenshot_path||null, fields.account_id, fields.status||'open',
+        fields.pnl??null, fields.pnl_percent??null, fields.r_multiple??null,
+        fields.confidence??null, fields.emotions||null, fields.mistakes||null, fields.setup||null,
+        fields.emotion_intensity??null, fields.rules_followed||null, fields.rules_broken||null,
+        fields.exit_date||null, fields.mfe??null, fields.mae??null,
         req.userId, fields.created_at||null, fields.updated_at||null,
+        fields.entry_mode||'entry_exit', fields.direct_pnl??null, fields.confluences??[], fields.pd_arrays??[],
+        fields.bias||null, fields.smt_divergence??null,
       ])
 
       tradeIdMap[oldId] = r.rows[0].id
@@ -349,31 +339,44 @@ router.post('/restore', async (req, res) => {
     }
 
     // Journal entries
+    const journalIdMap = {}
     for (const je of (data.journal_entries ?? [])) {
       const { id:oldId, ...fields } = je
       const dup = await client.query('SELECT id FROM journal_entries WHERE date=$1 AND entry_type=$2 AND title=$3 AND user_id=$4', [fields.date, fields.entry_type, fields.title, req.userId])
-      if (!dup.rows[0]) {
-        await client.query(`
-          INSERT INTO journal_entries (date,entry_type,title,content,mood,tags,user_id,created_at,updated_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-        `, [fields.date, fields.entry_type||'daily', fields.title||'', fields.content||'', fields.mood||null, fields.tags||'[]', req.userId, fields.created_at||null, fields.updated_at||null])
-        stats.journal++
-      }
+      if (dup.rows[0]) { journalIdMap[oldId] = dup.rows[0].id; continue }
+      const r = await client.query(`
+        INSERT INTO journal_entries (date,entry_type,title,content,mood,tags,user_id,created_at,updated_at,plan_data,screenshot_paths)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id
+      `, [fields.date, fields.entry_type||'daily', fields.title||'', fields.content||'', fields.mood||null, fields.tags||'[]', req.userId, fields.created_at||null, fields.updated_at||null,
+          fields.plan_data??null, fields.screenshot_paths??null])
+      journalIdMap[oldId] = r.rows[0].id
+      stats.journal++
+    }
+
+    // Journal <-> trade links (older backups have none)
+    for (const l of (data.journal_trade_links ?? [])) {
+      const jid = journalIdMap[l.journal_id], tid = tradeIdMap[l.trade_id]
+      if (jid && tid) await client.query('INSERT INTO journal_trade_links (journal_id,trade_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [jid, tid])
     }
 
     // Account transactions
     for (const tx of (data.account_transactions ?? [])) {
       const { id, created_at, ...fields } = tx
-      if (fields.account_id && accountIdMap[fields.account_id]) fields.account_id = accountIdMap[fields.account_id]
+      const accountId = accountIdMap[fields.account_id]
+      if (!accountId) continue
+      const dup = await client.query('SELECT 1 FROM account_transactions WHERE account_id=$1 AND type=$2 AND amount=$3 AND date=$4 LIMIT 1', [accountId, fields.type, fields.amount, fields.date])
+      if (dup.rows[0]) continue
       await client.query(
-        'INSERT INTO account_transactions (account_id,type,amount,date,notes,created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING',
-        [fields.account_id, fields.type, fields.amount, fields.date, fields.notes||'', created_at]
+        'INSERT INTO account_transactions (account_id,type,amount,date,notes,user_id,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [accountId, fields.type, fields.amount, fields.date, fields.notes||'', req.userId, created_at]
       )
     }
 
     // Goals
     for (const g of (data.goals ?? [])) {
       const { id, created_at, ...fields } = g
+      const dup = await client.query('SELECT 1 FROM goals WHERE name=$1 AND metric=$2 AND timeframe=$3 AND user_id=$4 LIMIT 1', [fields.name, fields.metric, fields.timeframe, req.userId])
+      if (dup.rows[0]) continue
       await client.query(`INSERT INTO goals (name,metric,target_value,timeframe,direction,active,user_id,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
         [fields.name, fields.metric, fields.target_value, fields.timeframe, fields.direction, fields.active, req.userId, created_at])
       stats.goals++

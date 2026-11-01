@@ -23,6 +23,11 @@ export async function requireAuth(req, res, next) {
   const token = header.slice(7)
   const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
 
+  // Supabase down / network blip is not a bad token: no TOKEN_INVALID, so the
+  // client doesn't burn its refresh and sign the user out over an outage.
+  if (error && (!error.status || error.status >= 500)) {
+    return res.status(503).json({ error: 'Auth service unavailable, try again' })
+  }
   if (error || !user) {
     return res.status(401).json({ error: 'Invalid or expired token', code: TOKEN_INVALID })
   }

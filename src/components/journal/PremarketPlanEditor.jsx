@@ -729,9 +729,10 @@ export default function PremarketPlanEditor({
       title: title.trim() || `Pre-Market Plan — ${date}`,
       content,
       mood: null,
-      tags: [],
+      // The plan editor has no tag/screenshot UI; carry the entry's own so a save doesn't wipe them.
+      tags: entry?.tags ?? [],
       trade_ids: entry?.linked_trades?.map(t => t.id) ?? [],
-      screenshot_paths: null,
+      screenshot_paths: entry?.screenshot_paths ?? null,
       plan_data: plan,
     })
   }

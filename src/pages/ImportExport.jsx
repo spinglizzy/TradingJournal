@@ -4,35 +4,10 @@ import { useAccount } from '../contexts/AccountContext.jsx'
 import { BROKER_TEMPLATES, JOURNAL_FIELDS } from '../components/import/BrokerTemplates.js'
 import { Upload, ChevronRight, Check, AlertCircle } from 'lucide-react'
 import { BouncingDots } from '../components/ui/BouncingDots.jsx'
+import { parseCSV } from '../../server/lib/csv.js'
 
 const TEMPLATE_STORAGE_KEY = 'import_custom_templates'
 const inputCls = `w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors`
-
-// ── CSV parser (client side) ──────────────────────────────────────────────────
-function parseCSVClient(text) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  const rows = []
-  for (const line of lines) {
-    if (!line.trim()) continue
-    const fields = []
-    let cur = '', inQuote = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') {
-        if (inQuote && line[i + 1] === '"') { cur += '"'; i++ }
-        else inQuote = !inQuote
-      } else if (ch === ',' && !inQuote) {
-        fields.push(cur.trim())
-        cur = ''
-      } else {
-        cur += ch
-      }
-    }
-    fields.push(cur.trim())
-    rows.push(fields)
-  }
-  return rows
-}
 
 // ── Step indicator ────────────────────────────────────────────────────────────
 function StepBar({ step }) {
@@ -72,7 +47,7 @@ function UploadStep({ onNext }) {
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target.result
-      const rows = parseCSVClient(text)
+      const rows = parseCSV(text)
       if (rows.length < 2) { setError('CSV has no data rows'); return }
       const headers = rows[0]
       const preview = rows.slice(1, 11)
@@ -285,7 +260,7 @@ function MappingStep({ data, onNext, onBack }) {
           className="px-4 py-2 text-sm text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
           Back
         </button>
-        <button onClick={() => onNext({ mappings })} disabled={!requiredMapped}
+        <button onClick={() => onNext({ mappings, transforms: allTemplates.find(t => t.id === selectedTemplate)?.transforms ?? {} })} disabled={!requiredMapped}
           className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors">
           Next: Set Defaults
         </button>
@@ -351,6 +326,23 @@ function DefaultsStep({ data, onNext, onBack }) {
   )
 }
 
+// The broker template's per-field transforms (IB's BOT/SLD, abs() on negative
+// quantities and fees, date clean-up) run here, before the server sees the rows.
+function applyTransforms(csv, mappings, transforms) {
+  if (!transforms || !Object.keys(transforms).length) return csv
+  const [headers, ...rows] = parseCSV(csv)
+  const cols = Object.entries(transforms)
+    .map(([field, fn]) => [headers.indexOf(mappings[field]), fn])
+    .filter(([i, fn]) => i >= 0 && typeof fn === 'function')
+  const esc = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+  const out = rows.map(r => {
+    const row = [...r]
+    for (const [i, fn] of cols) if (row[i] !== undefined && row[i] !== '') row[i] = fn(row[i])
+    return row.map(esc).join(',')
+  })
+  return [headers.map(esc).join(','), ...out].join('\n')
+}
+
 // ── Step 4: Review & Import ────────────────────────────────────────────────────
 function ReviewStep({ data, onBack, onDone }) {
   const [result, setResult] = useState(null)
@@ -362,7 +354,7 @@ function ReviewStep({ data, onBack, onDone }) {
     setError('')
     try {
       const res = await importExportApi.run({
-        csv: data.csv,
+        csv: applyTransforms(data.csv, data.mappings, data.transforms),
         mappings: data.mappings,
         defaults: data.defaults,
         account_id: data.defaults?.account_id || undefined,
