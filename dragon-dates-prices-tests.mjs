@@ -120,7 +120,8 @@ async function priceTests() {
     const f = mockFetch(table)
     const res = await refreshQuotes(hs, finnhubQuote(KEY, f), { now: NOW })
     const changed = applyQuotes(hs, res, new Date(NOW).toISOString())
-    return { res, after: hs.map(h => changed.find(c => c.id === h.id) ?? h), calls: f.seen }
+    // A write carries only the columns the route sets (plus `seen`, the guard), merged onto the row.
+    return { res, after: hs.map(h => { const c = changed.find(c => c.id === h.id); if (!c) return h; const { seen: _seen, ...cols } = c; return { ...h, ...cols } }), calls: f.seen }
   }
 
   console.log('\nFinnhub responses')
@@ -183,8 +184,17 @@ async function priceTests() {
       Object.assign(db[1], { current_price: 12.34, price_updated_at: new Date(NOW).toISOString(), price_source: 'manual', price_error: null })
       throw Object.assign(new Error('No quote for this ticker'), { kind: 'not_found' })
     }, { now: NOW })
-    for (const h of applyQuotes(snapshot, res)) Object.assign(db[1], { current_price: h.current_price, price_updated_at: h.price_updated_at, price_source: h.price_source, price_error: h.price_error })
+    // The route's write (server/routes/dragon.js): only the columns in the write, and only
+    // WHERE price_updated_at IS NOT DISTINCT FROM the value the refresh read (`seen`).
+    const routeWrite = (w) => { if (db[1].price_updated_at !== w.seen) return; const { id: _id, seen: _seen, ...cols } = w; Object.assign(db[1], cols) }
+    for (const w of applyQuotes(snapshot, res)) routeWrite(w)
     check('BUG: a manual price typed while a refresh is in flight survives a failed fetch', db[1].current_price, 12.34)
+    // …and a successful fetch doesn't overwrite it either
+    const db2 = { id: 1, ticker: 'A', current_price: 10, price_updated_at: old, price_source: 'auto', price_error: null }
+    const snap2 = [{ ...db2 }]
+    const res2 = await refreshQuotes(snap2, async () => { Object.assign(db2, { current_price: 12.34, price_updated_at: new Date(NOW).toISOString(), price_source: 'manual' }); return 99 }, { now: NOW })
+    for (const w of applyQuotes(snap2, res2)) { if (db2.price_updated_at !== w.seen) continue; const { id: _id, seen: _seen, ...cols } = w; Object.assign(db2, cols) }
+    check('a manual price typed while a refresh is in flight survives a successful fetch too', [db2.current_price, db2.price_source], [12.34, 'manual'])
   }
 }
 

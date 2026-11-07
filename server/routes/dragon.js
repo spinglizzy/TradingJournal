@@ -67,7 +67,7 @@ router.get('/', async (req, res, next) => {
 router.post('/holdings', (req, res, next) => withTx(res, next, async (client) => {
   const ticker = (text(req.body.ticker, 'Ticker', MAX_TICKER) ?? '').trim().toUpperCase()
   if (!ticker) throw bad('Ticker is required')
-  const price = req.body.current_price === '' || req.body.current_price == null ? null : num(req.body.current_price, 'Price')
+  const price = req.body.current_price === '' || req.body.current_price == null ? null : num(req.body.current_price, 'Price', { strict: true })
   const { rows: [h] } = await client.query(
     `INSERT INTO dragon_holdings (user_id, ticker, name, pays_dividend, drip, current_price, price_updated_at, price_source)
      VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $6::float8 IS NULL THEN NULL ELSE NOW() END, CASE WHEN $6::float8 IS NULL THEN NULL ELSE 'manual' END) RETURNING *`,
@@ -79,7 +79,7 @@ router.put('/holdings/:id', (req, res, next) => withTx(res, next, async (client)
   const { holding } = await loadLedger(client, req.params.id, req.userId)
   const b = req.body
   const price = 'current_price' in b
-    ? (b.current_price === '' || b.current_price == null ? null : num(b.current_price, 'Price'))
+    ? (b.current_price === '' || b.current_price == null ? null : num(b.current_price, 'Price', { strict: true }))
     : holding.current_price
   // A typed price is "manual" and clears any fetch warning; clearing it clears the source too.
   const { rows: [h] } = await client.query(
@@ -213,12 +213,14 @@ router.post('/import', async (req, res, next) => {
     if (typeof csv !== 'string' || !csv.trim()) throw bad('Choose a Schwab CSV file')
     const plan = planImport(parseSchwab(csv), mappings)
     await client.query('BEGIN')
+    // One import per user at a time (a double-click waits, then sees the first one's rows as duplicates).
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext('dragon-import:' || $1))`, [req.userId])
     const report = await runImport(plan, pgStore(client, req.userId))
     await client.query(commit === true ? 'COMMIT' : 'ROLLBACK')   // only a real true commits
     res.json({ ...report, committed: commit === true })
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {})
-    next(err)
+    next(err.code === '23505' ? conflict(err) : err)
   } finally {
     client.release()
   }
@@ -227,20 +229,40 @@ router.post('/import', async (req, res, next) => {
 // ── Auto prices (Finnhub) ────────────────────────────────────────────────────
 // The key never leaves the server: it's read here and used only in quotes.js's
 // outbound request. Responses carry counts, never the key.
+// shortcut: per server instance, so two instances could still refresh at once (harmless: same prices); use a DB lock if that ever matters.
+const refreshing = new Set()   // userIds with a refresh in flight — a double click doesn't call Finnhub twice
 router.post('/prices/refresh', async (req, res, next) => {
+  const key = process.env.FINNHUB_API_KEY
+  if (!key) return res.json({ configured: false, updated: 0, failed: 0, skipped: 0 })
+  if (refreshing.has(req.userId)) return res.json({ configured: true, updated: 0, failed: 0, skipped: 0, inFlight: true })
+  refreshing.add(req.userId)
   try {
-    const key = process.env.FINNHUB_API_KEY
-    if (!key) return res.json({ configured: false, updated: 0, failed: 0, skipped: 0 })
+    // Fully sold holdings (rows, but no shares left) aren't fetched; a brand-new one with no rows is.
     const { rows } = await pool.query(
-      `SELECT id, ticker, current_price, price_updated_at, price_source FROM dragon_holdings WHERE user_id = $1 ORDER BY ticker`, [req.userId])
+      `SELECT id, ticker, current_price, price_updated_at, price_updated_at::text AS seen, price_checked_at, price_source
+       FROM dragon_holdings h WHERE user_id = $1 AND NOT (
+         EXISTS (SELECT 1 FROM dragon_transactions t WHERE t.holding_id = h.id) AND
+         (SELECT COALESCE(SUM(CASE WHEN t.type IN ('BUY','DRIP') THEN t.shares WHEN t.type = 'SELL' THEN -t.shares ELSE 0 END), 0)
+            FROM dragon_transactions t WHERE t.holding_id = h.id) <= 1e-9)
+       ORDER BY ticker`, [req.userId])
     const result = await refreshQuotes(rows, finnhubQuote(key))
-    for (const h of applyQuotes(rows, result)) {
-      await pool.query(
-        `UPDATE dragon_holdings SET current_price = $2, price_updated_at = $3, price_source = $4, price_error = $5 WHERE id = $1 AND user_id = $6`,
-        [h.id, h.current_price, h.price_updated_at, h.price_source, h.price_error, req.userId])
+    // Each write only lands if price_updated_at is still what the refresh read: a price
+    // typed meanwhile wins. A failure writes its warning only, never the old price.
+    for (const w of applyQuotes(rows, result)) {
+      if ('current_price' in w) {
+        await pool.query(
+          `UPDATE dragon_holdings SET current_price = $2, price_updated_at = $3, price_source = 'auto', price_error = NULL, price_checked_at = NOW()
+           WHERE id = $1 AND user_id = $4 AND price_updated_at IS NOT DISTINCT FROM $5::timestamptz`,
+          [w.id, w.current_price, w.price_updated_at, req.userId, w.seen])
+      } else {
+        await pool.query(
+          `UPDATE dragon_holdings SET price_error = $2, price_checked_at = NOW()
+           WHERE id = $1 AND user_id = $3 AND price_updated_at IS NOT DISTINCT FROM $4::timestamptz`,
+          [w.id, w.price_error, req.userId, w.seen])
+      }
     }
     res.json({ configured: true, updated: result.updates.length, failed: result.failures.length, skipped: result.skipped.length })
-  } catch (err) { next(err) }
+  } catch (err) { next(err) } finally { refreshing.delete(req.userId) }
 })
 
 // ── Saved reconciliation checks ──────────────────────────────────────────────
@@ -308,7 +330,7 @@ router.get('/fx', async (req, res, next) => {
     if ((!max || max < yesterday) && Date.now() - lastRbaFetch > RBA_REFETCH_MS) {
       lastRbaFetch = Date.now()
       try {
-        const r = await fetch(RBA_F11_URL, { headers: { 'User-Agent': 'PulseJournal/1.0' } })
+        const r = await fetch(RBA_F11_URL, { headers: { 'User-Agent': 'PulseJournal/1.0' }, signal: AbortSignal.timeout(8000) })
         if (!r.ok) throw new Error(`RBA returned HTTP ${r.status}`)
         const rates = parseRbaF11(await r.text())
         await pool.query(

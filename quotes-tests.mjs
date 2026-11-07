@@ -46,7 +46,8 @@ const run = async (holdings, table) => {
   const f = mockFetch(table)
   const res = await refreshQuotes(holdings, finnhubQuote(KEY, f), { now: NOW })
   const changed = applyQuotes(holdings, res, new Date(NOW).toISOString())
-  const after = holdings.map(h => changed.find(c => c.id === h.id) ?? h)
+  // A write carries only the columns the route sets (plus `seen`, the guard), merged onto the row.
+  const after = holdings.map(h => { const c = changed.find(c => c.id === h.id); if (!c) return h; const { seen: _seen, ...cols } = c; return { ...h, ...cols } })
   return { res, after, calls: f.seen }
 }
 
@@ -110,6 +111,28 @@ console.log('\nNetwork error')
 {
   const res = await refreshQuotes(holdingsAt(9, 4), finnhubQuote(KEY, async () => { throw new Error('ECONNRESET') }), { now: NOW })
   check('unreachable → per-ticker failure, run continues', res.failures.map(f => f.error), ['Price service unreachable', 'Price service unreachable'])
+}
+
+console.log('\nBack-off and time budget')
+{
+  // A ticker tried in the last 15 minutes isn't retried, even though its price is old.
+  const old = new Date(NOW - 60 * 60 * 1000).toISOString(), tried = new Date(NOW - 2 * 60 * 1000).toISOString()
+  const hs = [{ id: 1, ticker: 'BAD', current_price: 9, price_updated_at: old, price_checked_at: tried, price_source: 'auto' }]
+  const { res, calls } = await run(hs, { BAD: [200, { c: 0 }] })
+  check('failing ticker tried 2 min ago → no call, skipped', [calls.length, res.skipped], [0, [1]])
+  const r2 = await run([{ ...hs[0], price_checked_at: old }], { BAD: [200, { c: 0 }] })
+  check('…tried an hour ago → tried again', r2.calls.length, 1)
+}
+{
+  // Past the time budget the rest wait for the next refresh (skipped, prices untouched).
+  let t = 0
+  const f = mockFetch({ JEPI: [200, { c: 57.5 }], ORC: [200, { c: 5.2 }] })
+  const res = await refreshQuotes(holdingsAt(9, 4), async (sym) => { t += 9000; return finnhubQuote(KEY, f)(sym) }, { now: NOW, clock: () => t })
+  check('budget spent after the first ticker → second skipped, not failed', [res.updates.length, res.skipped.length, res.failures.length], [1, 1, 0])
+}
+{
+  const { after, calls } = await run(holdingsAt(9, 4), { JEPI: [403, { error: "You don't have access to this resource." }], ORC: [200, { c: 5.2 }] })
+  check('403 on one ticker: the run continues, only that ticker warned', [calls.length, after[1].current_price, /free tier/.test(after[0].price_error)], [2, 5.2, true])
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

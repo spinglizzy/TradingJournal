@@ -11,11 +11,22 @@ export const r6 = (v) => Math.round(v * 1e6) / 1e6
 export const isDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) &&
   !Number.isNaN(Date.parse(s)) && new Date(Date.parse(s)).toISOString().slice(0, 10) === s
 
+// Plain decimals only: no "0x10", no [5], no true. Anything this big is a typo, and
+// keeping |n| ≤ 1e12 keeps shares × price far from Infinity.
+const DECIMAL = /^\s*-?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?\s*$/i
+export const MAX_NUM = 1e12
 export const num = (v, name, { min = 0, strict = false } = {}) => {
-  const n = typeof v === 'number' || (typeof v === 'string' && v.trim() !== '') ? Number(v) : NaN
+  const n = typeof v === 'number' || (typeof v === 'string' && DECIMAL.test(v)) ? Number(v) : NaN
   if (!Number.isFinite(n) || (strict ? n <= min : n < min)) {
     throw bad(`${name} must be a number ${strict ? 'greater than' : 'of at least'} ${min}.`)
   }
+  if (Math.abs(n) > MAX_NUM) throw bad(`${name} is too large.`)
+  return n
+}
+/** Shares are stored to 6 dp — check what's stored, not what was typed (1e-7 would round to 0). */
+export const sharesNum = (v, name = 'Shares') => {
+  const n = r6(num(v, name, { strict: true }))
+  if (!(n > 0)) throw bad(`${name} must be at least 0.000001.`)
   return n
 }
 
@@ -65,7 +76,7 @@ export function normalize(b, holding, ledger) {
 
   switch (type) {
     case 'BUY': case 'DRIP': case 'SELL':
-      t.shares = r6(num(b.shares, 'Shares', { strict: true }))
+      t.shares = sharesNum(b.shares)
       t.price  = num(b.price, 'Price', { strict: true })
       t.amount = t.shares * t.price
       if (type === 'SELL' && b.ref_id) refCall()   // called away at the strike

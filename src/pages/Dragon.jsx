@@ -73,8 +73,9 @@ export default function Dragon() {
   }, [data])
 
   const totals = useMemo(() => {
-    const year = String(new Date().getFullYear())
-    const fy = auFY(todayStr())
+    const today = todayStr()   // US trade date — the same clock as the ledger's dates
+    const year = today.slice(0, 4)
+    const fy = auFY(today)
     const income = rows.flatMap(r => r.state.events)
     const ytd = income.filter(i => i.date.startsWith(year))
     const cash = cashTotals(data?.transactions ?? [])
@@ -86,7 +87,8 @@ export default function Dragon() {
       mv: sum(rows, r => r.mv),
       cash: sum(rows, r => r.state.cashInvested),
       cost: sum(rows, r => r.state.totalCost),
-      unreal, unrealPct: pricedCost > 0 ? unreal / pricedCost : null,
+      // A % of total cost stops meaning anything once a holding has paid for itself (cost ≤ 0).
+      unreal, unrealPct: pricedCost > 0 && priced.every(r => r.state.totalCost > 0) ? unreal / pricedCost : null,
       unpriced: rows.filter(r => r.mv == null && r.state.shares > 0).length,
       div: sum(income, i => i.dividend), divYtd: sum(ytd, i => i.dividend),
       cc: sum(income, i => i.cc), ccYtd: sum(ytd, i => i.cc),
@@ -340,7 +342,7 @@ function PriceCell({ holding, onSaved, onError }) {
   async function save() {
     const next = v === '' ? null : Number(v)
     if (next === holding.current_price) return
-    if (next != null && !(next >= 0)) return onError('Price must be a positive number')
+    if (next != null && !(next > 0)) return onError('Price must be a positive number')
     try { await dragonApi.updateHolding(holding.id, { current_price: next }); onSaved() }
     catch (err) { onError(err?.message || 'Failed to save price') }
   }

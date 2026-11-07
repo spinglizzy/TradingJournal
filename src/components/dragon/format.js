@@ -5,11 +5,11 @@ export const btnPrimary = 'px-5 py-2 text-sm font-medium text-white bg-indigo-60
 export const btnGhost   = 'px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors'
 
 export const money  = (v) => (v == null || !Number.isFinite(Number(v)) ? '—' : `${v < 0 ? '-' : ''}$${Math.abs(Number(v)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-export const signed = (v) => (v == null ? '—' : `${v >= 0 ? '+' : '-'}${money(Math.abs(v))}`)
+export const signed = (v) => (v == null || !Number.isFinite(Number(v)) ? '—' : `${v >= 0 ? '+' : '-'}${money(Math.abs(v))}`)
 export const pct    = (v) => (v == null || !Number.isFinite(v) ? '—' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(2)}%`)
 /** Up to 6 decimals, no trailing zeros. */
 export const fmtShares = (v) => (v == null ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 6 }))
-export const todayStr = () => new Date().toISOString().slice(0, 10)
+export { usToday as todayStr } from '../../../server/lib/dragonEngine.js'   // the US trade date, not UTC or Adelaide
 export const tone = (v) => (v > 0 ? 'text-emerald-400' : v < 0 ? 'text-red-400' : 'text-gray-300')
 
 export const TYPE_LABEL = {

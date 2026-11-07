@@ -276,6 +276,14 @@ export function cashTotals(transactions) {
   return { cashIn, cashOut, net: cashIn - cashOut }
 }
 
-/** Whole calendar days from `from` (YYYY-MM-DD) to `expiry`. */
-export const daysTo = (expiry, from = new Date().toISOString().slice(0, 10)) =>
+/**
+ * Today's date in New York (YYYY-MM-DD). Ledger dates are Schwab's US trade dates:
+ * from ~10:30am to ~3:30pm in Adelaide the UTC date is already tomorrow there, and
+ * Adelaide's own date is ahead of the US for most of the day.
+ */
+export const usToday = (ms = Date.now()) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms)
+
+/** Whole calendar days from `from` (YYYY-MM-DD, default today in New York) to `expiry`. */
+export const daysTo = (expiry, from = usToday()) =>
   Math.round((Date.parse(expiry) - Date.parse(from)) / 86400000)

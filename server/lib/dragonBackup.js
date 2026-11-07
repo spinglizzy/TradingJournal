@@ -49,7 +49,7 @@ export function validateBackup(b) {
     if (!(text(h.ticker, 'Ticker', MAX_TICKER) ?? '').trim()) throw bad('Backup has a holding with no ticker.')
     text(h.name, `${h.ticker} name`, MAX_NAME)
     for (const k of ['pays_dividend', 'drip']) if (h[k] != null && typeof h[k] !== 'boolean') throw bad(`${h.ticker} ${k} must be true or false.`)
-    if (h.current_price != null) num(h.current_price, `${h.ticker} price`)
+    if (h.current_price != null) num(h.current_price, `${h.ticker} price`, { strict: true })
     if (![null, undefined, 'auto', 'manual'].includes(h.price_source)) throw bad(`${h.ticker} has an unknown price source.`)
   }
   for (const t of b.transactions) if (!isObj(t) || !Number.isInteger(t.id)) throw bad('Backup has a malformed transaction id.')

@@ -63,7 +63,7 @@ export default function DcaForm({ holdings, onSaved, onCancel }) {
           Split equally across ticked
         </button>
       </div>
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto -mx-1 px-1"><table className="w-full min-w-[560px] text-sm">
         <thead>
           <tr className="text-[11px] text-gray-500 border-b border-gray-800">
             <th className="w-8" />
@@ -100,7 +100,7 @@ export default function DcaForm({ holdings, onSaved, onCancel }) {
             )
           })}
         </tbody>
-      </table>
+      </table></div>
       <div className="text-right text-sm text-gray-400">
         Planned {money(planned)} · {buys.length} buy(s) costing <span className="font-mono font-semibold text-white">{money(spend)}</span>
       </div>
