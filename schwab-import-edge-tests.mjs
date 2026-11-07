@@ -110,6 +110,17 @@ console.log('\n2. Identical same-day rows and hash stability')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+{
+  // Rows imported before the v2 hash (or not yet re-hashed) carry the old raw-text hash.
+  const s = memoryStore()
+  const text = H + '"03/02/2026","Buy","AAA","AAA CO","1","$10.00","","-$10.00"\n'
+  await imp(s, text)
+  const [line] = parseSchwab(text)
+  s.rows[0].import_hash = line.hashV1
+  const r = await imp(s, text)
+  check('a row stored under the v1 hash is still a duplicate (no re-hash needed to stay safe)', [r.added.length, r.duplicates], [0, 1])
+  check('v1 hash differs from v2 (so the re-hash script has work to do)', line.hash !== line.hashV1, true)
+}
 console.log('\n3. Dividends, tax, DRIP')
 {
   const s = memoryStore()
@@ -189,11 +200,17 @@ console.log('\n4. CSV quirks')
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n5. Re-import after deleting an imported row')
 {
+  // Re-specified (#17): the store remembers deleted import hashes (dragon_deleted_imports), and the
+  // re-added row is marked so the preview can say "deleted before".
   const s = memoryStore()
   await imp(s, H + buy('03/02/2026', 'AAA', '1', '-$10.00'))
-  s.rows.splice(0, 1)
+  const gone = s.rows.splice(0, 1)[0]
+  s.deletedHashes = async () => new Set([gone.import_hash])
   const r = await imp(s, H + buy('03/02/2026', 'AAA', '1', '-$10.00'))
-  check('deleted imported row comes back (report only says "added", nothing marks it as previously deleted)', [r.added.length, 'previouslyDeleted' in r.added[0]], [1, false])
+  check('deleted imported row comes back, marked previouslyDeleted for the preview', [r.added.length, r.added[0].previouslyDeleted], [1, true])
+  const fresh = memoryStore()
+  const r2 = await imp(fresh, H + buy('03/02/2026', 'AAA', '1', '-$10.00'))
+  check('…a row never deleted carries no mark', 'previouslyDeleted' in r2.added[0], false)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -93,8 +93,15 @@ router.put('/holdings/:id', (req, res, next) => withTx(res, next, async (client)
   return h
 }))
 
+/** Remember imported rows the user deletes, so a re-import can flag them. */
+const rememberDeleted = (client, userId, where, params) => client.query(
+  `INSERT INTO dragon_deleted_imports (user_id, import_hash)
+   SELECT user_id, import_hash FROM dragon_transactions WHERE user_id = $1 AND import_hash IS NOT NULL AND ${where}
+   ON CONFLICT DO NOTHING`, [userId, ...params])
+
 router.delete('/holdings/:id', (req, res, next) => withTx(res, next, async (client) => {
   const { holding } = await loadLedger(client, req.params.id, req.userId)
+  await rememberDeleted(client, req.userId, 'holding_id = $2', [holding.id])
   await client.query(`DELETE FROM dragon_holdings WHERE id = $1`, [holding.id])
 }))
 
@@ -162,6 +169,7 @@ router.delete('/transactions/:id', (req, res, next) => withTx(res, next, async (
     if (ledger.some(x => x.ref_id === id)) throw bad('Another entry refers to this one (a close, roll, expiry or reclassification) — delete that one first.')
     replay(ledger.filter(x => x.id !== id))
   }
+  await rememberDeleted(client, req.userId, 'id = $2', [id])
   await client.query(`DELETE FROM dragon_transactions WHERE id = $1`, [id])
 }))
 
@@ -170,7 +178,10 @@ router.delete('/transactions/:id', (req, res, next) => withTx(res, next, async (
 export function pgStore(client, userId) {
   return {
     hashes: async () => new Set((await client.query(
-      `SELECT import_hash FROM dragon_transactions WHERE user_id = $1 AND import_hash IS NOT NULL`, [userId])).rows.map(r => r.import_hash)),
+      `SELECT import_hash AS h FROM dragon_transactions WHERE user_id = $1 AND import_hash IS NOT NULL
+       UNION SELECT import_hash_v1 FROM dragon_transactions WHERE user_id = $1 AND import_hash_v1 IS NOT NULL`, [userId])).rows.map(r => r.h)),
+    deletedHashes: async () => new Set((await client.query(
+      `SELECT import_hash FROM dragon_deleted_imports WHERE user_id = $1`, [userId])).rows.map(r => r.import_hash)),
     holdings: async () => new Map((await client.query(
       `SELECT * FROM dragon_holdings WHERE user_id = $1 FOR UPDATE`, [userId])).rows.map(h => [h.ticker, h])),
     createHolding: async ({ ticker, name, pays_dividend }) => (await client.query(
@@ -180,7 +191,10 @@ export function pgStore(client, userId) {
       `UPDATE dragon_holdings SET pays_dividend = true WHERE id = $1 RETURNING *`, [h.id])).rows[0],
     ledger: async (h) => (await client.query(
       `SELECT ${TX_COLS} FROM dragon_transactions WHERE holding_id = $1 AND user_id = $2`, [h.id, userId])).rows,
-    insert: async (h, tx, hash) => (await insertTx(client, userId, h?.id ?? null, tx, hash)).rows[0],
+    insert: async (h, tx, hash) => {
+      if (hash) await client.query(`DELETE FROM dragon_deleted_imports WHERE user_id = $1 AND import_hash = $2`, [userId, hash])
+      return (await insertTx(client, userId, h?.id ?? null, tx, hash)).rows[0]
+    },
     adopt: async (row, m, hash) => (await client.query(
       `UPDATE dragon_transactions SET shares=$2, price=$3, amount=$4, fees=$5, premium=$6, tax_withheld=$7, import_hash=$8
        WHERE id=$1 AND user_id=$9 RETURNING ${TX_COLS}`,

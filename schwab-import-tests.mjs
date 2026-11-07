@@ -98,7 +98,8 @@ check('option symbol', parseOption('CVX 12/19/2026 230.00 C', ''), { underlying:
 check('option from description', parseOption('CVX', 'CALL CHEVRON CORP $230 EXP 12/19/26'), { underlying: 'CVX', expiry: '2026-12-19', strike: 230, right: 'C' })
 const H = '"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"\n'
 const sorted = parseSchwab(H + '"02/01/2026","Buy","X","X","1","$10","","-$10.00"\n"01/01/2026 as of 12/31/2025","Buy","X","X","1","$9","","-$9.00"\n"Transactions Total","","","","","","","-$19.00"\n')
-check('"as of" uses the first date, file sorted oldest-first, footer dropped', sorted.map(l => l.date), ['2026-01-01', '2026-02-01'])
+// Re-specified (#12, 2026-11-07): the ledger date is the effective "as of" date; the posting date stays in the hash.
+check('"as of" uses the effective date, file sorted oldest-first, footer dropped', sorted.map(l => [l.date, l.post]), [['2025-12-31', '2026-01-01'], ['2026-02-01', '2026-02-01']])
 const twins = parseSchwab(H + '"01/02/2026","Buy","X","X","1","$10","","-$10.00"\n"01/02/2026","Buy","X","X","1","$10","","-$10.00"\n')
 check('identical same-day rows get distinct hashes', twins[0].hash !== twins[1].hash, true)
 check('"$1,234.50" parses', parseSchwab(H + '"01/02/2026","Buy","X","X","1","$1,234.50","","-$1,234.50"\n')[0].amount, -1234.5)

@@ -41,6 +41,7 @@ export default function ImportModal({ onDone, onCancel }) {
   }
 
   const mapsChanged = report && report.review.some(r => r.mappable && (mappings[r.hash] ?? null) !== (r.mapping ?? null))
+  const reAdded = report ? report.added.filter(a => a.previouslyDeleted).length : 0
 
   return (
     <div className="space-y-5">
@@ -55,7 +56,7 @@ export default function ImportModal({ onDone, onCancel }) {
 
       {report && !busy && (
         <>
-          <div className="grid grid-cols-4 gap-3 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <Count label="To add" n={report.added.length} cls="text-emerald-400" />
             <Count label="Matched hand-entered" n={report.adopted?.length ?? 0} cls="text-sky-400" />
             <Count label="Duplicates skipped" n={report.duplicates} cls="text-gray-300" />
@@ -66,6 +67,42 @@ export default function ImportModal({ onDone, onCancel }) {
             <p className="text-xs text-gray-400">
               New holdings: {report.createdHoldings.map(h => `${h.ticker}${h.pays_dividend ? '' : ' (no dividend)'}`).join(', ')}
             </p>
+          )}
+
+          {reAdded > 0 && (
+            <p className="text-xs text-amber-400">
+              {reAdded} row(s) below were imported before and you deleted them — they’re marked “deleted before”. Skip the import if you meant to keep them out.
+            </p>
+          )}
+
+          {report.adopted?.length > 0 && (
+            <section>
+              <h3 className="text-sm font-semibold text-gray-300 mb-2">Existing rows Schwab’s figures will overwrite</h3>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-auto max-h-56">
+                <table className="w-full text-xs">
+                  <thead><tr className="text-[11px] text-gray-500 border-b border-gray-800">
+                    <th className="text-left font-medium px-3 py-2">Date</th>
+                    <th className="text-left font-medium px-3 py-2">Type</th>
+                    <th className="text-left font-medium px-3 py-2">Ticker</th>
+                    <th className="text-right font-medium px-3 py-2">Shares</th>
+                    <th className="text-right font-medium px-3 py-2">Amount: now → after import</th>
+                  </tr></thead>
+                  <tbody className="font-mono">
+                    {report.adopted.map((a, i) => (
+                      <tr key={i} className="border-b border-gray-800/60 last:border-0">
+                        <td className="px-3 py-1.5 text-gray-400">{a.date}</td>
+                        <td className="px-3 py-1.5 font-sans text-white">{LABEL[a.type]}{a.note && <span className="ml-1 text-gray-500">({a.note})</span>}</td>
+                        <td className="px-3 py-1.5 font-sans text-gray-300">{a.symbol}</td>
+                        <td className="px-3 py-1.5 text-right text-gray-300">
+                          {a.wasShares && a.shares && Math.abs(a.wasShares - a.shares) > 1e-9 ? `${fmtShares(a.wasShares)} → ${fmtShares(a.shares)}` : a.shares ? fmtShares(a.shares) : ''}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-gray-300">{money(a.was)} → <span className={Math.abs(a.was - a.amount) > 0.005 ? 'text-amber-400' : ''}>{money(a.amount)}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
 
           {report.review.length > 0 && (
@@ -124,7 +161,8 @@ export default function ImportModal({ onDone, onCancel }) {
                     {report.added.map((a, i) => (
                       <tr key={i} className="border-b border-gray-800/60 last:border-0">
                         <td className="px-3 py-1.5 text-gray-400">{a.date}</td>
-                        <td className="px-3 py-1.5 font-sans text-white">{LABEL[a.type]}</td>
+                        <td className="px-3 py-1.5 font-sans text-white">{LABEL[a.type]}
+                          {a.previouslyDeleted && <span className="ml-1.5 text-[10px] text-amber-400 border border-amber-500/40 rounded px-1">deleted before</span>}</td>
                         <td className="px-3 py-1.5 font-sans text-gray-300">{a.symbol ?? '—'}</td>
                         <td className="px-3 py-1.5 text-right text-gray-300">{a.shares ? fmtShares(a.shares) : ''}</td>
                         <td className="px-3 py-1.5 text-right text-gray-300">{money(a.amount)}</td>

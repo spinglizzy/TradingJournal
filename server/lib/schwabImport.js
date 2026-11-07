@@ -28,11 +28,22 @@ const num = (s) => {
   const n = Number(t.replace(/^\((.*)\)$/, '-$1'))
   return Number.isFinite(n) ? n : null
 }
-/** "10/21/2026 as of 10/20/2026" → "2026-10-21" (the first date). */
-const isoDate = (s) => {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(s).trim())
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : null
+/** "3/2/2026" or "03/02/2026" → "2026-03-02" (Excel re-saves drop the leading zeros). */
+const mdy = (m) => `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
+/**
+ * "10/21/2026 as of 10/20/2026" → { post: "2026-10-21", date: "2026-10-20" }.
+ * `date` is when it really happened (the ledger date, so the tax year is right);
+ * `post` is the date Schwab posted it, which stays in the duplicate hash.
+ */
+const dates = (s) => {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+as of\s+(\d{1,2})\/(\d{1,2})\/(\d{4}))?$/i.exec(String(s).trim())
+  if (!m) return null
+  const post = mdy(m)
+  return { post, date: m[4] ? mdy([null, m[4], m[5], m[6]]) : post }
 }
+/** Stock symbols: trimmed, upper case, "BRK/B" → "BRK.B" (option symbols keep their slashes). */
+const symbolOf = (s) => { const t = String(s).trim().toUpperCase(); return /\s/.test(t) ? t : t.replace('/', '.') }
+const sha1 = (s) => createHash('sha1').update(s).digest('hex')
 const usDate = (s) => {   // option expiry: MM/DD/YYYY or MM/DD/YY
   const m = /^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/.exec(s)
   return m ? `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${m[1]}-${m[2]}` : null
@@ -58,23 +69,33 @@ export function parseSchwab(text) {
   const lines = []
   rows.slice(hi + 1).forEach((r, fileIdx) => {
     const cell = (c) => r[idx[c]] ?? ''
-    const date = isoDate(cell('Date'))
-    if (!date) return   // footer rows such as "Transactions Total"
+    if (r.every(c => !String(c).trim()) || /^transactions total/i.test(String(r[0]).trim())) return   // blank / footer
+    const d = dates(cell('Date'))
+    // Anything else without a readable date is refused loudly — never silently dropped.
+    if (!d) throw bad(`Row ${hi + fileIdx + 2} has a date Dragon can't read ("${String(cell('Date')).slice(0, 40)}"). Nothing was imported.`)
     lines.push({
-      fileIdx, date, action: cell('Action').trim(), symbol: cell('Symbol').trim(), description: cell('Description').trim(),
-      rawQty: cell('Quantity'), rawAmount: cell('Amount'),
+      fileIdx, date: d.date, post: d.post, action: cell('Action').trim(), symbol: symbolOf(cell('Symbol')), rawSymbol: cell('Symbol').trim(),
+      description: cell('Description').trim(), rawQty: cell('Quantity'), rawAmount: cell('Amount'),
       quantity: num(cell('Quantity')), price: num(cell('Price')), fees: num(cell('Fees & Comm')) ?? 0, amount: num(cell('Amount')),
     })
   })
   // The file is newest-first; replay oldest-first. Same-day rows keep reverse file order.
   lines.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : b.fileIdx - a.fileIdx))
   // Identical rows on one day are told apart by a running index.
-  const seen = new Map()
+  //   hash   — from the PARSED numbers, so a re-saved / reformatted export still matches.
+  //   hashV1 — the original raw-text hash, kept so rows imported before the change still
+  //            count as duplicates (and to map old → new in the one-off re-hash).
+  const seen = new Map(), seenV1 = new Map()
+  const fix = (v, dp) => (v == null ? '' : v.toFixed(dp))
   for (const l of lines) {
-    const key = [l.date, l.action, l.symbol, l.rawQty, l.rawAmount].join('|')
+    const key = [l.post, l.action, l.symbol, fix(l.quantity, 6), fix(l.amount, 2)].join('|')
     const n = seen.get(key) ?? 0
     seen.set(key, n + 1)
-    l.hash = createHash('sha1').update(`${key}|${n}`).digest('hex')
+    l.hash = sha1(`v2|${key}|${n}`)
+    const keyV1 = [l.post, l.action, l.rawSymbol, l.rawQty, l.rawAmount].join('|')
+    const n1 = seenV1.get(keyV1) ?? 0
+    seenV1.set(keyV1, n1 + 1)
+    l.hashV1 = sha1(`${keyV1}|${n1}`)
   }
   return lines
 }
@@ -106,7 +127,7 @@ function classify(action) {
 export function planImport(lines, mappings = {}) {
   const intents = [], review = []
   const toReview = (l, reason, mappable = false) => review.push({
-    hash: l.hash, date: l.date, action: l.action, symbol: l.symbol, description: l.description,
+    hash: l.hash, hashV1: l.hashV1, date: l.date, action: l.action, symbol: l.symbol, description: l.description,
     quantity: l.quantity, price: l.price, amount: l.amount, reason, mappable, mapping: mappings[l.hash] ?? null,
   })
   const kinds = new Map()
@@ -120,7 +141,7 @@ export function planImport(lines, mappings = {}) {
   for (const l of lines) {
     const k = kinds.get(l)
     if (k !== 'DIVIDEND' && k !== 'TAX') continue
-    const key = `${l.date}|${l.symbol}`
+    const key = `${l.post}|${l.symbol}`
     if (!divGroups.has(key)) divGroups.set(key, [])
     divGroups.get(key).push(l)
   }
@@ -151,7 +172,7 @@ export function planImport(lines, mappings = {}) {
   }
 
   const dividendTickers = new Set()
-  const add = (l, type, f, extra = {}) => intents.push({ hash: l.hash, date: l.date, symbol: f.symbol ?? l.symbol, name: l.description, type,
+  const add = (l, type, f, extra = {}) => intents.push({ hash: l.hash, hashV1: l.hashV1, date: l.date, symbol: f.symbol ?? l.symbol, name: l.description, type,
     tx: { type, date: l.date, shares: null, price: null, amount: 0, fees: 0, strike: null, expiry: null, contracts: null, premium: null, tax_withheld: null, ref_id: null, notes: null, ...f.tx },
     ...extra })
 
@@ -162,8 +183,9 @@ export function planImport(lines, mappings = {}) {
     if (k === null) { toReview(l, `Unrecognised action "${l.action}"`, true); continue }
 
     if (k === 'DIVIDEND' || k === 'TAX') {
-      const group = divGroups.get(`${l.date}|${l.symbol}`)
+      const group = divGroups.get(`${l.post}|${l.symbol}`)
       if (group[0] !== l) continue                       // emitted once, at its first line
+      if (!l.symbol) { group.forEach(g => toReview(g, 'Dividend line with no symbol — map it to cash, or skip it', true)); continue }
       const divs = group.filter(g => kinds.get(g) === 'DIVIDEND')
       if (!divs.length) { group.forEach(g => toReview(g, 'NRA Tax Adj with no dividend on the same date and symbol', true)); continue }
       if (group.some(g => g.amount == null)) { group.forEach(g => toReview(g, 'Dividend line with no amount')); continue }
@@ -233,7 +255,7 @@ export function planImport(lines, mappings = {}) {
 }
 
 const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100
-const near = (a, b, eps) => a != null && b != null && Math.abs(Number(a) - Number(b)) <= eps
+const near = (a, b, eps) => a != null && b != null && Math.abs(Number(a) - Number(b)) <= eps + 1e-12   // 0.1660 − 0.1659 is 1.00000000000017e-4 in floats
 
 /** Is ledger row `r` the hand-entered version of the incoming `tx`? */
 function sameEntry(r, tx, it, ledger) {
@@ -260,9 +282,11 @@ function sameEntry(r, tx, it, ledger) {
  *   ledger(holding)                  → that holding's rows (this function appends to it)
  *   insert(holding|null, tx, hash)   → the stored row (with id)
  *   adopt(row, merged, hash)         → a hand-entered row updated to the broker's figures
+ *   deletedHashes()  (optional)      → Set of import_hash values of rows the user deleted
  */
 export async function runImport(plan, store) {
   const hashes = await store.hashes()
+  const deleted = (await store.deletedHashes?.()) ?? new Set()
   const holdings = await store.holdings()
   const ledgers = new Map()
   const report = { added: [], adopted: [], duplicates: 0, review: [...plan.review], createdHoldings: [] }
@@ -271,13 +295,42 @@ export async function runImport(plan, store) {
     if (!ledgers.has(h.id)) ledgers.set(h.id, [...await store.ledger(h)])
     return ledgers.get(h.id)
   }
+  const stored = (it) => hashes.has(it.hash) || (it.hashV1 && hashes.has(it.hashV1))
+  // Same-day fills of one order: shares of every new BUY/SELL/DRIP per date|type|symbol.
+  const fills = new Map()
+  for (const it of plan.intents) {
+    if (stored(it) || !['BUY', 'SELL', 'DRIP'].includes(it.type)) continue
+    const k = `${it.date}|${it.type}|${it.symbol}`
+    fills.set(k, (fills.get(k) ?? 0) + it.tx.shares)
+  }
+  const prevDeleted = (it) => deleted.has(it.hash) || (it.hashV1 && deleted.has(it.hashV1)) ? { previouslyDeleted: true } : {}
 
   for (const it of plan.intents) {
-    if (hashes.has(it.hash)) { report.duplicates++; continue }
+    if (stored(it)) {
+      // A dividend imported before its NRA tax line posted: Schwab now shows the tax,
+      // so the stored row is brought up to date (shown in the preview as was → now).
+      if (it.type === 'DIVIDEND' && holdings.has(it.symbol)) {
+        const ledger = await ledgerOf(holdings.get(it.symbol))
+        const row = ledger.find(r => r.import_hash === it.hash || (it.hashV1 && r.import_hash === it.hashV1))
+        if (row && Math.abs((Number(row.tax_withheld) || 0) - (it.tx.tax_withheld || 0)) > 0.005) {
+          const merged = { ...row, amount: it.tx.amount, tax_withheld: it.tx.tax_withheld }
+          try { replay(ledger.map(r => (r === row ? merged : r))) } catch (e) {
+            if (!(e instanceof LedgerError)) throw e
+            report.review.push({ hash: it.hash, date: it.date, action: it.type, symbol: it.symbol, amount: it.tx.amount, reason: e.message, mappable: false })
+            continue
+          }
+          const updated = await store.adopt(row, merged, row.import_hash)
+          ledger[ledger.indexOf(row)] = updated
+          report.adopted.push({ date: it.date, type: it.type, symbol: it.symbol, amount: merged.amount, was: Number(row.amount), note: `US tax now ${merged.tax_withheld ?? 0}` })
+          continue
+        }
+      }
+      report.duplicates++; continue
+    }
     const tx = { ...it.tx }
     if (it.cash) {
       await store.insert(null, tx, it.hash)
-      report.added.push({ date: it.date, type: it.type, symbol: null, amount: tx.amount, fees: 0 })
+      report.added.push({ date: it.date, type: it.type, symbol: null, amount: tx.amount, fees: 0, ...prevDeleted(it) })
       continue
     }
     let h = holdings.get(it.symbol)
@@ -294,7 +347,14 @@ export async function runImport(plan, store) {
 
     // The same entry typed in by hand (e.g. a Monthly DCA buy) is adopted, not doubled:
     // it takes the broker's exact figures and the import_hash.
-    const twin = ledger.find(r => !r.import_hash && !adopted.has(r.id) && sameEntry(r, tx, it, ledger))
+    let twin = ledger.find(r => !r.import_hash && !adopted.has(r.id) && sameEntry(r, tx, it, ledger))
+    // One hand-entered order Schwab filled in parts: the first fill takes over the
+    // hand row, the rest are added — never the whole order twice.
+    if (!twin && ['BUY', 'SELL', 'DRIP'].includes(tx.type)) {
+      const total = fills.get(`${it.date}|${tx.type}|${it.symbol}`)
+      twin = ledger.find(r => !r.import_hash && !adopted.has(r.id) && r.type === tx.type && r.date === tx.date
+        && Number(r.shares) > tx.shares && near(r.shares, total, 1e-4))
+    }
     if (twin) {
       const merged = { ...twin, shares: tx.shares ?? twin.shares, price: tx.price ?? twin.price, amount: tx.amount,
         fees: tx.fees ?? 0, premium: tx.premium ?? twin.premium, tax_withheld: tx.tax_withheld ?? twin.tax_withheld, import_hash: it.hash }
@@ -307,7 +367,7 @@ export async function runImport(plan, store) {
       const row = await store.adopt(twin, merged, it.hash)
       ledger[ledger.indexOf(twin)] = row
       adopted.add(row.id)
-      report.adopted.push({ date: it.date, type: it.type, symbol: it.symbol, shares: merged.shares, amount: merged.amount, was: twin.amount })
+      report.adopted.push({ date: it.date, type: it.type, symbol: it.symbol, shares: merged.shares, amount: merged.amount, was: Number(twin.amount), wasShares: Number(twin.shares ?? 0) || null })
       continue
     }
 
@@ -336,7 +396,7 @@ export async function runImport(plan, store) {
     }
     const row = await store.insert(h, tx, it.hash)
     ledger.push(row)
-    report.added.push({ date: it.date, type: it.type, symbol: it.symbol, shares: tx.shares, amount: tx.amount, fees: tx.fees, tax_withheld: tx.tax_withheld })
+    report.added.push({ date: it.date, type: it.type, symbol: it.symbol, shares: tx.shares, amount: tx.amount, fees: tx.fees, tax_withheld: tx.tax_withheld, ...prevDeleted(it) })
   }
   report.review.sort((a, b) => (a.date < b.date ? -1 : 1))
   return report
