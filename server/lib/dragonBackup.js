@@ -7,6 +7,7 @@
  * restored in original id order, so a referenced row always exists first.
  */
 import { replay, TYPES, CASH_TYPES } from './dragonEngine.js'
+import { normalize, num, isDate, text, bad, REF_TYPES, MAX_TICKER, MAX_NAME, MAX_NOTES } from './dragonValidate.js'
 
 export const BACKUP_APP = 'pulse-journal-dragon'
 export const BACKUP_VERSION = 1
@@ -36,17 +37,52 @@ export function backupToCsv(b) {
   return [head, ...rows].map(r => r.map(q).join(',')).join('\r\n')
 }
 
-const bad = (msg) => Object.assign(new Error(msg), { status: 400 })
-
 export function validateBackup(b) {
   if (!b || b.app !== BACKUP_APP) throw bad('Not a Dragon backup file.')
   if (b.version !== BACKUP_VERSION) throw bad(`Backup version ${b.version} isn't supported (expected ${BACKUP_VERSION}).`)
   if (!Array.isArray(b.holdings) || !Array.isArray(b.transactions)) throw bad('Backup is missing holdings or transactions.')
-  const ids = new Set(b.holdings.map(h => h.id))
-  for (const t of b.transactions) {
+  const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o)
+  const ids = new Set(), txIds = new Set(), hashes = new Set()
+  for (const h of b.holdings) {
+    if (!isObj(h) || ids.has(h.id)) throw bad('Backup has a malformed or repeated holding.')
+    ids.add(h.id)
+    if (!(text(h.ticker, 'Ticker', MAX_TICKER) ?? '').trim()) throw bad('Backup has a holding with no ticker.')
+    text(h.name, `${h.ticker} name`, MAX_NAME)
+    for (const k of ['pays_dividend', 'drip']) if (h[k] != null && typeof h[k] !== 'boolean') throw bad(`${h.ticker} ${k} must be true or false.`)
+    if (h.current_price != null) num(h.current_price, `${h.ticker} price`)
+    if (![null, undefined, 'auto', 'manual'].includes(h.price_source)) throw bad(`${h.ticker} has an unknown price source.`)
+  }
+  for (const t of b.transactions) if (!isObj(t) || !Number.isInteger(t.id)) throw bad('Backup has a malformed transaction id.')
+  for (const t of [...b.transactions].sort((x, y) => x.id - y.id)) {
+    if (txIds.has(t.id)) throw bad(`Backup repeats transaction id ${t.id}.`)
+    if (t.ref_id != null && !txIds.has(t.ref_id)) throw bad(`Transaction ${t.id} refers to ${t.ref_id}, which isn't earlier in the backup.`)
+    txIds.add(t.id)
     if (![...TYPES, ...CASH_TYPES].includes(t.type)) throw bad(`Backup has an unknown transaction type: ${t.type}`)
     if (CASH_TYPES.includes(t.type) ? t.holding_id != null : !ids.has(t.holding_id)) throw bad(`Transaction ${t.id} points at a holding that isn't in the backup.`)
+    if (t.ref_id != null && !REF_TYPES.includes(t.type)) throw bad(`Transaction ${t.id} (${t.type}) can't refer to another entry.`)
+    if (t.import_hash != null) {
+      if (typeof t.import_hash !== 'string' || hashes.has(t.import_hash)) throw bad(`Transaction ${t.id} has a malformed or repeated import hash.`)
+      hashes.add(t.import_hash)
+    }
   }
+}
+
+/** One backup row through the same checks as the form; the backup's exact cash figure is kept once it's valid. */
+function cleanTx(t, ticker, ledger, refId) {
+  const at = (fn) => { try { return fn() } catch (e) { throw bad(`Transaction ${t.id}: ${e.message}`) } }
+  if (CASH_TYPES.includes(t.type)) {
+    return at(() => {
+      if (!isDate(t.date)) throw bad('Date is required (YYYY-MM-DD)')
+      return { type: t.type, date: t.date, amount: num(t.amount, 'Amount', { strict: true }), notes: text(t.notes, 'Notes', MAX_NOTES),
+        shares: null, price: null, fees: 0, tax_withheld: null, strike: null, expiry: null, contracts: null, premium: null, ref_id: null, import_hash: t.import_hash ?? null }
+    })
+  }
+  return at(() => {
+    const v = normalize({ ...t, ref_id: refId }, { pays_dividend: true, ticker }, ledger)
+    const amount = num(t.amount, 'Amount', { min: t.type === 'CC_ROLL' ? -Infinity : 0 })
+    if (refId != null && v.ref_id == null) throw bad(`a ${t.type} can't refer to another entry here.`)
+    return { ...v, amount, import_hash: t.import_hash ?? null }
+  })
 }
 
 /**
@@ -60,12 +96,16 @@ export async function restoreBackup(backup, store, { wipe = false } = {}) {
     if (!wipe) throw Object.assign(new Error('Your Dragon ledger isn’t empty. Confirm a wipe to replace it with this backup.'), { status: 409 })
     await store.wipe()
   }
-  const holdingId = new Map(), txId = new Map(), ledgers = new Map()
-  for (const h of backup.holdings) holdingId.set(h.id, (await store.insertHolding(h)).id)
+  const holdingId = new Map(), txId = new Map(), ledgers = new Map(), ticker = new Map()
+  for (const h of backup.holdings) {
+    holdingId.set(h.id, (await store.insertHolding({ ...h, ticker: h.ticker.trim().toUpperCase() })).id)
+    ticker.set(h.id, h.ticker)
+  }
   for (const t of [...backup.transactions].sort((a, b) => a.id - b.id)) {
     if (t.ref_id != null && !txId.has(t.ref_id)) throw bad(`Transaction ${t.id} refers to ${t.ref_id}, which isn't earlier in the backup.`)
     const hid = t.holding_id == null ? null : holdingId.get(t.holding_id)
-    const row = await store.insertTx(hid, { ...t, ref_id: t.ref_id == null ? null : txId.get(t.ref_id) })
+    const refId = t.ref_id == null ? null : txId.get(t.ref_id)
+    const row = await store.insertTx(hid, cleanTx(t, ticker.get(t.holding_id), hid == null ? [] : ledgers.get(hid) ?? [], refId))
     txId.set(t.id, row.id)
     if (hid != null) (ledgers.get(hid) ?? ledgers.set(hid, []).get(hid)).push(row)
   }

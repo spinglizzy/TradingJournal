@@ -1,7 +1,8 @@
 /* global process -- server-only file; the repo eslint config is browser-scoped */
 import { Router } from 'express'
 import pool from '../db.js'
-import { TYPES, FEE_TYPES, SHARES_PER_CONTRACT, replay, reconcileMatch } from '../lib/dragonEngine.js'
+import { SHARES_PER_CONTRACT, replay, reconcileMatch } from '../lib/dragonEngine.js'
+import { bad, num, isDate, text, bool, normalize, MAX_TICKER, MAX_NAME } from '../lib/dragonValidate.js'
 import { parseSchwab, planImport, runImport } from '../lib/schwabImport.js'
 import { finnhubQuote, refreshQuotes, applyQuotes } from '../lib/quotes.js'
 import { parseRbaF11, RBA_F11_URL } from '../lib/fx.js'
@@ -16,18 +17,15 @@ import { restoreBackup } from '../lib/dragonBackup.js'
  */
 const router = Router()
 
-const bad = (msg) => Object.assign(new Error(msg), { status: 400 })
-const DATE = /^\d{4}-\d{2}-\d{2}$/
-const r6 = (v) => Math.round(v * 1e6) / 1e6
-const num = (v, name, { min = 0, strict = false } = {}) => {
-  const n = Number(v)
-  if (v === '' || v == null || !Number.isFinite(n) || (strict ? n <= min : n < min)) {
-    throw bad(`${name} must be a number ${strict ? 'greater than' : 'of at least'} ${min}.`)
-  }
-  return n
-}
+// Every :id is a SERIAL; anything else is a bad request, not a Postgres error.
+router.param('id', (req, _res, next, id) => next(/^\d{1,10}$/.test(id) ? undefined : bad('Not a valid id')))
 
 const TX_COLS = `id, holding_id, date, type, shares, price, amount, fees, tax_withheld, notes, strike, expiry, contracts, premium, ref_id, import_hash`
+
+/** A unique-index clash as a 409 that says which rule it hit. */
+export const conflict = (err) => Object.assign(new Error(/import_hash/.test(err.constraint ?? err.message)
+  ? 'Some of these Schwab rows are already in your ledger (another import may have just run). Refresh and try again.'
+  : 'You already hold that ticker in Dragon.'), { status: 409 })
 
 async function withTx(res, next, fn) {
   const client = await pool.connect()
@@ -38,7 +36,7 @@ async function withTx(res, next, fn) {
     res.json(out ?? { ok: true })
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {})
-    next(err.code === '23505' ? Object.assign(new Error('You already hold that ticker in Dragon.'), { status: 409 }) : err)
+    next(err.code === '23505' ? conflict(err) : err)
   } finally {
     client.release()
   }
@@ -54,76 +52,6 @@ async function loadLedger(client, holdingId, userId) {
   return { holding, ledger: rows }
 }
 
-/**
- * Validate one transaction off the wire and fill in its cash `amount`.
- * Fields that don't belong to the type are nulled so a stale form can't leak them in.
- */
-function normalize(b, holding, ledger) {
-  const type = b.type
-  if (!TYPES.includes(type)) throw bad('Unknown transaction type')
-  if (!DATE.test(b.date ?? '')) throw bad('Date is required (YYYY-MM-DD)')
-  if (!holding.pays_dividend && (type === 'DIVIDEND' || type === 'DRIP')) throw bad(`${holding.ticker} is marked as not paying a dividend.`)
-
-  const t = { type, date: b.date, notes: b.notes || null, shares: null, price: null, amount: 0,
-    strike: null, expiry: null, contracts: null, premium: null, ref_id: null,
-    fees: FEE_TYPES.includes(type) && b.fees !== '' && b.fees != null ? num(b.fees, 'Fees') : 0,
-    tax_withheld: type === 'DIVIDEND' && b.tax_withheld !== '' && b.tax_withheld != null ? num(b.tax_withheld, 'US tax withheld') : null }
-  const refCall = () => {
-    const ref = ledger.find(x => x.id === Number(b.ref_id) && (x.type === 'CC_OPEN' || x.type === 'CC_ROLL'))
-    if (!ref) throw bad('Pick the covered call this closes.')
-    t.ref_id = ref.id
-    return ref
-  }
-  const newCall = () => {
-    t.strike    = num(b.strike, 'Strike', { strict: true })
-    t.contracts = num(b.contracts, 'Contracts', { min: 1 })
-    if (!DATE.test(b.expiry ?? '')) throw bad('Expiry is required')
-    t.expiry = b.expiry
-  }
-
-  switch (type) {
-    case 'BUY': case 'DRIP': case 'SELL':
-      t.shares = r6(num(b.shares, 'Shares', { strict: true }))
-      t.price  = num(b.price, 'Price', { strict: true })
-      t.amount = t.shares * t.price
-      if (type === 'SELL' && b.ref_id) refCall()   // called away at the strike
-      break
-    case 'DIVIDEND':
-      t.amount = num(b.amount, 'Dividend amount', { strict: true })
-      break
-    case 'CC_OPEN':
-      newCall()
-      t.premium = num(b.premium, 'Premium')
-      t.amount  = t.premium * SHARES_PER_CONTRACT * t.contracts
-      break
-    case 'CC_CLOSE': {
-      const ref = refCall()
-      t.premium = num(b.premium, 'Buy-back price')
-      t.amount  = t.premium * SHARES_PER_CONTRACT * ref.contracts
-      break
-    }
-    case 'CC_ROLL':
-      refCall(); newCall()
-      t.premium = num(b.premium, 'Net roll price', { min: -Infinity })  // signed: credit +, debit −
-      t.amount  = t.premium * SHARES_PER_CONTRACT * t.contracts
-      break
-    case 'CC_EXPIRE':
-      refCall()
-      break
-    case 'ROC':
-      t.amount = num(b.amount, 'Return of capital', { strict: true })
-      break
-    case 'RECLASS': {
-      const d = ledger.find(x => x.id === Number(b.ref_id) && x.type === 'DIVIDEND')
-      if (!d) throw bad('Pick the dividend being reclassified.')
-      t.ref_id = d.id
-      t.amount = num(b.amount, 'Amount reclassified', { strict: true })
-      break
-    }
-  }
-  return t
-}
-
 // ── Reads ────────────────────────────────────────────────────────────────────
 router.get('/', async (req, res, next) => {
   try {
@@ -137,13 +65,13 @@ router.get('/', async (req, res, next) => {
 
 // ── Holdings ─────────────────────────────────────────────────────────────────
 router.post('/holdings', (req, res, next) => withTx(res, next, async (client) => {
-  const ticker = String(req.body.ticker ?? '').trim().toUpperCase()
+  const ticker = (text(req.body.ticker, 'Ticker', MAX_TICKER) ?? '').trim().toUpperCase()
   if (!ticker) throw bad('Ticker is required')
   const price = req.body.current_price === '' || req.body.current_price == null ? null : num(req.body.current_price, 'Price')
   const { rows: [h] } = await client.query(
     `INSERT INTO dragon_holdings (user_id, ticker, name, pays_dividend, drip, current_price, price_updated_at, price_source)
      VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $6::float8 IS NULL THEN NULL ELSE NOW() END, CASE WHEN $6::float8 IS NULL THEN NULL ELSE 'manual' END) RETURNING *`,
-    [req.userId, ticker, req.body.name || null, req.body.pays_dividend !== false, req.body.drip !== false, price])
+    [req.userId, ticker, text(req.body.name, 'Name', MAX_NAME), bool(req.body.pays_dividend, 'Pays dividend', true), bool(req.body.drip, 'DRIP', true), price])
   return h
 }))
 
@@ -160,7 +88,8 @@ router.put('/holdings/:id', (req, res, next) => withTx(res, next, async (client)
        price_source = CASE WHEN NOT $6 THEN price_source WHEN $5::float8 IS NULL THEN NULL ELSE 'manual' END,
        price_error  = CASE WHEN $6 THEN NULL ELSE price_error END
      WHERE id = $1 RETURNING *`,
-    [holding.id, b.name ?? holding.name, b.pays_dividend ?? holding.pays_dividend, b.drip ?? holding.drip, price, 'current_price' in b])
+    [holding.id, 'name' in b ? text(b.name, 'Name', MAX_NAME) : holding.name, bool(b.pays_dividend, 'Pays dividend', holding.pays_dividend),
+     bool(b.drip, 'DRIP', holding.drip), price, 'current_price' in b])
   return h
 }))
 
@@ -190,6 +119,7 @@ router.post('/transactions/batch', (req, res, next) => withTx(res, next, async (
   if (!Array.isArray(buys) || !buys.length) throw bad('Add at least one buy')
   const out = []
   for (const b of buys) {
+    if (!b || typeof b !== 'object') throw bad('Each buy must be an object')
     const { holding, ledger } = await loadLedger(client, b.holding_id, req.userId)
     const t = normalize({ ...b, type: 'BUY', date }, holding, ledger)
     out.push((await insertTx(client, req.userId, holding.id, t)).rows[0])
@@ -270,8 +200,8 @@ router.post('/import', async (req, res, next) => {
     const plan = planImport(parseSchwab(csv), mappings)
     await client.query('BEGIN')
     const report = await runImport(plan, pgStore(client, req.userId))
-    await client.query(commit ? 'COMMIT' : 'ROLLBACK')
-    res.json({ ...report, committed: !!commit })
+    await client.query(commit === true ? 'COMMIT' : 'ROLLBACK')   // only a real true commits
+    res.json({ ...report, committed: commit === true })
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {})
     next(err)
@@ -331,6 +261,7 @@ router.post('/reconciliations', (req, res, next) => withTx(res, next, async (cli
   const { rows: txs } = await client.query(`SELECT ${TX_COLS} FROM dragon_transactions WHERE user_id = $1`, [req.userId])
   const out = []
   for (const r of rows) {
+    if (!r || typeof r !== 'object') throw bad('Each row must be an object')
     const h = holdings.find(x => x.ticker === r.ticker)
     if (!h) continue
     const sShares = opt(r.schwab_shares, `${r.ticker} Schwab shares`), sBasis = opt(r.schwab_basis, `${r.ticker} Schwab cost basis`)
@@ -355,7 +286,8 @@ const RBA_REFETCH_MS = 60 * 60 * 1000
 
 router.get('/fx', async (req, res, next) => {
   try {
-    const from = DATE.test(req.query.from ?? '') ? req.query.from : '2023-01-01'
+    if (req.query.from != null && !isDate(req.query.from)) throw bad('from must be a date (YYYY-MM-DD)')
+    const from = req.query.from ?? '2023-01-01'
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
     const { rows: [{ max }] } = await pool.query(`SELECT max(date) AS max FROM dragon_fx_rates WHERE source = 'rba'`)
     let fetchError = null
@@ -365,7 +297,6 @@ router.get('/fx', async (req, res, next) => {
         const r = await fetch(RBA_F11_URL, { headers: { 'User-Agent': 'PulseJournal/1.0' } })
         if (!r.ok) throw new Error(`RBA returned HTTP ${r.status}`)
         const rates = parseRbaF11(await r.text())
-        // A manual rate already entered for a date is kept (ON CONFLICT DO NOTHING).
         await pool.query(
           `INSERT INTO dragon_fx_rates (date, aud_usd, source)
            SELECT d, v, 'rba' FROM unnest($1::text[], $2::float8[]) AS t(d, v) ON CONFLICT (date) DO NOTHING`,
@@ -376,7 +307,13 @@ router.get('/fx', async (req, res, next) => {
     }
     // Two weeks before `from`, so a date just after a long weekend still finds its prior business day.
     const start = new Date(Date.parse(from) - 14 * 86400000).toISOString().slice(0, 10)
-    const { rows } = await pool.query(`SELECT date, aud_usd, source FROM dragon_fx_rates WHERE date >= $1 ORDER BY date`, [start])
+    // RBA rows (shared) with this user's own typed rates laid over them.
+    const { rows } = await pool.query(
+      `SELECT COALESCE(o.date, r.date) AS date, COALESCE(o.aud_usd, r.aud_usd) AS aud_usd,
+              CASE WHEN o.date IS NULL THEN 'rba' ELSE 'manual' END AS source
+       FROM (SELECT date, aud_usd FROM dragon_fx_rates WHERE date >= $1) r
+       FULL JOIN (SELECT date, aud_usd FROM dragon_fx_overrides WHERE user_id = $2 AND date >= $1) o ON o.date = r.date
+       ORDER BY 1`, [start, req.userId])
     res.json({ rates: rows, fetchError })
   } catch (err) { next(err) }
 })
@@ -384,13 +321,14 @@ router.get('/fx', async (req, res, next) => {
 router.post('/fx', async (req, res, next) => {
   try {
     const { date } = req.body
-    if (!DATE.test(date ?? '')) throw bad('Date is required (YYYY-MM-DD)')
+    if (!isDate(date)) throw bad('Date is required (YYYY-MM-DD)')
     const rate = num(req.body.aud_usd, 'AUD/USD rate', { strict: true })
     if (rate > 5) throw bad('Enter the rate as US dollars per A$1 (e.g. 0.6550).')
     const { rows: [r] } = await pool.query(
-      `INSERT INTO dragon_fx_rates (date, aud_usd, source, updated_at) VALUES ($1, $2, 'manual', NOW())
-       ON CONFLICT (date) DO UPDATE SET aud_usd = EXCLUDED.aud_usd, source = 'manual', updated_at = NOW() RETURNING date, aud_usd, source`,
-      [date, rate])
+      `INSERT INTO dragon_fx_overrides (user_id, date, aud_usd) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, date) DO UPDATE SET aud_usd = EXCLUDED.aud_usd, updated_at = NOW()
+       RETURNING date, aud_usd, 'manual' AS source`,
+      [req.userId, date, rate])
     res.json(r)
   } catch (err) { next(err) }
 })

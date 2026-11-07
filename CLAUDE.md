@@ -57,8 +57,9 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 - **ROC** (cash received) lowers both bases and is not dividend income. **RECLASS** (`ref_id` → an earlier DIVIDEND) moves no cash: adjusted basis unchanged, lots come down, and income moves dividend → ROC in the *original dividend's* tax year. Capped at that dividend's net amount.
 - The import **adopts** a hand-entered row (no `import_hash`, same holding/date/type/shares) instead of inserting a duplicate — that's what makes Monthly DCA + monthly CSV import safe together.
 - Auto prices: `server/lib/quotes.js` + `POST /dragon/prices/refresh`. `FINNHUB_API_KEY` is read only server-side. Anything priced in the last 15 min (auto or manual) is skipped; a failure keeps the price and sets `price_error`; 429 / bad key stop the run.
-- AUD: `server/lib/fx.js`; RBA F11.1 cached in `dragon_fx_rates` (shared, server-written). Weekend/holiday → prior business day; after the last RBA day or a >7-day gap → missing (manual entry, flagged).
-- Backup: `server/lib/dragonBackup.js`. Restore refuses a non-empty ledger (409) unless `wipe: true`; ids are remapped and the result replayed before commit.
+- AUD: `server/lib/fx.js`; RBA F11.1 cached in `dragon_fx_rates` (shared, RBA-only, server-written). A typed rate goes in `dragon_fx_overrides` (per user, `dragon_migration_04.sql`) and GET `/fx` lays it over the RBA rows — one user's rate never changes another's tax report. Weekend/holiday → prior business day; after the last RBA day or a >7-day gap → missing (manual entry, flagged).
+- Backup: `server/lib/dragonBackup.js`. Restore refuses a non-empty ledger (409) unless `wipe: true`; ids are remapped and the result replayed before commit. Every restored row goes through `normalize()` (`server/lib/dragonValidate.js`, shared with the transaction routes) first.
+- Security (`dragon_migration_04.sql`): `anon`/`authenticated` have NO grants on `dragon_*` — the browser only uses the Express API. `holding_id` and `ref_id` are composite FKs with `user_id`, so a row can never link into another user's ledger.
 - Tests: `quotes-tests`, `fx-tests`, `positions-tests` (real-file part needs a `*Positions*.csv` in `test-fixtures/`), `backup-tests` — all in `npm run test:dragon`.
 
 ### Pre-Entry Gate (a widget in the premarket plan)
