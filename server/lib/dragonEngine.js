@@ -10,8 +10,12 @@
  *
  * Schwab basis is tracked separately as FIFO tax lots: every BUY and DRIP is a
  * lot, a SELL consumes lots oldest first (partial lots pro rata), and return of
- * capital lowers every lot in proportion to its shares. Dividends and premium
- * never touch the lots — that's the broker's view, not the adjusted one.
+ * capital lowers every lot in proportion to its shares, never below $0: the
+ * excess is a capital gain (`rocGain`). Dividends and premium never touch the
+ * lots — that's the broker's view, not the adjusted one.
+ *
+ * A dividend received with no shares held (ex-date before a full exit, paid
+ * after it) is income for the tax report but doesn't touch any basis.
  *
  * `amount` is the GROSS cash figure (shares × price, quote × 100 × contracts, net
  * dividend). Positive for every type except CC_ROLL, where it is the signed net
@@ -43,9 +47,29 @@ export class LedgerError extends Error {
   constructor(message) { super(message); this.status = 400 }
 }
 
-/** Date order, then entry order. An unsaved row (no id) sorts last within its day. */
-export const sortLedger = (txs) => [...txs].sort((a, b) =>
-  a.date < b.date ? -1 : a.date > b.date ? 1 : (a.id ?? Infinity) - (b.id ?? Infinity))
+/**
+ * Within one day, a fixed order so totals never depend on entry order (deleting
+ * and re-adding a row gives it a new id): shares in, income, closes (freeing
+ * cover), rolls, opens, shares out. A close/roll of a call opened that same day
+ * goes after it. Ties go by amount then shares, so even two same-day buys
+ * replay the same way whichever was entered first; id only splits identical rows.
+ */
+const DAY_RANK = { BUY: 0, DRIP: 0, DIVIDEND: 1, ROC: 2, RECLASS: 3, CC_CLOSE: 4, CC_EXPIRE: 4, CC_ROLL: 5, CC_OPEN: 6, SELL: 10 }
+export const sortLedger = (txs) => {
+  const byId = new Map(txs.map(t => [t.id, t])), memo = new Map()
+  const rank = (t, depth = 0) => {
+    if (memo.has(t)) return memo.get(t)
+    let r = DAY_RANK[t.type] ?? 9
+    const ref = t.type.startsWith('CC_') && byId.get(t.ref_id)
+    if (ref && ref.date === t.date && depth < 50) r = Math.max(r, rank(ref, depth + 1) + 0.5)
+    memo.set(t, r)
+    return r
+  }
+  const n = (v) => Number(v) || 0
+  return [...txs].sort((a, b) =>
+    a.date < b.date ? -1 : a.date > b.date ? 1
+      : rank(a) - rank(b) || n(a.amount) - n(b.amount) || n(a.shares) - n(b.shares) || (a.id ?? Infinity) - (b.id ?? Infinity))
+}
 
 const label = (t) => `${t.type} on ${t.date}`
 
@@ -55,9 +79,9 @@ const label = (t) => `${t.type} on ${t.date}`
  */
 export function replay(transactions) {
   let shares = 0, cost = 0
-  let cashInvested = 0, dividends = 0, ccNet = 0, realized = 0, fees = 0, taxWithheld = 0, roc = 0
+  let cashInvested = 0, dividends = 0, ccNet = 0, realized = 0, fees = 0, taxWithheld = 0, roc = 0, rocGain = 0
   const open = new Map()     // id → the row that opened the call (CC_OPEN or CC_ROLL)
-  const divs = new Map()     // id → { row, reclassed } for RECLASS to point at
+  const divs = new Map()     // id → { row, reclassed, sharesAt, lots } for RECLASS to point at
   let lots = []              // FIFO tax lots: { id, date, shares, cost }
   const timeline = []
   const events = []          // dated money events, for the income chart and the tax-year report
@@ -90,12 +114,19 @@ export function replay(transactions) {
     }
     lots = lots.filter(l => l.shares > EPS)
   }
-  /** Return of capital comes off every lot in proportion to its shares. */
-  const reduceLots = (x) => {
-    const total = lots.reduce((s, l) => s + l.shares, 0)
-    if (total > 0) for (const l of lots) l.cost -= x * (l.shares / total)
+  /**
+   * Take `perShare` off each given lot (per share it holds), never below $0.
+   * Returns the part that couldn't come off any lot — a capital gain.
+   */
+  const lowerLots = (which, perShare) => {
+    let excess = 0
+    for (const l of which) {
+      const cut = perShare * l.shares
+      if (cut > l.cost) { excess += cut - Math.max(l.cost, 0); l.cost = 0 } else l.cost -= cut
+    }
+    return excess
   }
-  const ev = (t, e) => events.push({ date: t.date, id: t.id, type: t.type, dividend: 0, tax: 0, cc: 0, realized: 0, fees: 0, roc: 0, ...e })
+  const ev = (t, e) => events.push({ date: t.date, id: t.id, type: t.type, dividend: 0, tax: 0, cc: 0, realized: 0, fees: 0, roc: 0, rocGain: 0, ...e })
 
   for (const t of sortLedger(transactions)) {
     const amt = Number(t.amount) || 0
@@ -113,16 +144,20 @@ export function replay(transactions) {
         break
       case 'DIVIDEND': {
         const tax = Number(t.tax_withheld) || 0
-        cost -= amt; dividends += amt; taxWithheld += tax
-        divs.set(t.id, { row: t, reclassed: 0 })
+        if (shares > EPS) cost -= amt   // with no shares it's income only (see top)
+        dividends += amt; taxWithheld += tax
+        divs.set(t.id, { row: t, reclassed: 0, sharesAt: shares, lots: new Set(lots) })
         ev(t, { dividend: amt, tax })
         break
       }
-      case 'ROC':
+      case 'ROC': {
         if (shares <= 0) throw new LedgerError(`${label(t)}: return of capital with no shares held.`)
-        cost -= amt; roc += amt; reduceLots(amt)
-        ev(t, { roc: amt })
+        cost -= amt; roc += amt
+        const gain = lowerLots(lots, amt / lots.reduce((s, l) => s + l.shares, 0))
+        rocGain += gain
+        ev(t, { roc: amt, rocGain: gain })
         break
+      }
       case 'RECLASS': {
         // An earlier dividend turns out to have been return of capital. The cash was
         // already counted (net dividend), so the adjusted basis doesn't move; income
@@ -134,8 +169,15 @@ export function replay(transactions) {
           throw new LedgerError(`${label(t)}: reclassifying $${amt.toFixed(2)} but that dividend only has $${(Number(d.row.amount) - d.reclassed).toFixed(2)} left.`)
         }
         d.reclassed += amt
-        dividends -= amt; roc += amt; reduceLots(amt)
-        events.push({ date: d.row.date, id: t.id, type: t.type, dividend: -amt, tax: 0, cc: 0, realized: 0, fees: 0, roc: amt })
+        dividends -= amt; roc += amt
+        // Only lots that were held on the dividend date were paid it, at amt ÷ shares then
+        // per share. Whatever belonged to shares sold since was a gain on that sale.
+        const entitled = lots.filter(l => d.lots.has(l))
+        const kept = entitled.reduce((s, l) => s + l.shares, 0)
+        const perShare = d.sharesAt > EPS ? amt / d.sharesAt : 0
+        const gain = lowerLots(entitled, perShare) + (amt - perShare * kept)
+        rocGain += gain
+        events.push({ date: d.row.date, id: t.id, type: t.type, dividend: -amt, tax: 0, cc: 0, realized: 0, fees: 0, roc: amt, rocGain: gain })
         break
       }
       case 'CC_OPEN': case 'CC_ROLL': {
@@ -154,8 +196,13 @@ export function replay(transactions) {
       case 'CC_EXPIRE':
         takeOpen(t); break
       case 'SELL': {
-        if (t.ref_id != null) takeOpen(t)   // called away: the call ends with the shares
         const n = Number(t.shares)
+        if (t.ref_id != null) {   // called away: the call ends with exactly its shares
+          const call = takeOpen(t)
+          if (Math.abs(n - call.contracts * SHARES_PER_CONTRACT) > EPS) {
+            throw new LedgerError(`${label(t)}: ${call.contracts} contract(s) called away delivers ${call.contracts * SHARES_PER_CONTRACT} shares, not ${n}.`)
+          }
+        }
         if (n > shares + EPS) throw new LedgerError(`${label(t)}: selling ${n} shares but only ${shares} held.`)
         const removed = (cost / shares) * n
         const gain = amt - fee - removed
@@ -182,7 +229,7 @@ export function replay(transactions) {
     basis: shares > 0 ? cost / shares : null,
     schwabBasis: lots.reduce((s, l) => s + l.cost, 0),   // remaining FIFO lots — what the broker shows
     lots: lots.map(l => ({ ...l })),
-    cashInvested, dividends, ccNet, realized, fees, taxWithheld, roc,
+    cashInvested, dividends, ccNet, realized, fees, taxWithheld, roc, rocGain,
     openCalls: [...open.values()],
     contracts,                                   // floor(shares ÷ 100)
     freeContracts: contracts - openContracts(),  // what CC_OPEN may still sell
@@ -210,11 +257,11 @@ export const fyLabel = (fy) => `FY${fy - 1}-${String(fy).slice(2)}`
 
 /** Sum events falling in Australian FY `fy`. Gross dividend = net + US tax withheld. */
 export function taxYear(events, fy) {
-  const s = { grossDividends: 0, taxWithheld: 0, netDividends: 0, roc: 0, ccNet: 0, realized: 0, fees: 0 }
+  const s = { grossDividends: 0, taxWithheld: 0, netDividends: 0, roc: 0, rocGain: 0, ccNet: 0, realized: 0, fees: 0 }
   for (const e of events) {
     if (auFY(e.date) !== fy) continue
     s.netDividends += e.dividend; s.taxWithheld += e.tax; s.grossDividends += e.dividend + e.tax
-    s.roc += e.roc; s.ccNet += e.cc; s.realized += e.realized; s.fees += e.fees
+    s.roc += e.roc; s.rocGain += e.rocGain ?? 0; s.ccNet += e.cc; s.realized += e.realized; s.fees += e.fees
   }
   return s
 }

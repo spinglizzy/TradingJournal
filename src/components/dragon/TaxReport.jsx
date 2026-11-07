@@ -11,12 +11,14 @@ const TOTALS = [
   ['tax',            'US tax withheld'],
   ['dividend',       'Net dividends'],
   ['roc',            'Return of capital'],
+  ['rocGain',        'Capital gain: ROC above cost base'],
   ['cc',             'Net CC premium'],
   ['realized',       'Realised P/L on sells'],
   ['fees',           'Fees'],
 ]
 const NOTE = 'AUD converted per transaction at the RBA F11.1 AUD/USD rate for that date (weekends/holidays: prior business day). '
-  + 'Fees are already reflected in net CC premium, realised P/L and cost base; listed for reference. Return of capital is not dividend income.'
+  + 'Fees are already reflected in net CC premium, realised P/L and cost base; listed for reference. Return of capital is not dividend income; '
+  + 'ROC beyond a lot’s cost base (or reclassified for shares already sold) is a capital gain.'
 const aud = (v) => (v == null ? '—' : `A${money(v)}`)
 
 /** Australian tax year (1 July – 30 June): every money line with the RBA rate used, totals in USD and AUD. */

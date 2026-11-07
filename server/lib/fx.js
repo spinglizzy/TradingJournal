@@ -55,6 +55,7 @@ export const CATEGORIES = [
   ['dividend', 'Net dividend'],
   ['tax',      'US tax withheld'],
   ['roc',      'Return of capital'],
+  ['rocGain',  'Capital gain: ROC above cost base'],
   ['cc',       'Net CC premium'],
   ['realized', 'Realised P/L'],
   ['fees',     'Fees'],

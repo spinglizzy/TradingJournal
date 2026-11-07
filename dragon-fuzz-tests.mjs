@@ -6,7 +6,7 @@
  *
  * Tests named "BUG:" fail on purpose until the engine is fixed.
  */
-import { replay, LedgerError } from './server/lib/dragonEngine.js'
+import { replay, LedgerError, taxYear } from './server/lib/dragonEngine.js'
 
 let passed = 0, failed = 0
 const fails = []
@@ -38,16 +38,26 @@ const r6 = (v) => Math.round(v * 1e6) / 1e6
 const shuffle = (xs) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] } return a }
 
 // ── Independent model of the owner's rules ───────────────────────────────────
-// Same-day rows run in id order (the app's documented rule). Amounts gross; fees
-// always against you; DIVIDEND.amount is the net cash, tax never in any basis.
+// Same-day order (owner's decision, 2026-11-07): BUY/DRIP, DIVIDEND, ROC, RECLASS,
+// call closes, rolls, opens, SELL — a close/roll of a call opened that day after it —
+// then amount, shares, id. Amounts gross; fees always against you; DIVIDEND.amount
+// is the net cash, tax never in any basis. A dividend with 0 shares is income only.
+// Lots never go below $0: ROC beyond them (or RECLASS for shares sold since the
+// dividend) is a capital gain (rocGain).
 class Invalid extends Error {}
+const RANK = { BUY: 0, DRIP: 0, DIVIDEND: 1, ROC: 2, RECLASS: 3, CC_CLOSE: 4, CC_EXPIRE: 4, CC_ROLL: 5, CC_OPEN: 6, SELL: 10 }
+function order(ledger) {
+  const byId = new Map(ledger.map(t => [t.id, t]))
+  const rank = (t) => { const ref = t.type.startsWith('CC_') && byId.get(t.ref_id); return ref && ref.date === t.date ? Math.max(RANK[t.type], rank(ref) + 0.5) : RANK[t.type] }
+  return [...ledger].sort((a, b) => a.date.localeCompare(b.date) || rank(a) - rank(b) || (a.amount ?? 0) - (b.amount ?? 0) || (a.shares ?? 0) - (b.shares ?? 0) || a.id - b.id)
+}
 function model(ledger) {
-  const rows = [...ledger].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
-  let shares = 0, cost = 0, realized = 0, dividends = 0, roc = 0, cc = 0, tax = 0
+  const rows = order(ledger)
+  let shares = 0, cost = 0, realized = 0, dividends = 0, roc = 0, cc = 0, tax = 0, rocGain = 0
   let lots = []
   const open = new Map(), divLeft = new Map()
-  const lotShares = () => lots.reduce((s, l) => s + l.shares, 0)
-  const lowerLots = (x) => { const tot = lotShares(); if (tot > 0) lots.forEach(l => { l.cost -= x * l.shares / tot }) }
+  const lotShares = (ls = lots) => ls.reduce((s, l) => s + l.shares, 0)
+  const cut = (ls, perShare) => { let g = 0; for (const l of ls) { const c = perShare * l.shares; if (c > l.cost) { g += c - l.cost; l.cost = 0 } else l.cost -= c } return g }
   const openN = () => [...open.values()].reduce((s, c) => s + c.contracts, 0)
   for (const t of rows) {
     const amt = t.amount ?? 0, fee = t.fees ?? 0
@@ -55,14 +65,17 @@ function model(ledger) {
       const c = t.type === 'BUY' ? amt + fee : amt
       shares = r6(shares + t.shares); cost += c; lots.push({ id: t.id, shares: t.shares, cost: c })
     } else if (t.type === 'DIVIDEND') {
-      cost -= amt; dividends += amt; tax += t.tax_withheld ?? 0; divLeft.set(t.id, amt)
+      if (shares > 1e-9) cost -= amt
+      dividends += amt; tax += t.tax_withheld ?? 0; divLeft.set(t.id, { left: amt, sharesAt: shares, lots: [...lots] })
     } else if (t.type === 'ROC') {
       if (!(shares > 0)) throw new Invalid('roc no shares')
-      cost -= amt; roc += amt; lowerLots(amt)
+      cost -= amt; roc += amt; rocGain += cut(lots, amt / lotShares())
     } else if (t.type === 'RECLASS') {
-      const left = divLeft.get(t.ref_id)
-      if (left == null || amt > left + 1e-9) throw new Invalid('reclass')
-      divLeft.set(t.ref_id, left - amt); dividends -= amt; roc += amt; lowerLots(amt)
+      const d = divLeft.get(t.ref_id)
+      if (d == null || amt > d.left + 1e-9) throw new Invalid('reclass')
+      d.left -= amt; dividends -= amt; roc += amt
+      const still = lots.filter(l => d.lots.includes(l)), per = d.sharesAt > 1e-9 ? amt / d.sharesAt : 0
+      rocGain += cut(still, per) + amt - per * lotShares(still)
     } else if (t.type === 'CC_OPEN' || t.type === 'CC_ROLL') {
       if (t.type === 'CC_ROLL') { if (!open.has(t.ref_id)) throw new Invalid('roll'); open.delete(t.ref_id) }
       if ((openN() + t.contracts) * 100 > shares + 1e-9) throw new Invalid('uncovered')
@@ -71,7 +84,7 @@ function model(ledger) {
       if (!open.has(t.ref_id)) throw new Invalid('close'); open.delete(t.ref_id)
       if (t.type === 'CC_CLOSE') { cost += amt + fee; cc -= amt + fee }
     } else if (t.type === 'SELL') {
-      if (t.ref_id != null) { if (!open.has(t.ref_id)) throw new Invalid('called'); open.delete(t.ref_id) }
+      if (t.ref_id != null) { const c = open.get(t.ref_id); if (!c || Math.abs(c.contracts * 100 - t.shares) > 1e-9) throw new Invalid('called'); open.delete(t.ref_id) }
       if (t.shares > shares + 1e-9) throw new Invalid('oversell')
       const removed = cost * t.shares / shares
       realized += amt - fee - removed
@@ -83,7 +96,7 @@ function model(ledger) {
       if (openN() * 100 > shares + 1e-9) throw new Invalid('uncovers')
     }
   }
-  return { shares, totalCost: cost, schwabBasis: lots.reduce((s, l) => s + l.cost, 0), lots, realized, dividends, roc, ccNet: cc, taxWithheld: tax }
+  return { shares, totalCost: cost, schwabBasis: lots.reduce((s, l) => s + l.cost, 0), lots, realized, dividends, roc, rocGain, ccNet: cc, taxWithheld: tax }
 }
 const isValid = (L) => { try { model(L); return true } catch (e) { if (e instanceof Invalid) return false; throw e } }
 
@@ -96,7 +109,7 @@ function genLedger({ n = ri(3, 35), roc = true } = {}) {
   const L = []
   for (const s of slots) {
     const st = model(L)
-    const open = (() => { const m = new Map(); for (const t of [...L].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)) {
+    const open = (() => { const m = new Map(); for (const t of order(L)) {
       if (t.type === 'CC_OPEN' || t.type === 'CC_ROLL') { if (t.type === 'CC_ROLL') m.delete(t.ref_id); m.set(t.id, t) }
       if (['CC_CLOSE', 'CC_EXPIRE'].includes(t.type) || (t.type === 'SELL' && t.ref_id != null)) m.delete(t.ref_id) } return m })()
     const openN = [...open.values()].reduce((a, c) => a + c.contracts, 0)
@@ -199,10 +212,10 @@ property('adjusted total = BUY(+fee) + DRIP − net div − net CC − ROC − c
   const m = model(L)
   return near(s.totalCost, m.totalCost, 0.005) || `engine ${s.totalCost} vs model ${m.totalCost}`
 })
-property('realised / dividends / roc / ccNet / tax match the model', (L) => {
+property('realised / dividends / roc / rocGain / ccNet / tax match the model', (L) => {
   const s = tryReplay(L); if (s.error) return s.error
   const m = model(L)
-  for (const k of ['realized', 'dividends', 'roc', 'ccNet', 'taxWithheld']) if (!near(s[k], m[k], 0.005)) return `${k}: engine ${s[k]} vs model ${m[k]}`
+  for (const k of ['realized', 'dividends', 'roc', 'rocGain', 'ccNet', 'taxWithheld']) if (!near(s[k], m[k], 0.005)) return `${k}: engine ${s[k]} vs model ${m[k]}`
   return true
 })
 property('Schwab basis = remaining FIFO lots (no dividends, no premium, ROC pro rata)', (L) => {
@@ -216,7 +229,7 @@ property('Schwab basis = remaining FIFO lots (no dividends, no premium, ROC pro 
 property('Schwab basis with no ROC/RECLASS = cost of the shares still held, FIFO (never touched by div/premium)', (L) => {
   const s = tryReplay(L); if (s.error) return s.error
   // straight FIFO over BUY/DRIP/SELL only
-  const q = []; for (const t of [...L].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)) {
+  const q = []; for (const t of order(L)) {
     if (t.type === 'BUY' || t.type === 'DRIP') q.push({ sh: t.shares, c: t.amount + (t.type === 'BUY' ? t.fees ?? 0 : 0) })
     if (t.type === 'SELL') { let left = t.shares; while (left > 1e-9 && q.length) { const l = q[0], take = Math.min(l.sh, left); l.c -= l.c * take / l.sh; l.sh = r6(l.sh - take); left = r6(left - take); if (l.sh <= 1e-9) q.shift() } }
   }
@@ -277,7 +290,8 @@ console.log('\nSELL edge cases')
 const B = (id, date, shares, amount, f = {}) => ({ id, type: 'BUY', date, shares, amount, ...f })
 throws('SELL more than held is rejected', () => replay([B(1, '2026-01-01', 5, 50), { id: 2, type: 'SELL', date: '2026-01-02', shares: 5.0001, amount: 1 }]), /only 5 held/)
 throws('SELL dated before the BUY is rejected', () => replay([B(1, '2026-02-01', 5, 50), { id: 2, type: 'SELL', date: '2026-01-01', shares: 1, amount: 1 }]), /only 0 held/)
-throws('SELL with a LOWER id than a same-day BUY is rejected (id decides intra-day order)', () => replay([B(5, '2026-01-01', 5, 50), { id: 4, type: 'SELL', date: '2026-01-01', shares: 5, amount: 60 }]), /only 0 held/)
+// Re-specified for the fixed same-day order (owner's decision #2): BUYs run before a same-day SELL whatever the ids.
+check('SELL with a LOWER id than a same-day BUY is accepted (same-day BUYs run first)', tryReplay([B(5, '2026-01-01', 5, 50), { id: 4, type: 'SELL', date: '2026-01-01', shares: 5, amount: 60 }]).error ?? 'accepted', 'accepted')
 {
   // Sam enters BUY then SELL on the same day; later deletes the BUY to fix a typo and re-enters it → new higher id
   const L = [B(1, '2026-01-01', 5, 50), { id: 2, type: 'SELL', date: '2026-01-01', shares: 5, amount: 60 }]
@@ -289,7 +303,11 @@ throws('SELL with a LOWER id than a same-day BUY is rejected (id decides intra-d
 
 console.log('\nDividends / ROC / RECLASS probes')
 {
-  throws('BUG: DIVIDEND dated before any BUY (0 shares) is rejected like ROC is', () => replay([{ id: 1, type: 'DIVIDEND', date: '2026-01-01', amount: 5 }, B(2, '2026-02-01', 10, 100)]), /no shares/)
+  // Re-specified per the owner's decision #9: a 0-share dividend is legitimate (ex-date vs pay-date) -
+  // accepted, booked as income in the tax report, and never touches basis.
+  const early = tryReplay([{ id: 1, type: 'DIVIDEND', date: '2026-01-01', amount: 5, tax_withheld: 0.75 }, B(2, '2026-02-01', 10, 100)])
+  check('BUG: DIVIDEND with 0 shares is accepted, the later BUY keeps its full basis', early.error ?? [early.totalCost, early.schwabBasis, early.dividends], [100, 100, 5])
+  check('... and it is income in that tax year (net 5, tax 0.75, gross 5.75)', early.error ?? (({ netDividends, taxWithheld, grossDividends }) => [netDividends, taxWithheld, grossDividends])(taxYear(early.events, 2026)), [5, 0.75, 5.75])
   const re = replay([B(1, '2026-01-01', 10, 100), { id: 2, type: 'SELL', date: '2026-02-01', shares: 10, amount: 120 },
     { id: 3, type: 'DIVIDEND', date: '2026-02-15', amount: 5 }, B(4, '2026-06-01', 10, 100)])
   check('BUG: dividend paid after a full exit must not lower a later re-buy\'s basis', re.totalCost, 100)
@@ -300,6 +318,7 @@ console.log('\nDividends / ROC / RECLASS probes')
   const big = replay([B(1, '2026-01-01', 10, 100), { id: 2, type: 'ROC', date: '2026-02-01', amount: 150 }])
   check('ROC > basis: adjusted total may go negative (by design)', big.totalCost, -50)
   check('BUG: ROC > basis: Schwab lot basis floors at 0 (excess is a capital gain), not negative', big.schwabBasis, 0)
+  check('... the $50 excess is a capital gain in that tax year', [big.rocGain, taxYear(big.events, 2026).rocGain], [50, 50])
 
   const rocSell = replay([B(1, '2026-01-01', 10, 100), B(2, '2026-02-01', 10, 200), { id: 3, type: 'ROC', date: '2026-03-01', amount: 20 }, { id: 4, type: 'SELL', date: '2026-04-01', shares: 15, amount: 300 }])
   check('sell after ROC: FIFO carries the ROC-reduced lot cost (lot2 half of 190)', rocSell.lots.map(l => [l.id, l.shares, cents(l.cost)]), [[2, 5, 95]])
@@ -309,6 +328,7 @@ console.log('\nDividends / ROC / RECLASS probes')
   const div = { id: 2, type: 'DIVIDEND', date: '2026-02-01', amount: 10 }
   const partial = replay([B(1, '2026-01-01', 10, 100), div, { id: 3, type: 'SELL', date: '2026-03-01', shares: 9, amount: 90 }, { id: 4, type: 'RECLASS', date: '2026-04-01', ref_id: 2, amount: 10 }])
   check('BUG: RECLASS after a partial sell only lowers the remaining share\'s lot by its $1/sh (not all $10)', partial.schwabBasis, 9)
+  check('... the $9 that belonged to the 9 sold shares is a capital gain', partial.rocGain, 9)
   const neg = replay([B(1, '2026-01-01', 10, 10), { ...div, amount: 5 }, { id: 3, type: 'SELL', date: '2026-03-01', shares: 9, amount: 9 }, { id: 4, type: 'RECLASS', date: '2026-04-01', ref_id: 2, amount: 5 }])
   check('BUG: RECLASS after a partial sell never drives a lot negative', neg.schwabBasis >= 0, true)
   const afterExit = tryReplay([B(1, '2026-01-01', 10, 100), div, { id: 3, type: 'SELL', date: '2026-03-01', shares: 10, amount: 120 }, { id: 4, type: 'RECLASS', date: '2026-04-01', ref_id: 2, amount: 10 }])
