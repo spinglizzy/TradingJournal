@@ -10,6 +10,7 @@ const mainLinks = [
   { to: '/dashboard',  label: 'Dashboard',  end: true },
   { to: '/trades',     label: 'Trades' },
   { to: '/wheel',      label: 'Wheel' },
+  { to: '/dragon',     label: 'Dragon' },
   { to: '/analytics',  label: 'Analytics' },
   { to: '/journal',    label: 'Journal' },
   { to: '/playbook',   label: 'Playbook' },

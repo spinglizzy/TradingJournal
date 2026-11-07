@@ -22,6 +22,7 @@ import accountsRouter     from './routes/accounts.js'
 import importExportRouter from './routes/importexport.js'
 import alpacaRouter       from './routes/alpaca.js'
 import wheelRouter        from './routes/wheel.js'
+import dragonRouter       from './routes/dragon.js'
 import gateRouter         from './routes/gate.js'
 
 const app = express()
@@ -67,6 +68,7 @@ app.use('/api/import',     importExportRouter)
 app.use('/api/export',     importExportRouter)
 app.use('/api/alpaca',     alpacaRouter)
 app.use('/api/wheel',      wheelRouter)
+app.use('/api/dragon',     dragonRouter)
 app.use('/api/gate',       gateRouter)
 app.use('/api/brokers',      brokersRouter)
 app.use('/api/tradier',      tradierRouter)

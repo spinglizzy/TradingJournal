@@ -11,6 +11,7 @@ npm run dev:client    # Frontend only
 npm run build         # Production Vite build
 npm run seed          # Load sample trade data into the database
 npm test               # All four unit suites below (no DB)
+npm run test:dragon    # Dragon cost-basis engine unit tests (no DB)
 npm run test:wheel     # Wheel basis engine + strike calculator unit tests (no DB)
 npm run test:lifecycle # Drives the real wheel router against an in-memory pg shim (no DB)
 npm run test:gate      # Pre-Entry Gate verdict engine unit tests (no DB)
@@ -43,6 +44,12 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 - `BOOKED` (drops closed rows with no P&L) is still the right predicate for P&L **sums**; `COUNTS_AS_TRADE` is the one for **counts**.
 - `already_logged` (`trades.premium_already_logged`, `wheel_migration_03.sql`) marks a put reconstructed from before the Wheel tab existed whose premium already sits on its own Trade Log row. `cycleJournalPnl` subtracts those legs so the credit is not booked twice; the basis engine still sees the premium.
 - Premium/cost fields in the wheel **entry** forms are labelled `$ / contract` and take the broker's quote (0.30 → $30 per contract). `StrikeCalculator` deliberately keeps `$ / share` — the same number, but every figure it computes (weekly-equivalent floor, value at expiry, the chart) is per-share.
+
+### Dragon (`/dragon`) — long-term dividend portfolio
+- `dragon_holdings` + `dragon_transactions` (`dragon_migration.sql`). The ledger is the only truth: **no running totals are stored**. `server/lib/dragonEngine.js` `replay()` derives shares, average adjusted basis, realised P/L, dividends, net CC premium, open calls and the basis timeline; client and server both import it (same split as `gateVerdict.js`).
+- Basis = BUY + DRIP − DIVIDEND − net CC premium − cost removed by SELLs, ÷ shares. A SELL removes shares at the current average basis. Basis may go ≤ 0 (paid off).
+- `amount` is the cash figure, positive except CC_ROLL (signed net). The server derives it from shares × price / quote × 100 × contracts. `ref_id` names the call a CC_CLOSE / CC_ROLL / CC_EXPIRE / called-away SELL ends.
+- Every write replays the holding's whole ledger with the change applied before committing, so edits and deletes can't leave an oversell, uncovered calls or a dangling close. `dragon-tests.mjs` holds the spec's worked example.
 
 ### Pre-Entry Gate (a widget in the premarket plan)
 - A pre-trade check for NQ/ICT discretionary entries. It renders **only** as a section inside `PremarketPlanEditor` — the plan is what's open on screen through the session. There is no overlay and no keyboard shortcut; both existed and were removed as unnecessary. `GateContext` prefetches the factor config on app load so the gate never waits on I/O.
