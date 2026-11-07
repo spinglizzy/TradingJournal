@@ -15,6 +15,18 @@ export const tone = (v) => (v > 0 ? 'text-emerald-400' : v < 0 ? 'text-red-400' 
 export const TYPE_LABEL = {
   BUY: 'Buy', DIVIDEND: 'Dividend', DRIP: 'DRIP', SELL: 'Sell',
   CC_OPEN: 'Sell CC', CC_CLOSE: 'Close CC', CC_ROLL: 'Roll CC', CC_EXPIRE: 'Expire CC',
+  ROC: 'Return of capital', RECLASS: 'Reclassify', CASH_IN: 'Cash in', CASH_OUT: 'Cash out',
 }
 
 export const callLabel = (c) => `$${Number(c.strike).toFixed(2).replace(/\.00$/, '')}C ${c.expiry} ×${c.contracts}`
+
+/**
+ * Split `total` equally across `n` holdings in cents; the remainder goes to the
+ * first so the parts always add back up to the total.
+ */
+export function splitEqually(total, n) {
+  if (!(n > 0) || !(total > 0)) return []
+  const cents = Math.round(total * 100)
+  const each = Math.floor(cents / n)
+  return Array.from({ length: n }, (_, i) => (each + (i === 0 ? cents - each * n : 0)) / 100)
+}

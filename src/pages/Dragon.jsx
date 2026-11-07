@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { Plus, CalendarPlus, TriangleAlert, Trash2, Upload, Scale, FileText } from 'lucide-react'
+import { Plus, CalendarPlus, TriangleAlert, Trash2, Upload, Scale, FileText, RefreshCw, Download, ArchiveRestore } from 'lucide-react'
 import { dragonApi } from '../api/dragon.js'
 import { replay, incomeByMonth, cashTotals, auFY, fyLabel, SHARES_PER_CONTRACT } from '../../server/lib/dragonEngine.js'
 import Modal from '../components/ui/Modal.jsx'
@@ -12,6 +12,8 @@ import HoldingDetail, { QuickActions } from '../components/dragon/HoldingDetail.
 import ImportModal from '../components/dragon/ImportModal.jsx'
 import Reconcile from '../components/dragon/Reconcile.jsx'
 import TaxReport from '../components/dragon/TaxReport.jsx'
+import RestoreModal from '../components/dragon/RestoreModal.jsx'
+import { buildBackup, backupToCsv } from '../../server/lib/dragonBackup.js'
 import { Field, ErrorBox, SummaryCard } from '../components/dragon/ui.jsx'
 import { inputCls, btnPrimary, btnGhost, money, signed, pct, fmtShares, tone, todayStr, TYPE_LABEL } from '../components/dragon/format.js'
 
@@ -32,7 +34,31 @@ export default function Dragon() {
     d => { setData(d); setError(null) },
     err => setError(err?.message || 'Failed to load Dragon'),
   ), [])
-  useEffect(() => { load() }, [load])
+  const [priceMsg, setPriceMsg]     = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+  // Server-side Finnhub refresh; it skips anything priced in the last 15 minutes.
+  const refreshPrices = useCallback(() => {
+    setRefreshing(true)
+    return dragonApi.refreshPrices().then(r => {
+      if (!r.configured) setPriceMsg('Auto prices are off until FINNHUB_API_KEY is set on the server. Typed prices still work.')
+      else setPriceMsg(r.failed ? `${r.failed} price(s) couldn't be refreshed — the last price is kept (see ⚠).` : null)
+      if (r.updated || r.failed) return load()
+    }, err => setPriceMsg(`${err?.message || 'Price refresh failed'} — last prices kept.`)).finally(() => setRefreshing(false))
+  }, [load])
+  useEffect(() => { load().then(refreshPrices) }, [load, refreshPrices])
+
+  /** Download the whole ledger: JSON (restorable) + CSV (readable). */
+  function exportLedger() {
+    const b = buildBackup(data.holdings, data.transactions)
+    const stamp = todayStr()
+    const dl = (content, type, name) => {
+      const url = URL.createObjectURL(new Blob([content], { type }))
+      Object.assign(document.createElement('a'), { href: url, download: name }).click()
+      URL.revokeObjectURL(url)
+    }
+    dl(JSON.stringify(b, null, 2), 'application/json', `dragon-ledger-${stamp}.json`)
+    dl(backupToCsv(b), 'text/csv', `dragon-ledger-${stamp}.csv`)
+  }
 
   // Everything below is derived from the ledger on every load — nothing is stored.
   const rows = useMemo(() => {
@@ -93,6 +119,15 @@ export default function Dragon() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={refreshing || !rows.length} onClick={refreshPrices} className={`${btnHeader} text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 disabled:opacity-40`}>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh prices
+          </button>
+          <button type="button" disabled={!data?.transactions.length && !rows.length} onClick={exportLedger} className={`${btnHeader} text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 disabled:opacity-40`}>
+            <Download className="w-4 h-4" /> Export ledger
+          </button>
+          <button type="button" onClick={() => setPanel('restore')} className={`${btnHeader} text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 disabled:opacity-40`}>
+            <ArchiveRestore className="w-4 h-4" /> Restore
+          </button>
           <button type="button" onClick={() => setPanel('import')} className={`${btnHeader} text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700`}>
             <Upload className="w-4 h-4" /> Import Schwab CSV
           </button>
@@ -113,6 +148,7 @@ export default function Dragon() {
       </div>
 
       {error && <div className="mb-5"><ErrorBox>{error}</ErrorBox></div>}
+      {priceMsg && <p className="mb-4 text-xs text-amber-400 flex gap-1.5"><TriangleAlert className="w-3.5 h-3.5 shrink-0" />{priceMsg}</p>}
       {notice && (
         <div className="mb-5 px-4 py-3 bg-emerald-900/20 border border-emerald-800/40 rounded-lg text-sm text-emerald-400 flex justify-between gap-3">
           {notice}<button type="button" onClick={() => setNotice(null)} className="text-emerald-600 hover:text-emerald-300">Dismiss</button>
@@ -258,7 +294,7 @@ export default function Dragon() {
       <Modal isOpen={panel === 'import'} onClose={() => setPanel(null)} title="Import Schwab CSV" size="xl">
         {panel === 'import' && <ImportModal onCancel={() => setPanel(null)} onDone={r => {
           setPanel(null)
-          setNotice(`Imported ${r.added.length} row(s)${r.duplicates ? `, skipped ${r.duplicates} duplicate(s)` : ''}${r.review.length ? `, ${r.review.length} left for review` : ''}.`)
+          setNotice(`Imported ${r.added.length} row(s)${r.adopted?.length ? `, matched ${r.adopted.length} you had entered by hand` : ''}${r.duplicates ? `, skipped ${r.duplicates} duplicate(s)` : ''}${r.review.length ? `, ${r.review.length} left for review` : ''}.`)
           load()
         }} />}
       </Modal>
@@ -269,6 +305,11 @@ export default function Dragon() {
 
       <Modal isOpen={panel === 'tax'} onClose={() => setPanel(null)} title="Australian tax year" size="xl">
         {panel === 'tax' && <TaxReport rows={rows} />}
+      </Modal>
+
+      <Modal isOpen={panel === 'restore'} onClose={() => setPanel(null)} title="Restore from backup" size="md">
+        {panel === 'restore' && <RestoreModal current={{ holdings: data?.holdings.length ?? 0, transactions: data?.transactions.length ?? 0 }}
+          onCancel={() => setPanel(null)} onDone={r => { setPanel(null); setNotice(`Restored ${r.holdings} holding(s) and ${r.transactions} transaction(s).`); load() }} />}
       </Modal>
 
       <ConfirmDialog isOpen={!!confirm} title={confirm?.title} message={confirm?.message}
@@ -303,11 +344,25 @@ function PriceCell({ holding, onSaved, onError }) {
     try { await dragonApi.updateHolding(holding.id, { current_price: next }); onSaved() }
     catch (err) { onError(err?.message || 'Failed to save price') }
   }
+  const updated = holding.price_updated_at ? new Date(holding.price_updated_at) : null
   return (
-    <input type="number" step="0.01" min="0" inputMode="decimal" value={v} aria-label={`${holding.ticker} price`}
-      title={holding.price_updated_at ? `Updated ${new Date(holding.price_updated_at).toLocaleString()}` : 'No price yet'}
-      onChange={e => setV(e.target.value)} onBlur={save} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
-      className="w-24 bg-transparent border border-transparent hover:border-gray-700 focus:border-indigo-500 rounded-md px-2 py-1 text-right font-mono text-sm text-white focus:outline-none" />
+    <div className="flex flex-col items-end">
+      <div className="flex items-center gap-1">
+        {holding.price_error && (
+          <span title={`Last refresh failed: ${holding.price_error}. Showing the last price.`} aria-label="Price refresh failed" className="text-amber-400">
+            <TriangleAlert className="w-3.5 h-3.5" />
+          </span>
+        )}
+        <input type="number" step="0.01" min="0" inputMode="decimal" value={v} aria-label={`${holding.ticker} price`}
+          onChange={e => setV(e.target.value)} onBlur={save} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+          className="w-24 bg-transparent border border-transparent hover:border-gray-700 focus:border-indigo-500 rounded-md px-2 py-1 text-right font-mono text-sm text-white focus:outline-none" />
+      </div>
+      {updated && (
+        <span className="text-[10px] text-gray-600 pr-2" title={updated.toLocaleString()}>
+          {holding.price_source ?? 'manual'} · {updated.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+        </span>
+      )}
+    </div>
   )
 }
 

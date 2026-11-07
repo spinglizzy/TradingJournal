@@ -20,7 +20,7 @@
     "test:csv": "node csv-tests.mjs",
     "test": "npm run test:csv && npm run test:wheel && npm run test:dragon && npm run test:lifecycle && npm run test:gate && npm run test:stats && npm run test:auth",
     "test:lifecycle": "node wheel-lifecycle-tests.mjs",
-    "test:dragon": "node dragon-tests.mjs && node schwab-import-tests.mjs"
+    "test:dragon": "node dragon-tests.mjs && node schwab-import-tests.mjs && node quotes-tests.mjs && node fx-tests.mjs && node positions-tests.mjs && node backup-tests.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

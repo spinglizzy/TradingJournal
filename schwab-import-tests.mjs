@@ -30,6 +30,13 @@ function memoryStore() {
     setPaysDividend: async (h) => { const u = { ...h, pays_dividend: true }; holdings.set(h.ticker, u); return u },
     ledger: async (h) => rows.filter(r => r.holding_id === h.id),
     insert: async (h, tx, hash) => { const r = { ...tx, id: nextId++, holding_id: h?.id ?? null, import_hash: hash }; rows.push(r); return r },
+    adopt: async (row, merged) => { const i = rows.indexOf(row); rows[i] = { ...merged }; return rows[i] },
+    /** A hand-entered row (no import_hash), as the Monthly DCA or quick-add forms write it. */
+    manual: async (ticker, tx) => {
+      let h = holdings.get(ticker)
+      if (!h) { h = { id: nextId++, ticker, pays_dividend: true }; holdings.set(ticker, h) }
+      const r = { fees: 0, tax_withheld: null, ref_id: null, ...tx, id: nextId++, holding_id: h.id, import_hash: null }; rows.push(r); return r
+    },
   }
 }
 const importText = async (store, text, mappings) => runImport(planImport(parseSchwab(text), mappings), store)
@@ -156,6 +163,66 @@ console.log('\nLedger replay still guards imports')
   check('oversell → review with the engine’s reason', rep.review.some(r => /only 5 held/.test(r.reason)), true)
   check('tax line with no dividend → review', rep.review.some(r => /NRA Tax Adj with no dividend/.test(r.reason)), true)
   check('only the valid buy stored', store.rows.map(r => r.type), ['BUY'])
+}
+
+console.log('\nReturn of capital, reclassification, cash in lieu')
+{
+  const store = memoryStore()
+  const rep = await importText(store, H
+    + '"02/10/2027","Return Of Capital","ORC","ORCHID IS CAP INC","","","","$0.40"\n'
+    + '"02/10/2027","Div Adjustment","ORC","ORCHID IS CAP INC","","","","-$0.40"\n'
+    + '"01/20/2027","Return Of Capital","ORC","ORCHID IS CAP INC","","","","$0.25"\n'
+    + '"10/29/2026","Non-Qualified Div","ORC","ORCHID IS CAP INC","","","","$0.47"\n'
+    + '"10/29/2026","NRA Tax Adj","ORC","ORCHID IS CAP INC","","","","-$0.07"\n'
+    + '"09/29/2026","Non-Qualified Div","ORC","ORCHID IS CAP INC","","","","$0.50"\n'
+    + '"09/02/2026","Buy","ORC","ORCHID IS CAP INC","20","$5.00","","-$100.00"\n')
+  check('lone Return Of Capital → ROC; adjustment + equal ROC → RECLASS', store.rows.map(r => r.type), ['BUY', 'DIVIDEND', 'DIVIDEND', 'ROC', 'RECLASS'])
+  const [, d1, d2, , rc] = store.rows
+  check('reclass linked to the one dividend of that size ($0.40 net, Oct)', rc.ref_id, d2.id)
+  check('…and not the September one', rc.ref_id !== d1.id, true)
+  const s = stateOf(store, 'ORC')
+  check('ROC lowers adjusted cost; reclass moves no cash', s.totalCost, 100 - 0.5 - 0.4 - 0.25)
+  check('Schwab lots: $100 − ROC $0.25 − reclass $0.40', s.schwabBasis, 99.35)
+  check('dividend income $0.90 → $0.50 after the reclass', s.dividends, 0.5)
+  check('ROC total $0.65', s.roc, 0.65)
+  check('reclass lands in the Oct dividend’s tax year, not Feb’s', s.events.find(e => e.type === 'RECLASS').date, '2026-10-29')
+  check('nothing to review', rep.review.length, 0)
+
+  const amb = await importText(memoryStore(), H
+    + '"02/10/2027","Return Of Capital","NLY","ANNALY","","","","$0.50"\n'
+    + '"02/10/2027","Div Adjustment","NLY","ANNALY","","","","-$0.50"\n'
+    + '"11/30/2026","Cash Dividend","NLY","ANNALY","","","","$0.50"\n'
+    + '"10/30/2026","Cash Dividend","NLY","ANNALY","","","","$0.50"\n'
+    + '"10/01/2026","Buy","NLY","ANNALY","5","$20","","-$100.00"\n')
+  check('two dividends could match → review, not guessed', amb.review.some(r => /2 dividends of that size/.test(r.reason)), true)
+  const lone = await importText(memoryStore(), H + '"02/10/2027","Div Adjustment","NLY","ANNALY","","","","-$0.30"\n')
+  check('adjustment with no ROC partner → review', lone.review.some(r => /Dividend adjustment without an equal Return Of Capital/.test(r.reason)), true)
+
+  const cil = memoryStore()
+  const cr = await importText(cil, H
+    + '"03/01/2027","Cash In Lieu","ABC","ABC CORP","0.25","","","$5.00"\n'
+    + '"03/02/2027","Cash In Lieu","ABC","ABC CORP","","","","$1.00"\n'
+    + '"01/02/2027","Buy","ABC","ABC CORP","10.25","$20","","-$205.00"\n')
+  check('Cash In Lieu with a quantity → SELL of the fraction', cil.rows.map(r => [r.type, r.shares, r.amount]), [['BUY', 10.25, 205], ['SELL', 0.25, 5]])
+  check('Cash In Lieu without a quantity → review', cr.review.some(r => /Cash In Lieu without a share quantity/.test(r.reason)), true)
+}
+
+console.log('\nHand-entered rows are adopted, not doubled')
+{
+  const store = memoryStore()
+  // Monthly DCA logged by hand: $37.50 at the quoted price, shares × price = 37.488
+  await store.manual('CVX', { type: 'BUY', date: '2026-10-21', shares: 0.1659, price: 225.9664, amount: 0.1659 * 225.9664 })
+  const r1 = await importText(store, H + '"10/21/2026","Buy","CVX","CHEVRON CORP NEW","0.1659","$225.9664","","-$37.49"\n')
+  check('0 rows added', r1.added.length, 0)
+  check('1 row adopted', r1.adopted.length, 1)
+  check('still one CVX buy', store.rows.filter(r => r.type === 'BUY').length, 1)
+  check('it now carries Schwab’s exact $37.49', store.rows[0].amount, 37.49)
+  check('…and the import hash, so the next import skips it', !!store.rows[0].import_hash, true)
+  const r2 = await importText(store, H + '"10/21/2026","Buy","CVX","CHEVRON CORP NEW","0.1659","$225.9664","","-$37.49"\n')
+  check('re-import: a plain duplicate now', [r2.added.length, r2.adopted.length, r2.duplicates], [0, 0, 1])
+  await store.manual('CVX', { type: 'BUY', date: '2026-11-21', shares: 0.2, price: 200, amount: 40 })
+  const r3 = await importText(store, H + '"11/21/2026","Buy","CVX","CHEVRON CORP NEW","0.1800","$200","","-$36.00"\n')
+  check('different share count → not the same entry, both kept', [r3.added.length, r3.adopted.length], [1, 0])
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

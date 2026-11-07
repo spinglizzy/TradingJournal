@@ -1,7 +1,11 @@
+/* global process -- server-only file; the repo eslint config is browser-scoped */
 import { Router } from 'express'
 import pool from '../db.js'
-import { TYPES, FEE_TYPES, SHARES_PER_CONTRACT, replay } from '../lib/dragonEngine.js'
+import { TYPES, FEE_TYPES, SHARES_PER_CONTRACT, replay, reconcileMatch } from '../lib/dragonEngine.js'
 import { parseSchwab, planImport, runImport } from '../lib/schwabImport.js'
+import { finnhubQuote, refreshQuotes, applyQuotes } from '../lib/quotes.js'
+import { parseRbaF11, RBA_F11_URL } from '../lib/fx.js'
+import { restoreBackup } from '../lib/dragonBackup.js'
 
 /**
  * Dragon — long-term dividend portfolio.
@@ -106,6 +110,16 @@ function normalize(b, holding, ledger) {
     case 'CC_EXPIRE':
       refCall()
       break
+    case 'ROC':
+      t.amount = num(b.amount, 'Return of capital', { strict: true })
+      break
+    case 'RECLASS': {
+      const d = ledger.find(x => x.id === Number(b.ref_id) && x.type === 'DIVIDEND')
+      if (!d) throw bad('Pick the dividend being reclassified.')
+      t.ref_id = d.id
+      t.amount = num(b.amount, 'Amount reclassified', { strict: true })
+      break
+    }
   }
   return t
 }
@@ -127,8 +141,8 @@ router.post('/holdings', (req, res, next) => withTx(res, next, async (client) =>
   if (!ticker) throw bad('Ticker is required')
   const price = req.body.current_price === '' || req.body.current_price == null ? null : num(req.body.current_price, 'Price')
   const { rows: [h] } = await client.query(
-    `INSERT INTO dragon_holdings (user_id, ticker, name, pays_dividend, drip, current_price, price_updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $6::float8 IS NULL THEN NULL ELSE NOW() END) RETURNING *`,
+    `INSERT INTO dragon_holdings (user_id, ticker, name, pays_dividend, drip, current_price, price_updated_at, price_source)
+     VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $6::float8 IS NULL THEN NULL ELSE NOW() END, CASE WHEN $6::float8 IS NULL THEN NULL ELSE 'manual' END) RETURNING *`,
     [req.userId, ticker, req.body.name || null, req.body.pays_dividend !== false, req.body.drip !== false, price])
   return h
 }))
@@ -139,11 +153,14 @@ router.put('/holdings/:id', (req, res, next) => withTx(res, next, async (client)
   const price = 'current_price' in b
     ? (b.current_price === '' || b.current_price == null ? null : num(b.current_price, 'Price'))
     : holding.current_price
+  // A typed price is "manual" and clears any fetch warning; clearing it clears the source too.
   const { rows: [h] } = await client.query(
     `UPDATE dragon_holdings SET name = $2, pays_dividend = $3, drip = $4, current_price = $5,
-       price_updated_at = CASE WHEN $5::float8 IS DISTINCT FROM current_price THEN NOW() ELSE price_updated_at END
+       price_updated_at = CASE WHEN $5::float8 IS DISTINCT FROM current_price THEN NOW() ELSE price_updated_at END,
+       price_source = CASE WHEN NOT $6 THEN price_source WHEN $5::float8 IS NULL THEN NULL ELSE 'manual' END,
+       price_error  = CASE WHEN $6 THEN NULL ELSE price_error END
      WHERE id = $1 RETURNING *`,
-    [holding.id, b.name ?? holding.name, b.pays_dividend ?? holding.pays_dividend, b.drip ?? holding.drip, price])
+    [holding.id, b.name ?? holding.name, b.pays_dividend ?? holding.pays_dividend, b.drip ?? holding.drip, price, 'current_price' in b])
   return h
 }))
 
@@ -191,7 +208,7 @@ router.put('/transactions/:id', (req, res, next) => withTx(res, next, async (cli
   const t = { ...normalize({ ...req.body, type: cur.type }, holding, ledger.filter(x => x.id !== id)), id }
   // An imported row's amount is the broker's exact cents; keep it unless what it's priced from changed.
   const same = (k) => (t[k] ?? null) === (cur[k] ?? null)
-  if (cur.type !== 'DIVIDEND' && ['shares', 'price', 'premium', 'contracts'].every(same)) t.amount = cur.amount
+  if (!['DIVIDEND', 'ROC', 'RECLASS'].includes(cur.type) && ['shares', 'price', 'premium', 'contracts'].every(same)) t.amount = cur.amount
   const updated = ledger.map(x => x.id === id ? t : x)
   // A buy-back is priced off the call's contract count; keep its cash in step if that changed.
   const closes = updated.filter(x => x.type === 'CC_CLOSE' && x.ref_id === id && t.contracts && t.contracts !== cur.contracts)
@@ -212,7 +229,7 @@ router.delete('/transactions/:id', (req, res, next) => withTx(res, next, async (
   const id = Number(req.params.id)
   if (cur.holding_id) {   // cash rows belong to no ledger — nothing to replay
     const { ledger } = await loadLedger(client, cur.holding_id, req.userId)
-    if (ledger.some(x => x.ref_id === id)) throw bad('Another entry closes this call — delete that one first.')
+    if (ledger.some(x => x.ref_id === id)) throw bad('Another entry refers to this one (a close, roll, expiry or reclassification) — delete that one first.')
     replay(ledger.filter(x => x.id !== id))
   }
   await client.query(`DELETE FROM dragon_transactions WHERE id = $1`, [id])
@@ -234,6 +251,10 @@ export function pgStore(client, userId) {
     ledger: async (h) => (await client.query(
       `SELECT ${TX_COLS} FROM dragon_transactions WHERE holding_id = $1 AND user_id = $2`, [h.id, userId])).rows,
     insert: async (h, tx, hash) => (await insertTx(client, userId, h?.id ?? null, tx, hash)).rows[0],
+    adopt: async (row, m, hash) => (await client.query(
+      `UPDATE dragon_transactions SET shares=$2, price=$3, amount=$4, fees=$5, premium=$6, tax_withheld=$7, import_hash=$8
+       WHERE id=$1 AND user_id=$9 RETURNING ${TX_COLS}`,
+      [row.id, m.shares, m.price, m.amount, m.fees ?? 0, m.premium, m.tax_withheld, hash, userId])).rows[0],
   }
 }
 
@@ -258,5 +279,140 @@ router.post('/import', async (req, res, next) => {
     client.release()
   }
 })
+
+// ── Auto prices (Finnhub) ────────────────────────────────────────────────────
+// The key never leaves the server: it's read here and used only in quotes.js's
+// outbound request. Responses carry counts, never the key.
+router.post('/prices/refresh', async (req, res, next) => {
+  try {
+    const key = process.env.FINNHUB_API_KEY
+    if (!key) return res.json({ configured: false, updated: 0, failed: 0, skipped: 0 })
+    const { rows } = await pool.query(
+      `SELECT id, ticker, current_price, price_updated_at, price_source FROM dragon_holdings WHERE user_id = $1 ORDER BY ticker`, [req.userId])
+    const result = await refreshQuotes(rows, finnhubQuote(key))
+    for (const h of applyQuotes(rows, result)) {
+      await pool.query(
+        `UPDATE dragon_holdings SET current_price = $2, price_updated_at = $3, price_source = $4, price_error = $5 WHERE id = $1 AND user_id = $6`,
+        [h.id, h.current_price, h.price_updated_at, h.price_source, h.price_error, req.userId])
+    }
+    res.json({ configured: true, updated: result.updates.length, failed: result.failures.length, skipped: result.skipped.length })
+  } catch (err) { next(err) }
+})
+
+// ── Saved reconciliation checks ──────────────────────────────────────────────
+router.get('/reconciliations', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT r.id, r.checked_at, r.source, count(x.id)::int AS total, count(x.id) FILTER (WHERE x.match)::int AS matched
+       FROM dragon_reconciliations r LEFT JOIN dragon_reconciliation_rows x ON x.reconciliation_id = r.id
+       WHERE r.user_id = $1 GROUP BY r.id ORDER BY r.checked_at DESC, r.id DESC LIMIT 50`, [req.userId])
+    res.json(rows)
+  } catch (err) { next(err) }
+})
+
+router.get('/reconciliations/:id', async (req, res, next) => {
+  try {
+    const { rows: [r] } = await pool.query(`SELECT * FROM dragon_reconciliations WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId])
+    if (!r) throw Object.assign(new Error('Check not found'), { status: 404 })
+    const { rows } = await pool.query(
+      `SELECT ticker, ledger_shares, schwab_shares, ledger_schwab_basis, schwab_basis, match
+       FROM dragon_reconciliation_rows WHERE reconciliation_id = $1 AND user_id = $2 ORDER BY ticker`, [r.id, req.userId])
+    res.json({ ...r, rows })
+  } catch (err) { next(err) }
+})
+
+/** Ledger figures are recomputed here from the ledger — a stale or edited client can't save a false ✅. */
+router.post('/reconciliations', (req, res, next) => withTx(res, next, async (client) => {
+  const { source, rows } = req.body
+  if (!['manual', 'positions_csv'].includes(source)) throw bad('source must be manual or positions_csv')
+  if (!Array.isArray(rows)) throw bad('rows must be a list')
+  const opt = (v, name) => (v === '' || v == null ? null : num(v, name, { min: -Infinity }))
+  const { rows: holdings } = await client.query(`SELECT id, ticker FROM dragon_holdings WHERE user_id = $1`, [req.userId])
+  const { rows: txs } = await client.query(`SELECT ${TX_COLS} FROM dragon_transactions WHERE user_id = $1`, [req.userId])
+  const out = []
+  for (const r of rows) {
+    const h = holdings.find(x => x.ticker === r.ticker)
+    if (!h) continue
+    const sShares = opt(r.schwab_shares, `${r.ticker} Schwab shares`), sBasis = opt(r.schwab_basis, `${r.ticker} Schwab cost basis`)
+    if (sShares == null && sBasis == null) continue
+    const s = replay(txs.filter(t => t.holding_id === h.id))
+    out.push([h.ticker, s.shares, sShares, s.schwabBasis, sBasis, reconcileMatch(s.shares, sShares, s.schwabBasis, sBasis)])
+  }
+  if (!out.length) throw bad('Enter Schwab’s figures for at least one holding before saving.')
+  const { rows: [rec] } = await client.query(
+    `INSERT INTO dragon_reconciliations (user_id, source) VALUES ($1, $2) RETURNING *`, [req.userId, source])
+  for (const o of out) {
+    await client.query(
+      `INSERT INTO dragon_reconciliation_rows (reconciliation_id, user_id, ticker, ledger_shares, schwab_shares, ledger_schwab_basis, schwab_basis, match)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [rec.id, req.userId, ...o])
+  }
+  return { ...rec, total: out.length, matched: out.filter(o => o[5]).length }
+}))
+
+// ── RBA AUD/USD rates (cached in dragon_fx_rates) ────────────────────────────
+let lastRbaFetch = 0   // per server instance; caps refetching the RBA file at once an hour
+const RBA_REFETCH_MS = 60 * 60 * 1000
+
+router.get('/fx', async (req, res, next) => {
+  try {
+    const from = DATE.test(req.query.from ?? '') ? req.query.from : '2023-01-01'
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+    const { rows: [{ max }] } = await pool.query(`SELECT max(date) AS max FROM dragon_fx_rates WHERE source = 'rba'`)
+    let fetchError = null
+    if ((!max || max < yesterday) && Date.now() - lastRbaFetch > RBA_REFETCH_MS) {
+      lastRbaFetch = Date.now()
+      try {
+        const r = await fetch(RBA_F11_URL, { headers: { 'User-Agent': 'PulseJournal/1.0' } })
+        if (!r.ok) throw new Error(`RBA returned HTTP ${r.status}`)
+        const rates = parseRbaF11(await r.text())
+        // A manual rate already entered for a date is kept (ON CONFLICT DO NOTHING).
+        await pool.query(
+          `INSERT INTO dragon_fx_rates (date, aud_usd, source)
+           SELECT d, v, 'rba' FROM unnest($1::text[], $2::float8[]) AS t(d, v) ON CONFLICT (date) DO NOTHING`,
+          [rates.map(x => x.date), rates.map(x => x.aud_usd)])
+      } catch (e) {
+        fetchError = `Couldn't fetch RBA rates (${e.message}). Cached rates are shown; enter any missing ones by hand.`
+      }
+    }
+    // Two weeks before `from`, so a date just after a long weekend still finds its prior business day.
+    const start = new Date(Date.parse(from) - 14 * 86400000).toISOString().slice(0, 10)
+    const { rows } = await pool.query(`SELECT date, aud_usd, source FROM dragon_fx_rates WHERE date >= $1 ORDER BY date`, [start])
+    res.json({ rates: rows, fetchError })
+  } catch (err) { next(err) }
+})
+
+router.post('/fx', async (req, res, next) => {
+  try {
+    const { date } = req.body
+    if (!DATE.test(date ?? '')) throw bad('Date is required (YYYY-MM-DD)')
+    const rate = num(req.body.aud_usd, 'AUD/USD rate', { strict: true })
+    if (rate > 5) throw bad('Enter the rate as US dollars per A$1 (e.g. 0.6550).')
+    const { rows: [r] } = await pool.query(
+      `INSERT INTO dragon_fx_rates (date, aud_usd, source, updated_at) VALUES ($1, $2, 'manual', NOW())
+       ON CONFLICT (date) DO UPDATE SET aud_usd = EXCLUDED.aud_usd, source = 'manual', updated_at = NOW() RETURNING date, aud_usd, source`,
+      [date, rate])
+    res.json(r)
+  } catch (err) { next(err) }
+})
+
+// ── Restore from backup ──────────────────────────────────────────────────────
+export function restoreStore(client, uid) {
+  return {
+    isEmpty: async () => Number((await client.query(
+      `SELECT (SELECT count(*) FROM dragon_holdings WHERE user_id = $1) + (SELECT count(*) FROM dragon_transactions WHERE user_id = $1) AS n`, [uid])).rows[0].n) === 0,
+    wipe: async () => {
+      await client.query(`DELETE FROM dragon_transactions WHERE user_id = $1`, [uid])
+      await client.query(`DELETE FROM dragon_holdings WHERE user_id = $1`, [uid])
+    },
+    insertHolding: async (h) => (await client.query(
+      `INSERT INTO dragon_holdings (user_id, ticker, name, pays_dividend, drip, current_price, price_updated_at, price_source, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, NOW())) RETURNING id`,
+      [uid, h.ticker, h.name, h.pays_dividend !== false, h.drip !== false, h.current_price, h.price_updated_at, h.price_source, h.created_at])).rows[0],
+    insertTx: async (hid, t) => (await insertTx(client, uid, hid, t, t.import_hash ?? null)).rows[0],
+  }
+}
+
+router.post('/restore', (req, res, next) => withTx(res, next, async (client) =>
+  restoreBackup(req.body.backup, restoreStore(client, req.userId), { wipe: req.body.wipe === true })))
 
 export default router

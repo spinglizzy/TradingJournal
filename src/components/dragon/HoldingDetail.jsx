@@ -37,6 +37,7 @@ const describe = (t) => {
     case 'CC_OPEN': return `${callLabel(t)} @ ${money(t.premium)}`
     case 'CC_ROLL': return `→ ${callLabel(t)} @ ${signed(Number(t.premium))} net`
     case 'CC_CLOSE': return `@ ${money(t.premium)}`
+    case 'RECLASS': return `${money(t.amount)} dividend → return of capital`
     default: return ''
   }
 }
@@ -46,6 +47,7 @@ const cashFlow = (t) => {
   return ({
     BUY: -t.amount - fee, DRIP: 0, SELL: t.amount - fee, DIVIDEND: t.amount,
     CC_OPEN: t.amount - fee, CC_CLOSE: -t.amount - fee, CC_ROLL: t.amount - fee, CC_EXPIRE: 0,
+    ROC: t.amount, RECLASS: 0,
   })[t.type]
 }
 
@@ -60,12 +62,51 @@ export default function HoldingDetail({ holding, state, ledger, onAction, onEdit
         <Stat label="Shares" value={fmtShares(state.shares)} />
         <Stat label="Adjusted basis" value={money(state.totalCost)}
           sub={state.basis != null ? `${money(state.basis)} / sh${state.basis <= 0 ? ' · paid off' : ''}` : undefined} />
-        <Stat label="Schwab basis" value={money(state.schwabBasis)} title="Buys + DRIP, nothing deducted — what Schwab shows"
+        <Stat label="Schwab basis" value={money(state.schwabBasis)} title="Remaining FIFO tax lots (buys + DRIP, less return of capital) — what Schwab shows"
           sub={state.shares > 0 ? `${money(state.schwabBasis / state.shares)} / sh` : undefined} />
         <Stat label="Fees paid" value={money(state.fees)} sub={state.taxWithheld ? `US tax withheld ${money(state.taxWithheld)}` : undefined} />
       </div>
 
-      <QuickActions holding={holding} state={state} onAction={onAction} />
+      <div className="flex flex-wrap items-center gap-2">
+        <QuickActions holding={holding} state={state} onAction={onAction} />
+        <span className="w-px h-5 bg-gray-800" />
+        <button type="button" disabled={state.shares <= 0} onClick={() => onAction(holding, 'ROC')}
+          title="Return of capital paid out — lowers both bases, not dividend income"
+          className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-700 bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 disabled:opacity-35 disabled:cursor-not-allowed">
+          Return of capital
+        </button>
+        <button type="button" disabled={!ledger.some(t => t.type === 'DIVIDEND')} onClick={() => onAction(holding, 'RECLASS')}
+          title="An earlier dividend was reclassified as return of capital"
+          className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-700 bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 disabled:opacity-35 disabled:cursor-not-allowed">
+          Reclassify dividend
+        </button>
+      </div>
+
+      {state.lots.length > 0 && (
+        <section>
+          <h3 className="text-sm font-semibold text-gray-300 mb-2">Tax lots (FIFO) — Schwab basis</h3>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-[11px] text-gray-500 border-b border-gray-800">
+                <th className="text-left font-medium px-4 py-2">Acquired</th>
+                <th className="text-right font-medium px-4 py-2">Shares</th>
+                <th className="text-right font-medium px-4 py-2">Cost</th>
+                <th className="text-right font-medium px-4 py-2">Cost / share</th>
+              </tr></thead>
+              <tbody className="font-mono">
+                {state.lots.map(l => (
+                  <tr key={l.id} className="border-b border-gray-800/60 last:border-0">
+                    <td className="px-4 py-1.5 text-gray-400">{l.date} <span className="font-sans text-[11px] text-gray-600">{byId.get(l.id)?.type === 'DRIP' ? 'DRIP' : ''}</span></td>
+                    <td className="px-4 py-1.5 text-right text-gray-300">{fmtShares(l.shares)}</td>
+                    <td className="px-4 py-1.5 text-right text-gray-300">{money(l.cost)}</td>
+                    <td className="px-4 py-1.5 text-right text-gray-500">{money(l.cost / l.shares)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section>
         <h3 className="text-sm font-semibold text-gray-300 mb-2">Open calls</h3>
@@ -149,7 +190,7 @@ export default function HoldingDetail({ holding, state, ledger, onAction, onEdit
                       {describe(t)}
                       {Number(t.fees) > 0 && <span className="text-gray-600"> · fees {money(t.fees)}</span>}
                       {Number(t.tax_withheld) > 0 && <span className="text-gray-600"> · US tax {money(t.tax_withheld)}</span>}
-                      {t.ref_id && byId.get(t.ref_id) && <span className="text-gray-600"> · ends {callLabel(byId.get(t.ref_id))}</span>}
+                      {t.ref_id && byId.get(t.ref_id) && <span className="text-gray-600"> · {byId.get(t.ref_id).type === 'DIVIDEND' ? `dividend of ${byId.get(t.ref_id).date}` : `ends ${callLabel(byId.get(t.ref_id))}`}</span>}
                       {t.notes && <div className="font-sans text-gray-600">{t.notes}</div>}
                     </td>
                     <td className={`px-4 py-2 text-right font-mono ${tone(flow)}`}>{flow ? signed(flow) : '—'}</td>

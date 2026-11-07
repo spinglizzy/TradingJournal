@@ -10,4 +10,11 @@ export const dragonApi = {
   updateTx:      (id, body) => api.put(`/dragon/transactions/${id}`, body),
   deleteTx:      (id)       => api.delete(`/dragon/transactions/${id}`),
   importCsv:     (body)     => api.post('/dragon/import', body),   // { csv, mappings, commit }
+  refreshPrices: ()         => api.post('/dragon/prices/refresh', {}),
+  reconciliations: ()       => api.get('/dragon/reconciliations'),
+  reconciliation:  (id)     => api.get(`/dragon/reconciliations/${id}`),
+  saveReconciliation: (body) => api.post('/dragon/reconciliations', body),   // { source, rows: [{ ticker, schwab_shares, schwab_basis }] }
+  fxRates:       (from)     => api.get(`/dragon/fx?from=${from}`),
+  setFxRate:     (body)     => api.post('/dragon/fx', body),                // { date, aud_usd }
+  restore:       (body)     => api.post('/dragon/restore', body),           // { backup, wipe }
 }

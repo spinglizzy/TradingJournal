@@ -53,6 +53,13 @@ The Vite dev server proxies `/api/*` and `/uploads/*` to `http://localhost:3001`
 - **Fees (`dragon_migration_02.sql`):** `amount` is GROSS and `fees` sits beside it; the engine applies fees against you (added to BUY / CC_CLOSE, taken off SELL / CC_OPEN / CC_ROLL). Never fold a fee into `amount`. `tax_withheld` on a DIVIDEND is reporting-only — the basis uses the net `amount`.
 - **Schwab import** (`server/lib/schwabImport.js`, `POST /api/dragon/import`): Schwab's Amount is NET of Fees & Comm, so gross is worked back from it (buy gross = |Amount| − fees) and the fee lands once. Dividend + NRA Tax Adj lines on one date+symbol become ONE dividend. Option closes link to their open call by strike+expiry+contracts or go to review — never guessed. `import_hash` (unique per user) makes re-importing full history a no-op. Preview and commit run the same `runImport` inside a transaction; preview rolls back. `CASH_IN`/`CASH_OUT` rows have no holding and never touch basis.
 - `schwab-import-tests.mjs` reads Sam's real export from `test-fixtures/` (gitignored — personal account data) and skips that section if it's missing.
+- **Schwab basis is FIFO tax lots** (`replay().lots`): BUY/DRIP add a lot, SELL consumes oldest first (partial lots pro rata), ROC/RECLASS lower every lot by shares. The adjusted basis stays average-cost — never switch it.
+- **ROC** (cash received) lowers both bases and is not dividend income. **RECLASS** (`ref_id` → an earlier DIVIDEND) moves no cash: adjusted basis unchanged, lots come down, and income moves dividend → ROC in the *original dividend's* tax year. Capped at that dividend's net amount.
+- The import **adopts** a hand-entered row (no `import_hash`, same holding/date/type/shares) instead of inserting a duplicate — that's what makes Monthly DCA + monthly CSV import safe together.
+- Auto prices: `server/lib/quotes.js` + `POST /dragon/prices/refresh`. `FINNHUB_API_KEY` is read only server-side. Anything priced in the last 15 min (auto or manual) is skipped; a failure keeps the price and sets `price_error`; 429 / bad key stop the run.
+- AUD: `server/lib/fx.js`; RBA F11.1 cached in `dragon_fx_rates` (shared, server-written). Weekend/holiday → prior business day; after the last RBA day or a >7-day gap → missing (manual entry, flagged).
+- Backup: `server/lib/dragonBackup.js`. Restore refuses a non-empty ledger (409) unless `wipe: true`; ids are remapped and the result replayed before commit.
+- Tests: `quotes-tests`, `fx-tests`, `positions-tests` (real-file part needs a `*Positions*.csv` in `test-fixtures/`), `backup-tests` — all in `npm run test:dragon`.
 
 ### Pre-Entry Gate (a widget in the premarket plan)
 - A pre-trade check for NQ/ICT discretionary entries. It renders **only** as a section inside `PremarketPlanEditor` — the plan is what's open on screen through the session. There is no overlay and no keyboard shortcut; both existed and were removed as unnecessary. `GateContext` prefetches the factor config on app load so the gate never waits on I/O.
@@ -103,6 +110,7 @@ VITE_SUPABASE_ANON_KEY     # Supabase anon/public key (frontend)
 SUPABASE_SERVICE_ROLE_KEY  # Supabase service role key (backend only — never expose to client)
 DATABASE_URL               # PostgreSQL connection string (Supabase pooler)
 PORT                       # Express port, defaults to 3001
+FINNHUB_API_KEY            # Dragon auto prices (server only — Vercel env + .env; never sent to the browser)
 ```
 
 See `.env.example` for the full template.

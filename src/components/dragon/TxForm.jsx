@@ -18,6 +18,8 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
   const editing = !!tx
   // Calls this entry may end: the ones open now, plus (when editing) the one it already ends.
   const calls = [...state.openCalls, ...(tx?.ref_id ? ledger.filter(x => x.id === tx.ref_id) : [])]
+  // Dividends a reclassification can point at, newest first.
+  const dividends = ledger.filter(x => x.type === 'DIVIDEND').sort((a, b) => (a.date < b.date ? 1 : -1))
   const [f, setF] = useState(() => ({
     date:      tx?.date ?? todayStr(),
     shares:    tx?.shares ?? '',
@@ -29,7 +31,7 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
     expiry:    tx?.expiry ?? '',
     contracts: tx?.contracts ?? (type === 'CC_OPEN' ? 1 : calls[0]?.contracts ?? 1),
     premium:   tx?.premium ?? '',
-    ref_id:    tx?.ref_id ?? (type === 'SELL' ? '' : calls[0]?.id ?? ''),
+    ref_id:    tx?.ref_id ?? (type === 'SELL' ? '' : type === 'RECLASS' ? dividends[0]?.id ?? '' : calls[0]?.id ?? ''),
     notes:     tx?.notes ?? '',
   }))
   const [saving, setSaving] = useState(false)
@@ -57,6 +59,9 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
       if (type === 'SELL' && !editing && n(f.shares) > state.shares + 1e-9) return `You only hold ${fmtShares(state.shares)} shares`
     }
     if (type === 'DIVIDEND' && !(n(f.amount) > 0)) return 'Enter the net dividend received'
+    if (type === 'ROC' && !(n(f.amount) > 0)) return 'Enter the return of capital received'
+    if (type === 'RECLASS' && !f.ref_id) return 'Pick the dividend being reclassified'
+    if (type === 'RECLASS' && !(n(f.amount) > 0)) return 'Enter the amount reclassified'
     if (CALL_REF_TYPES.includes(type) && !ref) return 'Pick the call'
     if (type === 'CC_OPEN' || type === 'CC_ROLL') {
       if (!(n(f.strike) > 0)) return 'Strike is required'
@@ -123,6 +128,27 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
           </Field>
         )}
       </div>
+
+      {type === 'ROC' && (
+        <Field label="Return of capital received" hint="Lowers both the adjusted basis and Schwab's tax lots. Not dividend income.">
+          <input type="number" step="0.01" min="0" inputMode="decimal" value={f.amount}
+            onChange={e => set({ amount: e.target.value })} className={inputCls} placeholder="0.00" />
+        </Field>
+      )}
+
+      {type === 'RECLASS' && (
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Dividend being reclassified" hint="Income moves to return of capital in that dividend's tax year.">
+            <select value={f.ref_id} onChange={e => set({ ref_id: e.target.value })} className={inputCls}>
+              {dividends.map(d => <option key={d.id} value={d.id}>{d.date} · {money(d.amount)}</option>)}
+            </select>
+          </Field>
+          <Field label="Amount reclassified" hint="No cash moves — it was already received.">
+            <input type="number" step="0.01" min="0" inputMode="decimal" value={f.amount}
+              onChange={e => set({ amount: e.target.value })} className={inputCls} placeholder="0.00" />
+          </Field>
+        </div>
+      )}
 
       {type === 'DIVIDEND' && (
         <Field label="US tax withheld (optional)" hint="For the tax-year report only. The basis uses the net amount above.">

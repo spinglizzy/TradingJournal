@@ -5,7 +5,7 @@ import { ErrorBox } from './ui.jsx'
 import { btnPrimary, btnGhost, money, fmtShares, TYPE_LABEL, inputCls } from './format.js'
 
 const LABEL = { ...TYPE_LABEL, CASH_IN: 'Cash in', CASH_OUT: 'Cash out' }
-const MAP_CHOICES = ['BUY', 'SELL', 'DRIP', 'DIVIDEND', 'CASH_IN', 'CASH_OUT']
+const MAP_CHOICES = ['BUY', 'SELL', 'DRIP', 'DIVIDEND', 'ROC', 'CASH_IN', 'CASH_OUT']
 
 /**
  * Schwab CSV → preview → commit. The preview is the server running the real
@@ -55,8 +55,9 @@ export default function ImportModal({ onDone, onCancel }) {
 
       {report && !busy && (
         <>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-4 gap-3 text-center">
             <Count label="To add" n={report.added.length} cls="text-emerald-400" />
+            <Count label="Matched hand-entered" n={report.adopted?.length ?? 0} cls="text-sky-400" />
             <Count label="Duplicates skipped" n={report.duplicates} cls="text-gray-300" />
             <Count label="Need review" n={report.review.length} cls={report.review.length ? 'text-amber-400' : 'text-gray-300'} />
           </div>
@@ -140,9 +141,9 @@ export default function ImportModal({ onDone, onCancel }) {
 
       <div className="flex gap-3 justify-end">
         <button type="button" onClick={onCancel} className={btnGhost}>Cancel</button>
-        <button type="button" disabled={busy || !report || !report.added.length || mapsChanged} onClick={() => run(csv, mappings, true)} className={btnPrimary}
+        <button type="button" disabled={busy || !report || !(report.added.length + (report.adopted?.length ?? 0)) || mapsChanged} onClick={() => run(csv, mappings, true)} className={btnPrimary}
           title={mapsChanged ? 'Re-check first so the preview matches what gets written' : undefined}>
-          {report ? `Import ${report.added.length} row(s)` : 'Import'}
+          {report ? `Import ${report.added.length + (report.adopted?.length ?? 0)} row(s)` : "Import"}
         </button>
       </div>
     </div>

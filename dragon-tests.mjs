@@ -4,6 +4,7 @@
  *   node dragon-tests.mjs
  */
 import { replay, incomeByMonth, taxYear, auFY, fyLabel, cashTotals, LedgerError } from './server/lib/dragonEngine.js'
+import { splitEqually } from './src/components/dragon/format.js'
 
 let passed = 0, failed = 0
 function check(name, actual, expected, eps = 0.005) {
@@ -128,11 +129,58 @@ const tz = replay([
 check('basis uses net dividends only', tz.totalCost, 100 - 0.85 - 1.70)
 check('30 Jun is FY2025-26', fyLabel(auFY('2026-06-30')), 'FY2025-26')
 check('1 Jul is FY2026-27', fyLabel(auFY('2026-07-01')), 'FY2026-27')
-check('FY report', taxYear(tz.events, 2027), { grossDividends: 2, taxWithheld: 0.30, netDividends: 1.70, ccNet: 0, realized: 0, fees: 0 })
+check('FY report', taxYear(tz.events, 2027), { grossDividends: 2, taxWithheld: 0.30, netDividends: 1.70, roc: 0, ccNet: 0, realized: 0, fees: 0 })
 check('Schwab basis ignores dividends', tz.schwabBasis, 100)
 
 console.log('\nCash rows')
 check('cash totals', cashTotals([{ type: 'CASH_IN', amount: 500 }, { type: 'CASH_OUT', amount: 120 }, { type: 'BUY', amount: 50 }]), { cashIn: 500, cashOut: 120, net: 380 })
+
+console.log('\nFIFO tax lots (Schwab basis) — adjusted basis stays average cost')
+const lotLedger = [
+  tx('BUY',  '2026-01-01', { shares: 10, price: 10, amount: 100 }),
+  tx('BUY',  '2026-02-01', { shares: 10, price: 20, amount: 200 }),
+  tx('DRIP', '2026-03-01', { shares: 1,  price: 15, amount: 15 }),
+]
+const pre = replay(lotLedger)
+check('before sell: Schwab basis = all lots', pre.schwabBasis, 315)
+check('before sell: adjusted basis (avg)', pre.basis, 15)
+const sellSpan = tx('SELL', '2026-04-01', { shares: 15, price: 25, amount: 375 })
+const lz = replay([...lotLedger, sellSpan])
+check('sell spanning two lots: lot 1 gone, half of lot 2 left', lz.lots.map(l => [l.date, l.shares, Math.round(l.cost * 100) / 100]), [['2026-02-01', 5, 100], ['2026-03-01', 1, 15]])
+check('remaining Schwab basis = $100 + $15', lz.schwabBasis, 115)
+check('adjusted basis per share unchanged by the sell (avg cost)', lz.basis, 15)
+check('adjusted total = 6 × $15', lz.totalCost, 90)
+check('realised P/L still at average cost', lz.realized, 375 - 15 * 15)
+check('full exit empties the lots', replay([...lotLedger, tx('SELL', '2026-04-02', { shares: 21, amount: 500 })]).lots, [])
+
+console.log('\nReturn of capital')
+const roc = replay([...lotLedger, sellSpan, tx('ROC', '2026-05-01', { amount: 6 })])
+check('ROC lowers adjusted cost', roc.totalCost, 84)
+check('ROC lowers Schwab lots pro rata by shares', roc.lots.map(l => Math.round(l.cost * 100) / 100), [95, 14])
+check('Schwab basis after ROC', roc.schwabBasis, 109)
+check('ROC is not dividend income', [roc.dividends, roc.roc], [0, 6])
+check('ROC in its own tax-report column', taxYear(roc.events, 2026).roc, 6)
+throws('ROC with no shares', () => replay([tx('ROC', '2026-01-01', { amount: 1 })]), /no shares held/)
+
+console.log('\nReclassification of an earlier dividend into ROC')
+const div = tx('DIVIDEND', '2026-06-15', { amount: 2, tax_withheld: 0.3 })
+const recBase = [tx('BUY', '2026-01-01', { shares: 10, price: 10, amount: 100 }), div]
+const reclass = tx('RECLASS', '2027-02-10', { ref_id: div.id, amount: 1.5 })
+const rc = replay([...recBase, reclass])
+check('adjusted cost unchanged — the cash was already counted', rc.totalCost, replay(recBase).totalCost)
+check('dividend income down, ROC up', [rc.dividends, rc.roc], [0.5, 1.5])
+check('Schwab lots come down by the reclassified amount', rc.schwabBasis, 98.5)
+check('moved in the ORIGINAL dividend’s tax year (FY2025-26)', Object.fromEntries(Object.entries(taxYear(rc.events, 2026)).map(([k, v]) => [k, Math.round(v * 100) / 100])), { grossDividends: 0.8, taxWithheld: 0.3, netDividends: 0.5, roc: 1.5, ccNet: 0, realized: 0, fees: 0 })
+check('nothing lands in the year the reclass was posted', taxYear(rc.events, 2027).roc, 0)
+throws('reclass more than the dividend', () => replay([...recBase, { ...reclass, amount: 2.5 }]), /only has \$2\.00 left/)
+throws('two reclasses can’t exceed it either', () => replay([...recBase, reclass, tx('RECLASS', '2027-02-11', { ref_id: div.id, amount: 0.6 })]), /only has \$0\.50 left/)
+throws('reclass needs a dividend', () => replay([...recBase, { ...reclass, ref_id: 999 }]), /pick the earlier dividend/)
+
+console.log('\nMonthly DCA split')
+check('$300 across 8 → $37.50 each', splitEqually(300, 8), Array(8).fill(37.5))
+check('$100 across 3 → remainder cent to the first', splitEqually(100, 3), [33.34, 33.33, 33.33])
+check('parts always add back to the total', Math.round(splitEqually(250.01, 7).reduce((a, b) => a + b, 0) * 100), 25001)
+check('nothing ticked → nothing to split', splitEqually(300, 0), [])
 
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

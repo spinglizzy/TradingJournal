@@ -4,9 +4,14 @@
  * Average-cost method, one adjusted basis per holding, derived ONLY by replaying
  * the ledger. Nothing here is stored; every figure is recomputed on read.
  *
- *   total cost = BUY (+fees) + DRIP − DIVIDEND − net CC premium − cost removed by SELLs
+ *   total cost = BUY (+fees) + DRIP − DIVIDEND − ROC − net CC premium − cost removed by SELLs
  *   shares     = BUY + DRIP − SELL
  *   basis      = total cost ÷ shares   (may be ≤ 0: the position has paid for itself)
+ *
+ * Schwab basis is tracked separately as FIFO tax lots: every BUY and DRIP is a
+ * lot, a SELL consumes lots oldest first (partial lots pro rata), and return of
+ * capital lowers every lot in proportion to its shares. Dividends and premium
+ * never touch the lots — that's the broker's view, not the adjusted one.
  *
  * `amount` is the GROSS cash figure (shares × price, quote × 100 × contracts, net
  * dividend). Positive for every type except CC_ROLL, where it is the signed net
@@ -20,9 +25,16 @@
  */
 
 export const SHARES_PER_CONTRACT = 100
-export const TYPES = ['BUY', 'DIVIDEND', 'DRIP', 'SELL', 'CC_OPEN', 'CC_CLOSE', 'CC_ROLL', 'CC_EXPIRE']
+export const TYPES = ['BUY', 'DIVIDEND', 'DRIP', 'SELL', 'CC_OPEN', 'CC_CLOSE', 'CC_ROLL', 'CC_EXPIRE', 'ROC', 'RECLASS']
 export const CASH_TYPES = ['CASH_IN', 'CASH_OUT']   // account cash, no holding, never touch basis
 export const FEE_TYPES = ['BUY', 'SELL', 'CC_OPEN', 'CC_CLOSE', 'CC_ROLL']
+
+/** Reconcile tolerances: a holding matches Schwab when both are within these. */
+export const SHARE_TOL = 0.0001
+export const BASIS_TOL = 0.01
+export const reconcileMatch = (ledgerShares, schwabShares, ledgerBasis, schwabBasis) =>
+  (schwabShares == null || Math.abs(schwabShares - ledgerShares) <= SHARE_TOL + 1e-12) &&
+  (schwabBasis == null || Math.abs(schwabBasis - ledgerBasis) <= BASIS_TOL + 1e-9)
 
 const r6 = (v) => Math.round(v * 1e6) / 1e6
 const EPS = 1e-9
@@ -42,11 +54,13 @@ const label = (t) => `${t.type} on ${t.date}`
  * make it impossible (oversell, uncovered calls, closing a call that isn't open).
  */
 export function replay(transactions) {
-  let shares = 0, cost = 0, schwabCost = 0
-  let cashInvested = 0, dividends = 0, ccNet = 0, realized = 0, fees = 0, taxWithheld = 0
-  const open = new Map()  // id → the row that opened the call (CC_OPEN or CC_ROLL)
+  let shares = 0, cost = 0
+  let cashInvested = 0, dividends = 0, ccNet = 0, realized = 0, fees = 0, taxWithheld = 0, roc = 0
+  const open = new Map()     // id → the row that opened the call (CC_OPEN or CC_ROLL)
+  const divs = new Map()     // id → { row, reclassed } for RECLASS to point at
+  let lots = []              // FIFO tax lots: { id, date, shares, cost }
   const timeline = []
-  const events = []       // dated money events, for the income chart and the tax-year report
+  const events = []          // dated money events, for the income chart and the tax-year report
 
   const takeOpen = (t) => {
     const call = open.get(t.ref_id)
@@ -64,7 +78,24 @@ export function replay(transactions) {
     }
     open.set(t.id, t)
   }
-  const ev = (t, e) => events.push({ date: t.date, dividend: 0, tax: 0, cc: 0, realized: 0, fees: 0, ...e })
+  /** FIFO: oldest lot first; a partially sold lot keeps its cost pro rata. */
+  const sellLots = (n) => {
+    let left = n
+    for (const lot of lots) {
+      if (left <= EPS) break
+      const take = Math.min(lot.shares, left)
+      lot.cost -= lot.cost * (take / lot.shares)
+      lot.shares = r6(lot.shares - take)
+      left = r6(left - take)
+    }
+    lots = lots.filter(l => l.shares > EPS)
+  }
+  /** Return of capital comes off every lot in proportion to its shares. */
+  const reduceLots = (x) => {
+    const total = lots.reduce((s, l) => s + l.shares, 0)
+    if (total > 0) for (const l of lots) l.cost -= x * (l.shares / total)
+  }
+  const ev = (t, e) => events.push({ date: t.date, id: t.id, type: t.type, dividend: 0, tax: 0, cc: 0, realized: 0, fees: 0, roc: 0, ...e })
 
   for (const t of sortLedger(transactions)) {
     const amt = Number(t.amount) || 0
@@ -72,15 +103,39 @@ export function replay(transactions) {
     fees += fee
     switch (t.type) {
       case 'BUY':
-        shares = r6(shares + Number(t.shares)); cost += amt + fee; schwabCost += amt + fee; cashInvested += amt + fee
+        shares = r6(shares + Number(t.shares)); cost += amt + fee; cashInvested += amt + fee
+        lots.push({ id: t.id, date: t.date, shares: Number(t.shares), cost: amt + fee })
         if (fee) ev(t, { fees: fee })
         break
       case 'DRIP':
-        shares = r6(shares + Number(t.shares)); cost += amt; schwabCost += amt; break
+        shares = r6(shares + Number(t.shares)); cost += amt
+        lots.push({ id: t.id, date: t.date, shares: Number(t.shares), cost: amt })
+        break
       case 'DIVIDEND': {
         const tax = Number(t.tax_withheld) || 0
         cost -= amt; dividends += amt; taxWithheld += tax
+        divs.set(t.id, { row: t, reclassed: 0 })
         ev(t, { dividend: amt, tax })
+        break
+      }
+      case 'ROC':
+        if (shares <= 0) throw new LedgerError(`${label(t)}: return of capital with no shares held.`)
+        cost -= amt; roc += amt; reduceLots(amt)
+        ev(t, { roc: amt })
+        break
+      case 'RECLASS': {
+        // An earlier dividend turns out to have been return of capital. The cash was
+        // already counted (net dividend), so the adjusted basis doesn't move; income
+        // moves from dividend to ROC in the ORIGINAL dividend's tax year, and the
+        // broker's lots come down.
+        const d = divs.get(t.ref_id)
+        if (!d) throw new LedgerError(`${label(t)}: pick the earlier dividend being reclassified.`)
+        if (amt > Number(d.row.amount) - d.reclassed + 0.005) {
+          throw new LedgerError(`${label(t)}: reclassifying $${amt.toFixed(2)} but that dividend only has $${(Number(d.row.amount) - d.reclassed).toFixed(2)} left.`)
+        }
+        d.reclassed += amt
+        dividends -= amt; roc += amt; reduceLots(amt)
+        events.push({ date: d.row.date, id: t.id, type: t.type, dividend: -amt, tax: 0, cc: 0, realized: 0, fees: 0, roc: amt })
         break
       }
       case 'CC_OPEN': case 'CC_ROLL': {
@@ -105,10 +160,9 @@ export function replay(transactions) {
         const removed = (cost / shares) * n
         const gain = amt - fee - removed
         realized += gain
-        // Schwab basis is not adjusted, so it leaves at its own average.
-        schwabCost -= (schwabCost / shares) * n
+        sellLots(n)
         shares = r6(shares - n)
-        if (shares === 0) { cost = 0; schwabCost = 0 } else cost -= removed
+        if (shares === 0) { cost = 0; lots = [] } else cost -= removed
         ev(t, { realized: gain, fees: fee })
         if (openContracts() * SHARES_PER_CONTRACT > shares + EPS) {
           throw new LedgerError(`${label(t)}: would leave ${openContracts()} open call(s) uncovered — close or mark the call called away first.`)
@@ -126,8 +180,9 @@ export function replay(transactions) {
     shares,
     totalCost: cost,
     basis: shares > 0 ? cost / shares : null,
-    schwabBasis: schwabCost,                     // BUY + DRIP cost, nothing deducted — what the broker shows
-    cashInvested, dividends, ccNet, realized, fees, taxWithheld,
+    schwabBasis: lots.reduce((s, l) => s + l.cost, 0),   // remaining FIFO lots — what the broker shows
+    lots: lots.map(l => ({ ...l })),
+    cashInvested, dividends, ccNet, realized, fees, taxWithheld, roc,
     openCalls: [...open.values()],
     contracts,                                   // floor(shares ÷ 100)
     freeContracts: contracts - openContracts(),  // what CC_OPEN may still sell
@@ -155,11 +210,11 @@ export const fyLabel = (fy) => `FY${fy - 1}-${String(fy).slice(2)}`
 
 /** Sum events falling in Australian FY `fy`. Gross dividend = net + US tax withheld. */
 export function taxYear(events, fy) {
-  const s = { grossDividends: 0, taxWithheld: 0, netDividends: 0, ccNet: 0, realized: 0, fees: 0 }
+  const s = { grossDividends: 0, taxWithheld: 0, netDividends: 0, roc: 0, ccNet: 0, realized: 0, fees: 0 }
   for (const e of events) {
     if (auFY(e.date) !== fy) continue
     s.netDividends += e.dividend; s.taxWithheld += e.tax; s.grossDividends += e.dividend + e.tax
-    s.ccNet += e.cc; s.realized += e.realized; s.fees += e.fees
+    s.roc += e.roc; s.ccNet += e.cc; s.realized += e.realized; s.fees += e.fees
   }
   return s
 }
