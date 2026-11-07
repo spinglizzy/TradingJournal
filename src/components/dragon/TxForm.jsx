@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { dragonApi } from '../../api/dragon.js'
 import { DatePicker } from '../ui/DatePicker.jsx'
-import { SHARES_PER_CONTRACT } from '../../../server/lib/dragonEngine.js'
+import { SHARES_PER_CONTRACT, FEE_TYPES } from '../../../server/lib/dragonEngine.js'
 import { Field, ErrorBox } from './ui.jsx'
 import { inputCls, btnPrimary, btnGhost, money, fmtShares, todayStr, TYPE_LABEL, callLabel } from './format.js'
 
@@ -23,6 +23,8 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
     shares:    tx?.shares ?? '',
     price:     tx?.price ?? (SHARE_TYPES.includes(type) ? holding.current_price ?? '' : ''),
     amount:    tx?.amount ?? '',
+    fees:      tx?.fees || '',
+    tax_withheld: tx?.tax_withheld ?? '',
     strike:    tx?.strike ?? '',
     expiry:    tx?.expiry ?? '',
     contracts: tx?.contracts ?? (type === 'CC_OPEN' ? 1 : calls[0]?.contracts ?? 1),
@@ -37,9 +39,12 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
   const ref = calls.find(c => c.id === Number(f.ref_id))
   const n = (v) => (v === '' ? NaN : Number(v))
   const optContracts = type === 'CC_CLOSE' ? ref?.contracts : n(f.contracts)
-  const cash = SHARE_TYPES.includes(type) ? n(f.shares) * n(f.price)
+  const gross = SHARE_TYPES.includes(type) ? n(f.shares) * n(f.price)
     : ['CC_OPEN', 'CC_CLOSE', 'CC_ROLL'].includes(type) ? n(f.premium) * SHARES_PER_CONTRACT * optContracts
     : null
+  // Fees always work against you: added to what you pay, taken off what you receive.
+  const fee = FEE_TYPES.includes(type) && f.fees !== '' ? n(f.fees) : 0
+  const cash = gross == null ? null : (type === 'BUY' || type === 'CC_CLOSE') ? gross + fee : gross - fee
   // Contracts this form may sell: free now, plus the old call's when rolling it.
   // shortcut: approximate when editing an older call that's since been closed — the server's replay is the real check.
   const maxContracts = state.freeContracts + (editing ? Number(tx.contracts ?? 0) : type === 'CC_ROLL' ? ref?.contracts ?? 0 : 0)
@@ -61,6 +66,8 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
       if (n(f.contracts) > maxContracts) return `Your shares cover ${maxContracts} more contract(s)`
     }
     if (['CC_OPEN', 'CC_CLOSE', 'CC_ROLL'].includes(type) && !Number.isFinite(n(f.premium))) return 'Enter the price'
+    if (!(fee >= 0)) return 'Fees can’t be negative'
+    if (f.tax_withheld !== '' && !(n(f.tax_withheld) >= 0)) return 'Tax withheld can’t be negative'
     return null
   }
 
@@ -117,6 +124,13 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
         )}
       </div>
 
+      {type === 'DIVIDEND' && (
+        <Field label="US tax withheld (optional)" hint="For the tax-year report only. The basis uses the net amount above.">
+          <input type="number" step="0.01" min="0" inputMode="decimal" value={f.tax_withheld}
+            onChange={e => set({ tax_withheld: e.target.value })} className={inputCls} placeholder="0.00" />
+        </Field>
+      )}
+
       {SHARE_TYPES.includes(type) && (
         <div className="grid grid-cols-2 gap-4">
           <Field label="Shares" hint={type === 'SELL' ? `Max ${fmtShares(state.shares)}` : 'Up to 6 decimals'}>
@@ -158,9 +172,17 @@ export default function TxForm({ holding, state, ledger, type, tx, onSaved, onCa
         </Field>
       )}
 
+      {FEE_TYPES.includes(type) && (
+        <Field label="Fees & commission" hint="Always counted against you: added to a buy or buy-back, taken off a sale or premium.">
+          <input type="number" step="0.01" min="0" inputMode="decimal" value={f.fees}
+            onChange={e => set({ fees: e.target.value })} className={inputCls} placeholder="0.00" />
+        </Field>
+      )}
+
       {Number.isFinite(cash) && (
         <div className="px-3 py-2 rounded-lg bg-gray-800/50 border border-gray-700 text-xs text-gray-400">
           {type === 'CC_ROLL' ? (cash >= 0 ? 'Net credit' : 'Net debit') : type === 'CC_CLOSE' ? 'Debit' : type === 'CC_OPEN' ? 'Credit' : 'Total'}
+          {fee > 0 && ' after fees'}
           <span className="ml-2 text-sm font-mono font-semibold text-white">{money(Math.abs(cash))}</span>
         </div>
       )}

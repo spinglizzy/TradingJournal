@@ -36,3 +36,6 @@ public/uploads/*
 wheel-backfill-backup-*.json
 wheel-backfill2-backup-*.json
 hl-rebuild-backup-*.json
+
+# Real brokerage exports used by schwab-import-tests.mjs — personal account data, never commit
+test-fixtures/*.csv

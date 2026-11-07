@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import pool from '../db.js'
-import { TYPES, SHARES_PER_CONTRACT, replay } from '../lib/dragonEngine.js'
+import { TYPES, FEE_TYPES, SHARES_PER_CONTRACT, replay } from '../lib/dragonEngine.js'
+import { parseSchwab, planImport, runImport } from '../lib/schwabImport.js'
 
 /**
  * Dragon — long-term dividend portfolio.
@@ -22,7 +23,7 @@ const num = (v, name, { min = 0, strict = false } = {}) => {
   return n
 }
 
-const TX_COLS = `id, holding_id, date, type, shares, price, amount, notes, strike, expiry, contracts, premium, ref_id`
+const TX_COLS = `id, holding_id, date, type, shares, price, amount, fees, tax_withheld, notes, strike, expiry, contracts, premium, ref_id, import_hash`
 
 async function withTx(res, next, fn) {
   const client = await pool.connect()
@@ -60,7 +61,9 @@ function normalize(b, holding, ledger) {
   if (!holding.pays_dividend && (type === 'DIVIDEND' || type === 'DRIP')) throw bad(`${holding.ticker} is marked as not paying a dividend.`)
 
   const t = { type, date: b.date, notes: b.notes || null, shares: null, price: null, amount: 0,
-    strike: null, expiry: null, contracts: null, premium: null, ref_id: null }
+    strike: null, expiry: null, contracts: null, premium: null, ref_id: null,
+    fees: FEE_TYPES.includes(type) && b.fees !== '' && b.fees != null ? num(b.fees, 'Fees') : 0,
+    tax_withheld: type === 'DIVIDEND' && b.tax_withheld !== '' && b.tax_withheld != null ? num(b.tax_withheld, 'US tax withheld') : null }
   const refCall = () => {
     const ref = ledger.find(x => x.id === Number(b.ref_id) && (x.type === 'CC_OPEN' || x.type === 'CC_ROLL'))
     if (!ref) throw bad('Pick the covered call this closes.')
@@ -150,10 +153,11 @@ router.delete('/holdings/:id', (req, res, next) => withTx(res, next, async (clie
 }))
 
 // ── Transactions ─────────────────────────────────────────────────────────────
-const insertTx = (client, userId, holdingId, t) => client.query(
-  `INSERT INTO dragon_transactions (holding_id, user_id, date, type, shares, price, amount, notes, strike, expiry, contracts, premium, ref_id)
-   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING ${TX_COLS}`,
-  [holdingId, userId, t.date, t.type, t.shares, t.price, t.amount, t.notes, t.strike, t.expiry, t.contracts, t.premium, t.ref_id])
+// ── Transactions ─────────────────────────────────────────────────────────────
+const insertTx = (client, userId, holdingId, t, hash = null) => client.query(
+  `INSERT INTO dragon_transactions (holding_id, user_id, date, type, shares, price, amount, fees, tax_withheld, notes, strike, expiry, contracts, premium, ref_id, import_hash)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING ${TX_COLS}`,
+  [holdingId, userId, t.date, t.type, t.shares, t.price, t.amount, t.fees ?? 0, t.tax_withheld ?? null, t.notes, t.strike, t.expiry, t.contracts, t.premium, t.ref_id, hash])
 
 router.post('/transactions', (req, res, next) => withTx(res, next, async (client) => {
   const { holding, ledger } = await loadLedger(client, req.body.holding_id, req.userId)
@@ -178,22 +182,26 @@ router.post('/transactions/batch', (req, res, next) => withTx(res, next, async (
 
 router.put('/transactions/:id', (req, res, next) => withTx(res, next, async (client) => {
   const { rows: [cur] } = await client.query(
-    `SELECT holding_id, type FROM dragon_transactions WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId])
+    `SELECT ${TX_COLS} FROM dragon_transactions WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId])
   if (!cur) throw Object.assign(new Error('Transaction not found'), { status: 404 })
+  if (!cur.holding_id) throw bad('Cash rows come from the Schwab import — delete and re-import to change one.')
   const { holding, ledger } = await loadLedger(client, cur.holding_id, req.userId)
   const id = Number(req.params.id)
   // Type is fixed on edit — changing it would orphan whatever references this row.
   const t = { ...normalize({ ...req.body, type: cur.type }, holding, ledger.filter(x => x.id !== id)), id }
+  // An imported row's amount is the broker's exact cents; keep it unless what it's priced from changed.
+  const same = (k) => (t[k] ?? null) === (cur[k] ?? null)
+  if (cur.type !== 'DIVIDEND' && ['shares', 'price', 'premium', 'contracts'].every(same)) t.amount = cur.amount
   const updated = ledger.map(x => x.id === id ? t : x)
   // A buy-back is priced off the call's contract count; keep its cash in step if that changed.
-  const closes = updated.filter(x => x.type === 'CC_CLOSE' && x.ref_id === id && t.contracts)
+  const closes = updated.filter(x => x.type === 'CC_CLOSE' && x.ref_id === id && t.contracts && t.contracts !== cur.contracts)
   for (const c of closes) c.amount = Number(c.premium) * SHARES_PER_CONTRACT * t.contracts
   replay(updated)
   for (const c of closes) await client.query(`UPDATE dragon_transactions SET amount = $2 WHERE id = $1`, [c.id, c.amount])
   const { rows: [row] } = await client.query(
     `UPDATE dragon_transactions SET date=$2, shares=$3, price=$4, amount=$5, notes=$6, strike=$7, expiry=$8,
-       contracts=$9, premium=$10, ref_id=$11 WHERE id = $1 RETURNING ${TX_COLS}`,
-    [id, t.date, t.shares, t.price, t.amount, t.notes, t.strike, t.expiry, t.contracts, t.premium, t.ref_id])
+       contracts=$9, premium=$10, ref_id=$11, fees=$12, tax_withheld=$13 WHERE id = $1 RETURNING ${TX_COLS}`,
+    [id, t.date, t.shares, t.price, t.amount, t.notes, t.strike, t.expiry, t.contracts, t.premium, t.ref_id, t.fees, t.tax_withheld])
   return row
 }))
 
@@ -201,11 +209,54 @@ router.delete('/transactions/:id', (req, res, next) => withTx(res, next, async (
   const { rows: [cur] } = await client.query(
     `SELECT holding_id FROM dragon_transactions WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId])
   if (!cur) throw Object.assign(new Error('Transaction not found'), { status: 404 })
-  const { ledger } = await loadLedger(client, cur.holding_id, req.userId)
   const id = Number(req.params.id)
-  if (ledger.some(x => x.ref_id === id)) throw bad('Another entry closes this call — delete that one first.')
-  replay(ledger.filter(x => x.id !== id))
+  if (cur.holding_id) {   // cash rows belong to no ledger — nothing to replay
+    const { ledger } = await loadLedger(client, cur.holding_id, req.userId)
+    if (ledger.some(x => x.ref_id === id)) throw bad('Another entry closes this call — delete that one first.')
+    replay(ledger.filter(x => x.id !== id))
+  }
   await client.query(`DELETE FROM dragon_transactions WHERE id = $1`, [id])
 }))
+
+// ── Schwab CSV import ────────────────────────────────────────────────────────
+/** The import's only I/O, backed by this transaction's client. */
+export function pgStore(client, userId) {
+  return {
+    hashes: async () => new Set((await client.query(
+      `SELECT import_hash FROM dragon_transactions WHERE user_id = $1 AND import_hash IS NOT NULL`, [userId])).rows.map(r => r.import_hash)),
+    holdings: async () => new Map((await client.query(
+      `SELECT * FROM dragon_holdings WHERE user_id = $1 FOR UPDATE`, [userId])).rows.map(h => [h.ticker, h])),
+    createHolding: async ({ ticker, name, pays_dividend }) => (await client.query(
+      `INSERT INTO dragon_holdings (user_id, ticker, name, pays_dividend, drip) VALUES ($1, $2, $3, $4, $4) RETURNING *`,
+      [userId, ticker, name, pays_dividend])).rows[0],
+    setPaysDividend: async (h) => (await client.query(
+      `UPDATE dragon_holdings SET pays_dividend = true WHERE id = $1 RETURNING *`, [h.id])).rows[0],
+    ledger: async (h) => (await client.query(
+      `SELECT ${TX_COLS} FROM dragon_transactions WHERE holding_id = $1 AND user_id = $2`, [h.id, userId])).rows,
+    insert: async (h, tx, hash) => (await insertTx(client, userId, h?.id ?? null, tx, hash)).rows[0],
+  }
+}
+
+/**
+ * Preview (commit: false) and commit run the SAME import inside a transaction;
+ * the preview just rolls it back, so what you see is exactly what you'd get.
+ */
+router.post('/import', async (req, res, next) => {
+  const { csv, mappings = {}, commit = false } = req.body
+  const client = await pool.connect()
+  try {
+    if (typeof csv !== 'string' || !csv.trim()) throw bad('Choose a Schwab CSV file')
+    const plan = planImport(parseSchwab(csv), mappings)
+    await client.query('BEGIN')
+    const report = await runImport(plan, pgStore(client, req.userId))
+    await client.query(commit ? 'COMMIT' : 'ROLLBACK')
+    res.json({ ...report, committed: !!commit })
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    next(err)
+  } finally {
+    client.release()
+  }
+})
 
 export default router

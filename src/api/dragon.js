@@ -9,4 +9,5 @@ export const dragonApi = {
   batchBuys:     (body)     => api.post('/dragon/transactions/batch', body),
   updateTx:      (id, body) => api.put(`/dragon/transactions/${id}`, body),
   deleteTx:      (id)       => api.delete(`/dragon/transactions/${id}`),
+  importCsv:     (body)     => api.post('/dragon/import', body),   // { csv, mappings, commit }
 }

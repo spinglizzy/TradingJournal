@@ -41,10 +41,13 @@ const describe = (t) => {
   }
 }
 /** Cash effect on the cost basis, signed as money in (+) / out (−) of your pocket. */
-const cashFlow = (t) => ({
-  BUY: -t.amount, DRIP: 0, SELL: t.amount, DIVIDEND: t.amount,
-  CC_OPEN: t.amount, CC_CLOSE: -t.amount, CC_ROLL: t.amount, CC_EXPIRE: 0,
-}[t.type])
+const cashFlow = (t) => {
+  const fee = Number(t.fees) || 0
+  return ({
+    BUY: -t.amount - fee, DRIP: 0, SELL: t.amount - fee, DIVIDEND: t.amount,
+    CC_OPEN: t.amount - fee, CC_CLOSE: -t.amount - fee, CC_ROLL: t.amount - fee, CC_EXPIRE: 0,
+  })[t.type]
+}
 
 export default function HoldingDetail({ holding, state, ledger, onAction, onEdit, onDelete }) {
   const price = holding.current_price
@@ -53,6 +56,15 @@ export default function HoldingDetail({ holding, state, ledger, onAction, onEdit
 
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Stat label="Shares" value={fmtShares(state.shares)} />
+        <Stat label="Adjusted basis" value={money(state.totalCost)}
+          sub={state.basis != null ? `${money(state.basis)} / sh${state.basis <= 0 ? ' · paid off' : ''}` : undefined} />
+        <Stat label="Schwab basis" value={money(state.schwabBasis)} title="Buys + DRIP, nothing deducted — what Schwab shows"
+          sub={state.shares > 0 ? `${money(state.schwabBasis / state.shares)} / sh` : undefined} />
+        <Stat label="Fees paid" value={money(state.fees)} sub={state.taxWithheld ? `US tax withheld ${money(state.taxWithheld)}` : undefined} />
+      </div>
+
       <QuickActions holding={holding} state={state} onAction={onAction} />
 
       <section>
@@ -135,6 +147,8 @@ export default function HoldingDetail({ holding, state, ledger, onAction, onEdit
                     <td className="px-4 py-2 text-white">{TYPE_LABEL[t.type]}</td>
                     <td className="px-4 py-2 text-gray-400 font-mono text-xs">
                       {describe(t)}
+                      {Number(t.fees) > 0 && <span className="text-gray-600"> · fees {money(t.fees)}</span>}
+                      {Number(t.tax_withheld) > 0 && <span className="text-gray-600"> · US tax {money(t.tax_withheld)}</span>}
                       {t.ref_id && byId.get(t.ref_id) && <span className="text-gray-600"> · ends {callLabel(byId.get(t.ref_id))}</span>}
                       {t.notes && <div className="font-sans text-gray-600">{t.notes}</div>}
                     </td>
@@ -152,6 +166,16 @@ export default function HoldingDetail({ holding, state, ledger, onAction, onEdit
           </table>
         </div>
       </section>
+    </div>
+  )
+}
+
+function Stat({ label, value, sub, title }) {
+  return (
+    <div className="bg-gray-800/40 border border-gray-800 rounded-lg px-4 py-3" title={title}>
+      <div className="text-[11px] text-gray-500">{label}</div>
+      <div className="font-mono font-semibold text-white">{value}</div>
+      {sub && <div className="text-[11px] text-gray-500 font-mono">{sub}</div>}
     </div>
   )
 }

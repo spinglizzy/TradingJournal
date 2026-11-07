@@ -3,7 +3,7 @@
  *
  *   node dragon-tests.mjs
  */
-import { replay, incomeByMonth, LedgerError } from './server/lib/dragonEngine.js'
+import { replay, incomeByMonth, taxYear, auFY, fyLabel, cashTotals, LedgerError } from './server/lib/dragonEngine.js'
 
 let passed = 0, failed = 0
 function check(name, actual, expected, eps = 0.005) {
@@ -96,10 +96,43 @@ throws('sell that uncovers an open call', () => replay([...base, tx('SELL', '202
 throws('fractional contracts', () => replay([tx('BUY', '2026-01-01', { shares: 300, amount: 1 }), tx('CC_OPEN', '2026-01-02', { contracts: 1.5, expiry: '2026-02-01', amount: 10 })]), /whole number/)
 
 console.log('\nIncome by month')
-check('dividend + net CC per month', incomeByMonth(replay(L).income), [
+check('dividend + net CC per month', incomeByMonth(replay(L).events), [
   { month: '2026-01', dividend: 5, cc: 0, total: 5 },
   { month: '2026-02', dividend: 0, cc: 90, total: 90 },
 ])
+
+console.log('\nFees always work against the basis')
+const o3 = tx('CC_OPEN', '2026-01-05', { contracts: 1, strike: 30, expiry: '2026-02-20', premium: 1.2, amount: 120, fees: 0.66 })
+const feeBase = [tx('BUY', '2026-01-02', { shares: 100, price: 25, amount: 2500, fees: 1 }), o3]
+let fz = replay(feeBase)
+check('BUY fee adds to cost', replay([feeBase[0]]).totalCost, 2501)
+check('BUY fee in cash invested', replay([feeBase[0]]).cashInvested, 2501)
+check('CC_OPEN net = premium − fees', fz.ccNet, 119.34)
+check('basis after open', fz.totalCost, 2501 - 119.34)
+fz = replay([...feeBase, tx('CC_CLOSE', '2026-01-20', { ref_id: o3.id, premium: 0.3, amount: 30, fees: 0.66 })])
+check('CC_CLOSE cost = buy-back + fees', fz.ccNet, 119.34 - 30.66)
+const rollF = tx('CC_ROLL', '2026-02-19', { ref_id: o3.id, contracts: 1, strike: 31, expiry: '2026-03-20', premium: 0.25, amount: 25, fees: 1.32 })
+check('CC_ROLL net = signed net − fees', replay([...feeBase, rollF]).ccNet, 119.34 + 23.68)
+check('debit roll: fees make it worse', replay([...feeBase, { ...rollF, amount: -10 }]).ccNet, 119.34 - 11.32)
+fz = replay([...feeBase.slice(0, 1), tx('SELL', '2026-03-01', { shares: 50, price: 30, amount: 1500, fees: 1 })])
+check('SELL fee comes off proceeds', fz.realized, 1499 - 50 * 25.01)
+check('fees totalled', fz.fees, 2)
+check('fees ignored on types that carry none', replay([tx('BUY', '2026-01-01', { shares: 1, amount: 10 }), tx('DRIP', '2026-01-02', { shares: 1, amount: 10, fees: 5 })]).fees, 0)
+
+console.log('\nTax: never in the basis, reported per Australian FY')
+const tz = replay([
+  tx('BUY', '2026-06-01', { shares: 10, amount: 100 }),
+  tx('DIVIDEND', '2026-06-30', { amount: 0.85, tax_withheld: 0.15 }),
+  tx('DIVIDEND', '2026-07-01', { amount: 1.70, tax_withheld: 0.30 }),
+])
+check('basis uses net dividends only', tz.totalCost, 100 - 0.85 - 1.70)
+check('30 Jun is FY2025-26', fyLabel(auFY('2026-06-30')), 'FY2025-26')
+check('1 Jul is FY2026-27', fyLabel(auFY('2026-07-01')), 'FY2026-27')
+check('FY report', taxYear(tz.events, 2027), { grossDividends: 2, taxWithheld: 0.30, netDividends: 1.70, ccNet: 0, realized: 0, fees: 0 })
+check('Schwab basis ignores dividends', tz.schwabBasis, 100)
+
+console.log('\nCash rows')
+check('cash totals', cashTotals([{ type: 'CASH_IN', amount: 500 }, { type: 'CASH_OUT', amount: 120 }, { type: 'BUY', amount: 50 }]), { cashIn: 500, cashOut: 120, net: 380 })
 
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

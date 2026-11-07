@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { Plus, CalendarPlus, TriangleAlert, Trash2 } from 'lucide-react'
+import { Plus, CalendarPlus, TriangleAlert, Trash2, Upload, Scale, FileText } from 'lucide-react'
 import { dragonApi } from '../api/dragon.js'
-import { replay, incomeByMonth, SHARES_PER_CONTRACT } from '../../server/lib/dragonEngine.js'
+import { replay, incomeByMonth, cashTotals, auFY, fyLabel, SHARES_PER_CONTRACT } from '../../server/lib/dragonEngine.js'
 import Modal from '../components/ui/Modal.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import TxForm from '../components/dragon/TxForm.jsx'
 import DcaForm from '../components/dragon/DcaForm.jsx'
 import HoldingDetail, { QuickActions } from '../components/dragon/HoldingDetail.jsx'
+import ImportModal from '../components/dragon/ImportModal.jsx'
+import Reconcile from '../components/dragon/Reconcile.jsx'
+import TaxReport from '../components/dragon/TaxReport.jsx'
 import { Field, ErrorBox, SummaryCard } from '../components/dragon/ui.jsx'
-import { inputCls, btnPrimary, btnGhost, money, signed, pct, fmtShares, tone, TYPE_LABEL } from '../components/dragon/format.js'
+import { inputCls, btnPrimary, btnGhost, money, signed, pct, fmtShares, tone, todayStr, TYPE_LABEL } from '../components/dragon/format.js'
 
 const btnHeader = 'flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors'
 
@@ -22,6 +25,8 @@ export default function Dragon() {
   const [showAdd, setShowAdd] = useState(false)
   const [showDca, setShowDca] = useState(false)
   const [confirm, setConfirm] = useState(null)
+  const [panel, setPanel]     = useState(null)   // 'import' | 'reconcile' | 'tax'
+  const [notice, setNotice]   = useState(null)
 
   const load = useCallback(() => dragonApi.all().then(
     d => { setData(d); setError(null) },
@@ -43,8 +48,10 @@ export default function Dragon() {
 
   const totals = useMemo(() => {
     const year = String(new Date().getFullYear())
-    const income = rows.flatMap(r => r.state.income)
+    const fy = auFY(todayStr())
+    const income = rows.flatMap(r => r.state.events)
     const ytd = income.filter(i => i.date.startsWith(year))
+    const cash = cashTotals(data?.transactions ?? [])
     const sum = (arr, f) => arr.reduce((s, x) => s + (f(x) ?? 0), 0)
     const priced = rows.filter(r => r.mv != null)
     const pricedCost = sum(priced, r => r.state.totalCost)
@@ -58,9 +65,11 @@ export default function Dragon() {
       div: sum(income, i => i.dividend), divYtd: sum(ytd, i => i.dividend),
       cc: sum(income, i => i.cc), ccYtd: sum(ytd, i => i.cc),
       realized: sum(rows, r => r.state.realized),
+      fees: sum(income, i => i.fees), feesFy: sum(income.filter(i => auFY(i.date) === fy), i => i.fees), fy,
+      netCash: cash.net, cashIn: cash.cashIn, cashOut: cash.cashOut,
       monthly: incomeByMonth(income),
     }
-  }, [rows])
+  }, [rows, data])
 
   const detail = rows.find(r => r.h.id === detailId)
   const saved = () => { setTxForm(null); setShowDca(false); load() }
@@ -84,6 +93,15 @@ export default function Dragon() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setPanel('import')} className={`${btnHeader} text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700`}>
+            <Upload className="w-4 h-4" /> Import Schwab CSV
+          </button>
+          <button type="button" disabled={!rows.length} onClick={() => setPanel('reconcile')} className={`${btnHeader} text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 disabled:opacity-40`}>
+            <Scale className="w-4 h-4" /> Reconcile
+          </button>
+          <button type="button" disabled={!rows.length} onClick={() => setPanel('tax')} className={`${btnHeader} text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 disabled:opacity-40`}>
+            <FileText className="w-4 h-4" /> Tax year
+          </button>
           <button type="button" disabled={!rows.length} onClick={() => setShowDca(true)}
             className={`${btnHeader} text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 disabled:opacity-40`}>
             <CalendarPlus className="w-4 h-4" /> Monthly DCA
@@ -95,9 +113,14 @@ export default function Dragon() {
       </div>
 
       {error && <div className="mb-5"><ErrorBox>{error}</ErrorBox></div>}
+      {notice && (
+        <div className="mb-5 px-4 py-3 bg-emerald-900/20 border border-emerald-800/40 rounded-lg text-sm text-emerald-400 flex justify-between gap-3">
+          {notice}<button type="button" onClick={() => setNotice(null)} className="text-emerald-600 hover:text-emerald-300">Dismiss</button>
+        </div>
+      )}
 
       {/* ── Totals ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <SummaryCard label="Market value" value={money(totals.mv)}
           sub={totals.unpriced ? `${totals.unpriced} holding(s) have no price` : undefined} />
         <SummaryCard label="Cash invested" value={money(totals.cash)} sub="Buys only, DRIP excluded" />
@@ -106,7 +129,8 @@ export default function Dragon() {
         <SummaryCard label="Dividends earned" value={money(totals.div)} sub={`${money(totals.divYtd)} this year`} />
         <SummaryCard label="Net CC premium" value={signed(totals.cc)} sub={`${signed(totals.ccYtd)} this year`} valueCls={tone(totals.cc)} />
         <SummaryCard label="Realised P/L" value={signed(totals.realized)} valueCls={tone(totals.realized)} />
-        <SummaryCard label="Holdings" value={rows.length} />
+        <SummaryCard label="Fees paid" value={money(totals.fees)} sub={`${money(totals.feesFy)} in ${fyLabel(totals.fy)}`} />
+        <SummaryCard label="Net cash contributed" value={money(totals.netCash)} sub={`in ${money(totals.cashIn)} · out ${money(totals.cashOut)}`} />
       </div>
 
       {/* ── Holdings ───────────────────────────────────────────────────── */}
@@ -229,6 +253,22 @@ export default function Dragon() {
 
       <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="Add holding" size="sm">
         {showAdd && <AddHoldingForm onSaved={() => { setShowAdd(false); load() }} onCancel={() => setShowAdd(false)} />}
+      </Modal>
+
+      <Modal isOpen={panel === 'import'} onClose={() => setPanel(null)} title="Import Schwab CSV" size="xl">
+        {panel === 'import' && <ImportModal onCancel={() => setPanel(null)} onDone={r => {
+          setPanel(null)
+          setNotice(`Imported ${r.added.length} row(s)${r.duplicates ? `, skipped ${r.duplicates} duplicate(s)` : ''}${r.review.length ? `, ${r.review.length} left for review` : ''}.`)
+          load()
+        }} />}
+      </Modal>
+
+      <Modal isOpen={panel === 'reconcile'} onClose={() => setPanel(null)} title="Reconcile with Schwab" size="xl">
+        {panel === 'reconcile' && <Reconcile rows={rows} />}
+      </Modal>
+
+      <Modal isOpen={panel === 'tax'} onClose={() => setPanel(null)} title="Australian tax year" size="xl">
+        {panel === 'tax' && <TaxReport rows={rows} />}
       </Modal>
 
       <ConfirmDialog isOpen={!!confirm} title={confirm?.title} message={confirm?.message}
