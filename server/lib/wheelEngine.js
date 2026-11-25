@@ -336,6 +336,17 @@ export function dte(expiry, from = new Date().toISOString().slice(0, 10)) {
 }
 
 /**
+ * The tickers a play has run through, oldest first: a CSP can be rolled into a
+ * put on a different underlying and stay the same play (NVDX → AG). Unique leg
+ * tickers in id order, always ending with the cycle's current ticker.
+ */
+export function tickerTrail(cycle, legs = []) {
+  const trail = [...new Set([...legs].sort((a, b) => a.id - b.id).map(l => l.ticker).filter(Boolean))]
+    .filter(t => t !== cycle.ticker)
+  return [...trail, cycle.ticker]
+}
+
+/**
  * Derive the display shape for one cycle from its stored fields + legs.
  * This is what the API hands the client.
  */
@@ -358,6 +369,7 @@ export function describeCycle(cycle, legs = [], today) {
 
   return {
     ...cycle,
+    ticker_trail: tickerTrail(cycle, legs),
     basis,
     projected_basis,
     anchor_strike: projected_basis == null ? null : anchorStrike(legs).anchor,

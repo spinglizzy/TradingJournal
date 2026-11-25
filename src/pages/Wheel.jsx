@@ -338,11 +338,22 @@ function DashboardTab({ dashboard, onRefresh, onCalc, cycles }) {
   )
 }
 
+/** A play's ticker, with any it was rolled off first: "NVDX → AG", earlier ones greyed. */
+function TickerName({ cycle, className }) {
+  const trail = cycle.ticker_trail?.length ? cycle.ticker_trail : [cycle.ticker]
+  return (
+    <span className={className}>
+      {trail.slice(0, -1).map(t => <span key={t} className="text-gray-500">{t} → </span>)}
+      {trail[trail.length - 1]}
+    </span>
+  )
+}
+
 function PositionCard({ cycle, onCalc }) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-base font-semibold text-white">{cycle.ticker}</span>
+        <TickerName cycle={cycle} className="text-base font-semibold text-white" />
         <span className="text-xs text-gray-500">since {cycle.opened_at}</span>
       </div>
 
@@ -519,7 +530,7 @@ function HoldingsTab({ cycles, onCalc, onSell, onRefresh, onLog, onDeleteCycle }
         <div key={cycle.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-gray-800">
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-              <span className="text-lg font-bold text-white">{cycle.ticker}</span>
+              <TickerName cycle={cycle} className="text-lg font-bold text-white" />
               <Stat label="Shares" value={cycle.shares || '—'} />
               <Stat label="Avg assigned strike" value={cycle.shares > 0 ? money(cycle.avg_assigned_strike) : '—'} />
               <Stat label="Net premium" value={signed(cycle.net_premium)} />
@@ -718,7 +729,7 @@ function HistoryTab({ history }) {
                 className="w-full flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-gray-800/40 transition-colors"
               >
                 <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-                  <span className="text-sm font-bold text-white">{cycle.ticker}</span>
+                  <TickerName cycle={cycle} className="text-sm font-bold text-white" />
                   <span className="text-xs text-gray-500">
                     {cycle.opened_at} → {cycle.closed_at ?? '—'}
                   </span>

@@ -45,7 +45,7 @@
  */
 import express from 'express'
 import pool from './server/db.js'
-import { effectiveBasis } from './server/lib/wheelEngine.js'
+import { effectiveBasis, describeCycle } from './server/lib/wheelEngine.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory Postgres shim
@@ -184,6 +184,15 @@ function runStatement(sql, params) {
     })
     return { rows: [] }
   }
+
+  if (s === 'UPDATE wheel_cycles SET ticker = $1, updated_at = NOW() WHERE id = $2') {
+    const c = db.wheel_cycles.find(x => x.id === Number(p[1]))
+    if (c) c.ticker = p[0]
+    return { rows: [] }
+  }
+
+  if (s === "SELECT COUNT(*)::int AS n FROM trades WHERE wheel_cycle_id = $1 AND leg_status = 'open' AND id <> $2")
+    return { rows: [{ n: db.trades.filter(t => t.wheel_cycle_id === Number(p[0]) && t.leg_status === 'open' && t.id !== Number(p[1])).length }] }
 
   if (s === 'UPDATE wheel_cycles SET avg_assigned_strike = $1 WHERE id = $2') {
     const c = db.wheel_cycles.find(x => x.id === Number(p[1]))
@@ -720,6 +729,59 @@ await group('14. A covered call cannot be written against shares already covered
   catch (err) { msg = err.message }
   check('the second call is refused', /already under a covered call/.test(String(msg)), true)
   check('only one call is open', db.trades.filter(t => t.leg_status === 'open' && t.option_type === 'call').length, 1)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cross-ticker roll — a CSP rolled onto another underlying is the same play
+// ─────────────────────────────────────────────────────────────────────────────
+
+await group('15. Roll a put NVDX → AG: one play, NVDX premium carries into the AG basis', async () => {
+  resetDb()
+  await call('POST', '/legs', { ticker: 'NVDX', option_type: 'put', strike: 30, expiry: '2026-08-07', premium: 250, contracts: 1, date: '2026-08-01' })
+  const old = openLeg()
+  const { cycle, leg } = await call('POST', `/legs/${old.id}/roll`, {
+    ticker: ' ag ', close_cost: 900, strike: 25, expiry: '2026-09-18', premium: 1200, contracts: 3, date: '2026-08-05',
+  })
+
+  check('still one cycle', db.wheel_cycles.length, 1)
+  check('cycle renamed AG', cycle.ticker, 'AG')
+  check('new leg is AG', leg.ticker, 'AG')
+  check('new leg has 3 contracts', leg.contracts, 3)
+  check('new leg points at the old', leg.rolled_from_id, old.id)
+  check('old leg stays NVDX', db.trades.find(t => t.id === old.id).ticker, 'NVDX')
+  check('old leg is rolled', db.trades.find(t => t.id === old.id).leg_status, 'rolled')
+  check('net_premium = 250 − 900 + 1200', cycle.net_premium, 550)
+
+  const legs = db.trades.filter(t => t.wheel_cycle_id === cycle.id && t.leg_status != null)
+  const view = describeCycle(cycleById(cycle.id), legs)
+  check('ticker_trail', view.ticker_trail, ['NVDX', 'AG'])
+  check('projected basis = 25 − 550/300', view.projected_basis, 25 - 550 / 300)
+
+  const { cycle: assigned } = await call('POST', `/legs/${leg.id}/assign`, { date: '2026-09-18' })
+  check('300 AG shares', assigned.shares, 300)
+  check('basis after assignment equals the projection', basisOf(assigned), 25 - 550 / 300)
+})
+
+await group('16. Cross-ticker guards leave the data unchanged', async () => {
+  resetDb()
+  await sellLeg({ option_type: 'put', strike: STRIKE, expiry: '2026-08-07', premium: 50, contracts: 1, date: '2026-08-01' })
+  await call('POST', `/legs/${openLeg().id}/assign`, { date: '2026-08-07' })
+  await sellLeg({ option_type: 'call', strike: CALL_K, expiry: '2026-08-21', premium: 30, contracts: 1, date: '2026-08-08' })
+  let before = clone(db), msg = null
+  try { await call('POST', `/legs/${openLeg().id}/roll`, { ticker: 'AG', close_cost: 10, strike: 22, expiry: '2026-09-18', premium: 40, date: '2026-08-10' }) }
+  catch (err) { msg = err.message }
+  check('a covered call cannot switch ticker', /→ 400: .*covered call/.test(String(msg)), true)
+  check('data unchanged after the call refusal', clone(db), before)
+
+  resetDb()
+  await call('POST', '/legs', { ticker: 'NVDX', option_type: 'put', strike: 30, expiry: '2026-08-07', premium: 250, contracts: 1, date: '2026-08-01' })
+  await call('POST', '/legs', { ticker: 'AG', option_type: 'put', strike: 25, expiry: '2026-08-07', premium: 100, contracts: 1, date: '2026-08-01' })
+  const nvdx = db.trades.find(t => t.ticker === 'NVDX')
+  before = clone(db); msg = null
+  try { await call('POST', `/legs/${nvdx.id}/roll`, { ticker: 'AG', close_cost: 100, strike: 25, expiry: '2026-09-18', premium: 300, date: '2026-08-05' }) }
+  catch (err) { msg = err.message }
+  check('cannot roll into a ticker with an active play', /→ 400: .*active AG play/.test(String(msg)), true)
+  check('data unchanged after the clash refusal', clone(db), before)
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

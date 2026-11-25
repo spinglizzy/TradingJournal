@@ -188,6 +188,13 @@ function CostField({ label, value, onChange, shares, hint }) {
 function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
   const cfg    = useCommissions()
   const shares = (leg.contracts || 0) * SHARES_PER_CONTRACT
+  const isPut  = leg.option_type === 'put'
+  const [ticker, setTicker]       = useState(leg.ticker ?? '')
+  const [contracts, setContracts] = useState(leg.contracts ?? 1)
+  const newQty    = Math.max(0, Math.round(Number(contracts) || 0))
+  const newShares = newQty * SHARES_PER_CONTRACT
+  const newSym    = ticker.trim().toUpperCase() || leg.ticker
+  const switching = newSym !== leg.ticker
   const [closeCost, setCloseCost] = useState('')
   const [strike, setStrike]       = useState(leg.strike ?? '')
   const [expiry, setExpiry]       = useState('')
@@ -199,18 +206,18 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
 
   const [dateError, setDateError] = useState(null)
 
-  const est       = rollFees(leg.contracts, cfg, { combo })
-  const closeFee  = useAutoFee(est.closeFee)
-  const openFee   = useAutoFee(est.openFee)
+  // The buy-to-close side is the old leg's count; the new leg is billed on its own.
+  const closeFee  = useAutoFee(rollFees(leg.contracts, cfg, { combo }).closeFee)
+  const openFee   = useAutoFee(rollFees(newQty, cfg, { combo }).openFee)
   const fees      = round2(closeFee.amount + openFee.amount)
 
   const debit  = Number(closeCost) * shares
-  const credit = Number(premium) * shares
+  const credit = Number(premium) * newShares
   // Net of the roll INCLUDING both commissions — the number that actually moves
   // the cycle's net premium, and therefore the break-even line.
   const gross  = (Number.isFinite(credit) ? credit : 0) - (Number.isFinite(debit) ? debit : 0)
   const net    = round2(gross - fees)
-  const ready  = closeCost !== '' && premium !== '' && strike !== '' && expiry !== ''
+  const ready  = closeCost !== '' && premium !== '' && strike !== '' && expiry !== '' && newQty >= 1
   // A roll that only looks like a credit until the commissions are counted is
   // the exact case worth naming — it is what makes a losing roll feel like a win.
   const flipped = ready && gross >= 0 && net < 0
@@ -229,9 +236,10 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
             close_fees: closeFee.amount,
             strike: Number(strike),
             expiry,
-            premium: Number(premium) * shares,
+            premium: Number(premium) * newShares,
             fees: openFee.amount,
-            contracts: leg.contracts,
+            contracts: newQty,
+            ticker: newSym,
             date,
           })
         }}
@@ -256,6 +264,26 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
           <h4 className="text-xs font-semibold text-gray-300">New leg</h4>
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <label className="block text-xs text-gray-400 font-medium mb-1.5">Ticker</label>
+              <input type="text" required value={ticker} disabled={!isPut}
+                title={isPut ? undefined : 'A covered call is tied to the shares you hold'}
+                onChange={e => setTicker(e.target.value.toUpperCase())}
+                className={`${inputCls} uppercase disabled:opacity-50`} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 font-medium mb-1.5">Contracts</label>
+              <input type="number" step="1" min="1" required value={contracts}
+                onChange={e => setContracts(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+          {switching && (
+            <p className="text-[11px] text-cyan-400 leading-relaxed">
+              Rolling {leg.ticker} → {newSym}. Same play: every {leg.ticker} credit and this buy-back stay in
+              net premium, so the {newSym} break-even is new strike − total net premium ÷ {newShares} shares.
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="block text-xs text-gray-400 font-medium mb-1.5">New strike</label>
               <input type="number" step="0.01" required value={strike}
                 onChange={e => setStrike(e.target.value)} className={inputCls} />
@@ -265,10 +293,10 @@ function RollModal({ open, leg, busy, error, onClose, onSubmit }) {
               <DatePicker value={expiry} onChange={setExpiry} placeholder="Pick expiry" />
             </div>
           </div>
-          <CostField label="New premium received" value={premium} onChange={setPremium} shares={shares} />
+          <CostField label="New premium received" value={premium} onChange={setPremium} shares={newShares} />
           <FeeField
             label="New leg commission" fee={openFee}
-            breakdown={feeBreakdown(leg.contracts, cfg, { includeOrderFee: !combo })}
+            breakdown={feeBreakdown(newQty, cfg, { includeOrderFee: !combo })}
           />
           <div>
             <label className="block text-xs text-gray-400 font-medium mb-1.5">Date rolled</label>

@@ -1,8 +1,8 @@
 import { Router } from 'express'
 import pool from '../db.js'
 import {
-  SHARES_PER_CONTRACT, sharesFor, legNetPremium, sumLegPremium, cycleJournalPnl, bankedPremium,
-  addLot, rollupLots, bookShareExit, isCycleFlat, describeCycle, dte, effectiveBasis,
+  SHARES_PER_CONTRACT, sharesFor, sumLegPremium, cycleJournalPnl, bankedPremium,
+  addLot, rollupLots, bookShareExit, isCycleFlat, describeCycle, dte, effectiveBasis, tickerTrail,
 } from '../lib/wheelEngine.js'
 
 const router = Router()
@@ -418,6 +418,7 @@ router.get('/history', async (req, res) => {
       const own = legs.filter(l => l.wheel_cycle_id === c.id)
       return {
         ...c,
+        ticker_trail: tickerTrail(c, own),
         legs: own,
         leg_count: own.length,
         gross_premium: sumLegPremium(own),
@@ -756,6 +757,21 @@ router.delete('/legs/:id', async (req, res) => tx(res, async (client) => {
     return { deleted: true, cycle: null, cycle_removed: true }
   }
 
+  // Deleting the leg that moved the play onto its current ticker moves it back
+  // to the newest remaining leg's ticker — unless that ticker has its own play.
+  if (leg.ticker === cycle.ticker) {
+    const { rows: rest } = await client.query(
+      `SELECT ticker FROM trades WHERE wheel_cycle_id = $1 AND ${REAL_LEG} ORDER BY id DESC`, [cycleId])
+    if (rest.length && !rest.some(r => r.ticker === cycle.ticker)) {
+      const back = rest[0].ticker
+      const { rows: clash } = await client.query(
+        `SELECT id FROM wheel_cycles WHERE user_id = $1 AND ticker = $2 AND status = 'active'`, [req.userId, back])
+      if (!clash.length) {
+        await client.query('UPDATE wheel_cycles SET ticker = $1, updated_at = NOW() WHERE id = $2', [back, cycleId])
+      }
+    }
+  }
+
   return { deleted: true, cycle: await recomputeCycle(client, cycleId) }
 }))
 
@@ -886,11 +902,33 @@ router.post('/legs/:id/roll', async (req, res) => tx(res, async (client) => {
   if (!(Number(strike) > 0))      throw badRequest('New strike is required')
   if (!expiry)                    throw badRequest('New expiry is required')
   if (premium == null || Number.isNaN(Number(premium))) throw badRequest('New premium is required')
+  if (!(Math.round(Number(contracts)) >= 1)) throw badRequest('Contracts must be 1 or more')
+
+  // A put can roll onto a different underlying and stay the same play: the old
+  // ticker's credits and buy-back stay in net_premium, so the new break-even is
+  // new strike − total net premium ÷ new shares. The legs keep their own tickers.
+  const sym = req.body.ticker == null || String(req.body.ticker).trim() === ''
+    ? leg.ticker : String(req.body.ticker).trim().toUpperCase()
+  if (sym !== leg.ticker) {
+    if (leg.option_type !== 'put') throw badRequest(`A covered call is tied to the ${leg.ticker} shares you hold, so it can't roll onto another ticker.`)
+    const { rows: [cyc] } = await client.query('SELECT * FROM wheel_cycles WHERE id = $1', [leg.wheel_cycle_id])
+    if (Number(cyc?.shares) > 0) throw badRequest(`This play holds ${cyc.shares} ${leg.ticker} shares, so it can't move to another ticker.`)
+    const { rows: [others] } = await client.query(
+      `SELECT COUNT(*)::int AS n FROM trades WHERE wheel_cycle_id = $1 AND leg_status = 'open' AND id <> $2`,
+      [leg.wheel_cycle_id, leg.id])
+    if (others.n > 0) throw badRequest(`Another leg on this ${leg.ticker} play is still open. Close or roll it first, then move the play to ${sym}.`)
+    const { rows: clash } = await client.query(
+      `SELECT id FROM wheel_cycles WHERE user_id = $1 AND ticker = $2 AND status = 'active'`, [req.userId, sym])
+    if (clash.length) throw badRequest(`You already have an active ${sym} play. Rolling into it would merge two plays — close that one first.`)
+  }
 
   const closeFees = feeAmount(close_fees, 'Buy-to-close commission')
   const openFees  = feeAmount(fees, 'New leg commission')
 
   await resolveLeg(client, leg, 'rolled', { closeCost: Number(close_cost), closeFees })
+  if (sym !== leg.ticker) {
+    await client.query('UPDATE wheel_cycles SET ticker = $1, updated_at = NOW() WHERE id = $2', [sym, leg.wheel_cycle_id])
+  }
 
   const qty   = sharesFor(contracts)
   const total = Number(premium)
@@ -902,7 +940,7 @@ router.post('/legs/:id/roll', async (req, res) => tx(res, async (client) => {
     ) VALUES ($1,$2,'short',$3,$4,$5,$6,'open','wheel_option','option','wheel',
               $7,$8,$9,$10,$11,'open',$12,$13,$14,$15)
     RETURNING *
-  `, [date, leg.ticker, total / qty, qty, openFees, leg.account_id, leg.option_type,
+  `, [date, sym, total / qty, qty, openFees, leg.account_id, leg.option_type,
       Number(strike), expiry, total, Math.round(Number(contracts)),
       leg.wheel_cycle_id, leg.id, await wheelStrategyId(client, req.userId), req.userId])
 
